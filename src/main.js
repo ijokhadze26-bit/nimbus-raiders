@@ -8,6 +8,7 @@ import { Loop } from './core/loop.js';
 import { Game } from './game/game.js';
 import { Hud } from './ui/hud.js';
 import { createAudio } from './audio/audio.js';
+import { installFx } from './fx/fx.js';
 
 function readParams() {
   const q = new URLSearchParams(location.search);
@@ -27,6 +28,7 @@ async function boot() {
   const input = new Input(app);
   const game = new Game({ engine, input, params });
   window.__game = game;
+  installFx(game); // stage3-fx: sets game.fx (updated from game.sync)
   const hud = new Hud(game, document.getElementById('ui'));
   game.hud = hud;
   createAudio().install(game); // audio: unlocks on first gesture, sets game.audio
