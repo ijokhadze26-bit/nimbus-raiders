@@ -24,10 +24,18 @@ export class Run {
     const evs = (def.events || []).slice().sort((a, b) => a.at - b.at);
     for (const e of evs) (this.byType[e.type] ||= []).push(e);
     this.lastProgress = -1;
+    // endless: the progress bar spans the current boss segment (segStart -> length)
+    this.segStart = 0;
   }
 
-  /** Sorted events of one type (systems keep their own cursor). */
-  eventsOf(type) { return this.byType[type] || []; }
+  /**
+   * Sorted events of one type (systems keep their own cursor). The array is stored, so endless mode can
+   * append generated events later (always ahead of every cursor, still sorted) and systems pick them up.
+   */
+  eventsOf(type) { return (this.byType[type] ||= []); }
+
+  /** Appends generated events (endless); `list` must be sorted and lie past every event already queued. */
+  append(list) { for (const e of list) (this.byType[e.type] ||= []).push(e); }
 
   setPhase(phase) {
     if (this.phase === phase) return;
@@ -40,7 +48,10 @@ export class Run {
   update(dt, dist) {
     this.time += dt;
     this.dist = dist;
-    this.bus.emit('run:progress', { dist: Math.max(0, dist), length: this.length });
+    if (this.mode === 'endless') {
+      const seg = Math.max(1, this.length - this.segStart);
+      this.bus.emit('run:progress', { dist: Math.max(0, Math.min(seg, dist - this.segStart)), length: seg, total: Math.max(0, Math.round(dist)) });
+    } else this.bus.emit('run:progress', { dist: Math.max(0, dist), length: this.length });
   }
 
   starsFor(squad) {
