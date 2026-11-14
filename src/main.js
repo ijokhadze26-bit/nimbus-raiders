@@ -7,6 +7,7 @@ import { Input } from './core/input.js';
 import { Loop } from './core/loop.js';
 import { Game } from './game/game.js';
 import { Hud } from './ui/hud.js';
+import { createAudio } from './audio/audio.js';
 
 function readParams() {
   const q = new URLSearchParams(location.search);
@@ -28,6 +29,7 @@ async function boot() {
   window.__game = game;
   const hud = new Hud(game, document.getElementById('ui'));
   game.hud = hud;
+  createAudio().install(game); // audio: unlocks on first gesture, sets game.audio
 
   // Canvas labels need the display font; wait briefly (never block boot on it).
   try {
