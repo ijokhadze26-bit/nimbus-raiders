@@ -105,7 +105,7 @@ const TW = (t = 0.25, b = 0.22) => ({ grunt: 1 - t - b * BOMB - 0.1, runner: 0.1
 // fights last ~12-25 s (L1 is a short tutorial fight). Stars: 2 at about a typical casual finish, 3 at a
 // strong one.
 export const LEVELS = [
-  level({ id: 1, name: 'Cloud Cadets', theme: 'noon', length: 320, speed: 9, stars: [45, 95], reward: 40, tough: 1.5, boss: { type: 'grawlstone', hp: 4500, tier: 1 } }, [
+  level({ id: 1, name: 'Cloud Cadets', theme: 'noon', length: 320, speed: 9, stars: [45, 95], reward: 40, tough: 1.5, boss: { type: 'grawlstone', hp: 3000, tier: 1 } }, [
     P(a(3, 6), a(1, 3)),
     B([8, 'weapon', 1], [8, 'troops', 4]),
     P(a(-3, 8), a(2, 4)),                       // the red gate turns blue when you shoot it

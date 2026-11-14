@@ -139,8 +139,14 @@ export class UI {
   // ---------------- input ----------------
   onClick(e) {
     const btn = e.target.closest?.('[data-act]');
+    // a tap on the dimmed backdrop of a popup that has a Close X closes it (daily reward, settings)
+    if (!btn && e.target.classList?.contains('dim-screen') && !e.target.classList.contains('leave') && e.target.querySelector('.close-x')) {
+      this.screens[e.target.dataset.screen]?.onBack?.();
+      return;
+    }
     if (!btn || btn.disabled || btn.classList.contains('is-disabled')) return;
     const scr = btn.closest('.screen');
+    if (scr && scr.classList.contains('leave')) return; // a closing screen is inert (no tap-through)
     this.game.events.emit('ui:click', {});
     this.vibrate(8);
     const name = scr ? scr.dataset.screen : null;

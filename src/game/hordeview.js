@@ -8,7 +8,8 @@ import { XF, writeXfYawRoll, writeXfYaw, markInstances } from '../core/pool.js';
 import { part, merge, G } from '../models/util.js';
 
 const DIE_TIME = 0.17;
-const MAX_BLASTS = 24;
+// bomber chain puffs: few, see-through and quick, so a chain never hides the gate row or the squad
+const MAX_BLASTS = 8;
 const ANIM = {
   grunt: { f: 9, hop: 0.13, sq: 0.09, roll: 0.13 },
   runner: { f: 15, hop: 0.1, sq: 0.07, roll: 0.1 },
@@ -46,8 +47,8 @@ export class HordeView {
     this.blobs = new THREE.InstancedMesh(blobGeo, new THREE.MeshBasicMaterial({ color: '#2a3f7a', alphaMap: blobShadowTexture(), transparent: true, opacity: 0.32, depthWrite: false }), cap);
     this.blobs.frustumCulled = false; this.blobs.count = 0; this.blobs.renderOrder = 1;
     this.blastGeo = merge([
-      part(G.sphere(1, 12, 8), '#ffb03a', { a: 0.55 }),
-      part(G.sphere(0.62, 10, 7), '#fff2b0', { a: 0.9 }),
+      part(G.sphere(1, 12, 8), '#ffb03a', { a: 0.3 }),
+      part(G.sphere(0.62, 10, 7), '#fff2b0', { a: 0.55 }),
     ]);
     this.blastMesh = new THREE.InstancedMesh(this.blastGeo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, toneMapped: false, fog: false }), MAX_BLASTS);
     this.blastMesh.frustumCulled = false; this.blastMesh.count = 0; this.blastMesh.renderOrder = 7;
@@ -146,7 +147,7 @@ export class HordeView {
       b.t += dt;
       const f = b.t / 0.32;
       if (f >= 1) { bd.splice(i, 1); continue; }
-      const s = b.r * (f < 0.35 ? 0.4 + (f / 0.35) * 0.6 : 1 - (f - 0.35) / 0.65 * 0.9);
+      const s = b.r * 0.7 * (f < 0.2 ? 0.4 + (f / 0.2) * 0.6 : 1 - (f - 0.2) / 0.8 * 0.95);
       XF[0] = b.x; XF[1] = 0.5; XF[2] = b.z; XF[3] = 0; XF[5] = s; XF[6] = s * 0.7; XF[7] = s;
       writeXfYaw(xArr, nx++);
     }

@@ -19,10 +19,13 @@ export const ENDLESS = {
   gunUntil: 1400, gunWeight: 2.2,  // guaranteed gun every third barrel row before gunUntil; gun weight early
   ladderLate: 1,                   // weight of x2 ladder rows past 600 u (doubling is what fills the cap)
   hordeFrac: 0.4,                  // horde headcount = hordeFrac * E (fewer, tougher Murklings = less to draw)
+  hordeEarly: 2.5,                 // extra headcount before the first arena: zone 1 hordes now cost a casual
+                                   // squad ~10-30 raiders instead of ~3 (no threat for the first 75 s before)
   hordeLate: 0.1,                  // horde headcount growth per 700 u past 1400 u (toughness does the rest)
-  // boss hp per arena, then x bossGrowth each. The first arena is the skill check (a squad that arrives
-  // small cannot outlast it); the Tempest King (5th) hits a capped squad hardest, so it needs less hp.
-  bossHp: [120000, 450000, 500000, 500000, 300000], bossGrowth: 1.35, bossMax: 4000000,
+  // boss hp per arena, then x bossGrowth each. The first arena is a skill check most fresh casual
+  // runs pass (at 120000 none did, so every such run scored the same 698 m); the second is the real wall.
+  // The Tempest King (5th) hits a capped squad hardest, so it needs less hp.
+  bossHp: [35000, 450000, 500000, 500000, 300000], bossGrowth: 1.35, bossMax: 4000000,
 };
 
 export const ENDLESS_BOSSES = ['grawlstone', 'oculon', 'mothermurk', 'ironhorn', 'tempestking'];
@@ -79,7 +82,7 @@ export class EndlessGen {
     return {
       E,
       add: Math.max(4, Math.round(0.45 * E)),            // good add gate max
-      horde: Math.min(900, Math.round(Math.max(10, ENDLESS.hordeFrac * E) * (1 + ENDLESS.hordeLate * late))),
+      horde: Math.min(900, Math.round(Math.max(10, ENDLESS.hordeFrac * E * (d < ENDLESS.bossEvery ? ENDLESS.hordeEarly : 1)) * (1 + ENDLESS.hordeLate * late))),
       barrel: Math.max(8, Math.round(E * dpm * 0.6 * (1 + 0.3 * late))),
       troops: Math.max(4, Math.round(0.25 * E)),
       hits: Math.round(450 + 0.12 * d),                  // ladder hits per rung

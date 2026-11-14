@@ -9,14 +9,12 @@ void main() {
   gl_Position = p.xyww; // pinned to the far plane: drawn last, only where nothing else covered the pixel
 }`;
 
-const SKY_FRAG = /* glsl */`
+// Sky colour for a view direction (gradient + sun/moon glow + disc). Shared with the cloud sea, which fades
+// into exactly this colour toward its far edge so the sea's horizon line never shows as a hard seam.
+const SKY_FN = /* glsl */`
 uniform vec3 uTop; uniform vec3 uMid; uniform vec3 uHorizon; uniform vec3 uBottom;
-uniform vec3 uSunDir; uniform vec3 uSunColor; uniform float uSunSize; uniform float uGlow;
-uniform float uStars; uniform float uMoon; uniform float uTime;
-varying vec3 vDir;
-float hash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
-void main() {
-  vec3 d = normalize(vDir);
+uniform vec3 uSunDir; uniform vec3 uSunColor; uniform float uSunSize; uniform float uGlow; uniform float uMoon;
+vec3 skyColor(vec3 d) {
   float h = d.y;
   vec3 col;
   if (h >= 0.0) {
@@ -39,7 +37,18 @@ void main() {
   // hot white core fading to the warm rim
   float core = smoothstep(cos(r * 0.95), 1.0, sd);
   vec3 sunCol = mix(uSunColor, vec3(1.0), 0.35 + core * 0.65);
-  col = mix(col, sunCol, disc);
+  return mix(col, sunCol, disc);
+}`;
+
+const SKY_FRAG = /* glsl */`
+uniform float uStars; uniform float uTime;
+varying vec3 vDir;
+${SKY_FN}
+float hash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+void main() {
+  vec3 d = normalize(vDir);
+  float h = d.y;
+  vec3 col = skyColor(d);
   if (uStars > 0.0 && h > 0.02) {
     vec3 cell = floor(d * 220.0);
     float s = hash(cell);
@@ -75,7 +84,8 @@ void main() {
 }`;
 
 const SEA_FRAG = /* glsl */`
-uniform vec3 uLight; uniform vec3 uShade; uniform vec3 uDeep; uniform vec3 uHorizon;
+uniform vec3 uLight; uniform vec3 uShade; uniform vec3 uDeep;
+${SKY_FN}
 uniform vec3 uCam; uniform float uTime; uniform float uFadeNear; uniform float uFadeFar; uniform float uOctaves;
 varying vec3 vWorld;
 float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
@@ -102,14 +112,20 @@ void main() {
   col += (uLight - col) * smoothstep(0.55, 0.9, m) * 0.35;
   float d = distance(vWorld.xz, uCam.xz);
   col = mix(col, uHorizon, smoothstep(uFadeNear, uFadeFar, d));
+  // past the haze, blend into the sky seen in this direction (sun glow included): the plane's far edge
+  // (700 u out) then meets the sky dome with no visible line on tall phones
+  col = mix(col, skyColor(normalize(vWorld - cameraPosition)), smoothstep(uFadeFar + 40.0, 640.0, d));
   gl_FragColor = vec4(col, 1.0);
   #include <colorspace_fragment>
 }`;
 
-export function createSea() {
+/** sky: the sky's uniforms (shared objects, so theme changes reach the sea's far-edge sky blend). */
+export function createSea(sky) {
+  const su = sky.uniforms;
   const uniforms = {
     uLight: { value: new THREE.Color() }, uShade: { value: new THREE.Color() }, uDeep: { value: new THREE.Color() },
-    uHorizon: { value: new THREE.Color() }, uCam: { value: new THREE.Vector3() }, uTime: { value: 0 },
+    uTop: su.uTop, uMid: su.uMid, uHorizon: su.uHorizon, uBottom: su.uBottom, uSunDir: su.uSunDir, uSunColor: su.uSunColor,
+    uSunSize: su.uSunSize, uGlow: su.uGlow, uMoon: su.uMoon, uCam: { value: new THREE.Vector3() }, uTime: { value: 0 },
     uFadeNear: { value: 60 }, uFadeFar: { value: 260 }, uOctaves: { value: 4 },
   };
   const mat = new THREE.ShaderMaterial({ uniforms, vertexShader: SEA_VERT, fragmentShader: SEA_FRAG, depthWrite: true, fog: false });

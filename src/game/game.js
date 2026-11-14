@@ -246,11 +246,19 @@ export class Game {
       const d = this.squad.dying[this.squad.dying.length - 1];
       if (d) { d.x = this.squad.leader.x; d.z = this.squad.leader.z; }
     }
+    // wiped out in an arena: the result screen shows how close the boss was to dying ('so close, retry!')
+    const boss = run.phase === 'boss' && this.boss && this.boss.alive ? this.boss : null;
+    const bossInfo = boss ? { bossName: boss.name, bossHp: Math.max(1, Math.ceil(boss.hp)), bossMax: boss.maxHp } : {};
+    // Endless scores distance, which stops at the arena: the damage dealt adds up to 30 m there (< the 34 m of
+    // empty road after a kill), so a better boss attempt still beats the best without outranking a kill
+    let dist = Math.round(run.dist);
+    if (boss && run.mode === 'endless') dist += Math.floor(30 * (1 - boss.hp / boss.maxHp));
     run.setPhase('lost');
     run.coinsEarned = run.coins;
     this.bank.coins += run.coinsEarned;
-    this.lastResult = { win: false, levelId: run.levelId, mode: run.mode, dist: Math.round(run.dist), coins: run.coinsEarned, kills: run.kills };
-    this.events.emit('run:lose', { levelId: run.levelId, mode: run.mode, dist: Math.round(run.dist), coins: run.coinsEarned, kills: run.kills });
+    const p = { levelId: run.levelId, mode: run.mode, dist, coins: run.coinsEarned, kills: run.kills, ...bossInfo };
+    this.lastResult = { win: false, ...p };
+    this.events.emit('run:lose', p);
     this.resultTimer = 1.4;
   }
 
@@ -394,12 +402,14 @@ export class Game {
     if (boss) {
       // pull back and look further ahead so the boss clears the HUD and the squad clears the badge
       const zoom = 1 + CAMERA.crowdZoom * crowd;
-      outPos.set(L.x * CAMERA.followX, CAMERA.bossHeight * zoom * (1 + 0.15 * wide), L.z + CAMERA.bossBack * zoom * (1 + 0.18 * wide));
-      outLook.set(L.x * CAMERA.lookX, 0, L.z - (CAMERA.bossLook - 2 * wide));
+      outPos.set(L.x * CAMERA.followX, CAMERA.bossHeight * zoom * (1 + CAMERA.bossWideLift * wide), L.z + CAMERA.bossBack * zoom * (1 + CAMERA.bossWideBack * wide));
+      outLook.set(L.x * CAMERA.lookX, 0, L.z - (CAMERA.bossLook + CAMERA.bossWideLook * wide));
       return;
     }
-    outPos.set(L.x * CAMERA.followX, CAMERA.height * (1 + CAMERA.crowdLift * crowd + 0.12 * wide), L.z + CAMERA.back * (1 + CAMERA.crowdBack * crowd + 0.1 * wide));
-    outLook.set(L.x * CAMERA.lookX, 0, L.z - (CAMERA.lookAhead - CAMERA.crowdLook * crowd - 2.5 * wide));
+    const wc = wide * crowd;
+    outPos.set(L.x * CAMERA.followX, CAMERA.height * (1 + CAMERA.crowdLift * crowd + 0.12 * wide),
+      L.z + CAMERA.back * (1 + CAMERA.crowdBack * crowd + 0.1 * wide + CAMERA.wideCrowdBack * wc));
+    outLook.set(L.x * CAMERA.lookX, 0, L.z - (CAMERA.lookAhead - CAMERA.crowdLook * crowd - 2.5 * wide + CAMERA.wideCrowdLook * wc));
   }
 
   snapCamera() {

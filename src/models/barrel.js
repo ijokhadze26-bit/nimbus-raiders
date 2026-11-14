@@ -67,6 +67,13 @@ export function buildRewardDisplay(kind, amount, tier) {
     gun.scale.setScalar(3.2);
     gun.rotation.y = Math.PI / 2;
     root.add(gun);
+    // 'GUN UP' badge (drawn by barrels.js): a rifle model alone read as a thin stick next to the drone reward
+    const lab = createLabel(256, 128);
+    const lm = labelMesh(lab, 1.25, 0.62);
+    lm.position.set(0, 0.78, 0.05);
+    root.add(lm);
+    root.userData.label = lab;
+    root.userData.labelMesh = lm;
     glowColor = w.color;
   } else if (kind === 'troops') {
     const m = sharedMat('raider', () => toonMaterial());

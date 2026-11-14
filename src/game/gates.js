@@ -309,6 +309,9 @@ export class Gates {
     const stroke = blue ? '#0e3d9c' : '#8e0f22';
     if (g.op === 'add') {
       drawLabel(v.label, signed(g.value), { fill: '#ffffff', stroke, size: 118, strokeWidth: 20, y: 0.52 });
+    } else if (g.hitsPerStep >= 10000) {
+      // fixed ×/÷ gate (levels.js FIX): no 'shoot to climb' bar, so it never looks like a ladder
+      drawLabel(v.label, rungLabel(g.rung), { fill: '#ffffff', stroke, size: 118, strokeWidth: 20, y: 0.5 });
     } else {
       const frac = g.rung < GATE.rungs.length - 1 ? g.hits / g.hitsPerStep : 1;
       const fq = Math.round(frac * 20);

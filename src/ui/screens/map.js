@@ -6,7 +6,7 @@ import { icon } from '../icons.js';
 import { getLevel, LEVEL_COUNT, LAST_LEVEL } from '../../data/levels.js';
 
 const STEP = 124;        // px between nodes
-const TOP_PAD = 150;
+const TOP_PAD = 205;     // room for Pip's marker over node 15 below the top bar (+ safe-area padding in CSS)
 const BOTTOM_PAD = 210;
 const THEME_CYCLE = ['noon', 'sunset', 'dusk', 'dawn', 'storm', 'night'];
 const THEME_RING = { noon: '#59c1ff', dawn: '#ff9cc8', sunset: '#ff9a3d', dusk: '#a46bff', storm: '#7d8fb3', night: '#3d4fd6' };
@@ -127,7 +127,7 @@ export function createMap(ui) {
       lastW = 0;
       requestAnimationFrame(() => { layout(); sync(); scrollToCurrent(false); });
       layout(); sync();
-      scroll.scrollTop = Math.max(0, height - scroll.clientHeight);
+      scroll.scrollTop = Math.max(0, scroll.scrollHeight - scroll.clientHeight);
     },
     onAct(act, btn) {
       if (act === 'back') ui.nav('title');

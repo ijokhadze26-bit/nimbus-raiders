@@ -73,14 +73,18 @@ export class Ironhorn extends BaseBoss {
     let side = o.side ?? this.pickSide();
     const L = game.squad.leader;
     const zFar = this.homeZ + 2, zNear = L.z + 9;
-    const lane = (sd, d) => T.lane(sd > 0 ? -OVER : -EDGE, sd > 0 ? EDGE : OVER, zNear, zFar, d, { attack: 'charge' });
+    // enraged (base.js soft enrage), the charge sweeps past the centre line further each time, so a small blob
+    // can no longer wait out the fight on the other half of the road
+    const over = OVER + Math.min(3.8, 1.6 * this.enrage());
+    const half = (EDGE + over) / 2, cx = (EDGE - over) / 2;
+    const lane = (sd, d) => T.lane(sd > 0 ? -over : -EDGE, sd > 0 ? EDGE : over, zNear, zFar, d, { attack: 'charge' });
     const zone = { kind: 'lane', x0: 0, x1: 0, zNear, zFar };
     let warnEnd = this.warnTime(o.warn ?? spec.telegraph);
     let switched = !o.feint;
     if (o.feint) warnEnd = spec.switchAt + this.warnTime(1.0);
     let mark = lane(side, o.feint ? spec.telegraph : warnEnd);
     let t = 0, stage = 'warn', st = 0, endZ = 0, dustT = 0, hit = false;
-    this.lockX = side * CX;
+    this.lockX = side * cx;
     const attack = {
       side,
       update(dt) {
@@ -92,14 +96,14 @@ export class Ironhorn extends BaseBoss {
             T.cancel(mark);
             side = -side; attack.side = side;
             mark = lane(side, warnEnd - t);
-            self.lockX = side * CX;
+            self.lockX = side * cx;
           }
           p.lower = Math.min(1, t / Math.max(0.3, warnEnd - 0.2));
           p.scrape = 1;
           if (t >= warnEnd) {
             stage = 'run'; st = 0;
-            self.x = side * CX;
-            zone.x0 = side > 0 ? -OVER : -EDGE; zone.x1 = side > 0 ? EDGE : OVER;
+            self.x = side * cx;
+            zone.x0 = side > 0 ? -over : -EDGE; zone.x1 = side > 0 ? EDGE : over;
             self.dangerZones.push(zone);
             const c = self.squadCenter();
             endZ = Math.max(L.z + 6, c.z + c.r + 2.5) - FRONT;
@@ -111,7 +115,7 @@ export class Ironhorn extends BaseBoss {
           const front = self.z + FRONT;
           // resolve once, as the horn reaches the squad: everyone standing in the warned half is hit
           // (a frame-by-frame sweep would also catch members re-flowing into the gaps behind it)
-          if (!hit && front >= L.z - 1) { hit = true; self.killInBox(side * CX, HALF, L.z - 2, endZ + FRONT + 1); }
+          if (!hit && front >= L.z - 1) { hit = true; self.killInBox(side * cx, half, L.z - 2, endZ + FRONT + 1); }
           p.gallop = 1; p.lower = 1;
           dustT -= dt;
           if (dustT <= 0 && self.fx) { dustT = 0.05; self.fx.dust(self.x + (Math.random() - 0.5) * 3, self.z, 0); }

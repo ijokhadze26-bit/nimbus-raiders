@@ -63,16 +63,18 @@
 @keyframes badge-pop { 0% { scale: 1; } 30% { scale: 1.25; filter: brightness(1.6); } 100% { scale: 1; } }
 
 /* power-up timers */
-.hud-powers { position: absolute; top: calc(var(--safe-t) + 74px); left: calc(var(--safe-l) + 12px); display: flex; gap: 10px; transition: top 0.3s ease; }
+/* a column down the left edge: the far road is narrow at the top of the frame, so the column sits over sky,
+   never over the next gate row or an incoming horde (a row across the top hid the left gate's value) */
+.hud-powers { position: absolute; top: calc(var(--safe-t) + 74px); left: calc(var(--safe-l) + 10px); display: flex; flex-direction: column; gap: 18px; transition: top 0.3s ease; }
 .hud.boss-phase .hud-powers { top: calc(var(--safe-t) + 132px); }
-.pw { --pc: #4dc3ff; --f: 360deg; position: relative; width: 52px; height: 52px; }
+.pw { --pc: #4dc3ff; --f: 360deg; position: relative; width: 48px; height: 48px; }
 .pw-ring {
   position: absolute; inset: 0; border-radius: 50%;
   background: conic-gradient(var(--pc) var(--f), rgba(255, 255, 255, 0.22) 0);
   box-shadow: 0 3px 0 rgba(10, 28, 80, 0.45);
 }
 .pw-ring::after { content: ''; position: absolute; inset: 5px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #2a5bd0, #13306f); border: 2px solid #fff; }
-.pw-ico { position: absolute; inset: 0; display: grid; place-items: center; font-size: 26px; color: var(--pc); filter: drop-shadow(0 0 6px var(--pc)); }
+.pw-ico { position: absolute; inset: 0; display: grid; place-items: center; font-size: 24px; color: var(--pc); filter: drop-shadow(0 0 6px var(--pc)); }
 .pw-lbl { position: absolute; left: 50%; bottom: -14px; transform: translateX(-50%); font-size: 11px; letter-spacing: 1px; -webkit-text-stroke: 3px var(--outline); paint-order: stroke fill; }
 .pw.in { animation: pw-in 0.4s cubic-bezier(.2, 1.6, .4, 1); }
 .pw.out { animation: pw-out 0.25s ease-in forwards; }
@@ -179,4 +181,14 @@
 @keyframes banner-in {
   0% { transform: scale(0.3); opacity: 0; } 18% { transform: scale(1.12); opacity: 1; } 28% { transform: scale(1); }
   80% { transform: scale(1); opacity: 1; } 100% { transform: translateY(-24px); opacity: 0; }
+}
+
+/* short frames (16:9 phones, phone browsers with toolbars): a slimmer boss bar so it clears the boss's head */
+@container (max-height: 700px) {
+  .boss-bar { top: calc(var(--safe-t) + 66px); }
+  .boss-name { font-size: 17px; margin-bottom: 2px; -webkit-text-stroke-width: 4px; text-shadow: 0 2px 0 #5a1020; }
+  .boss-name .skull { font-size: 17px; }
+  .boss-track { height: 17px; border-radius: 9px; border-width: 2px; }
+  .boss-shine { top: 2px; height: 3px; }
+  .hud.boss-phase .hud-powers { top: calc(var(--safe-t) + 110px); }
 }

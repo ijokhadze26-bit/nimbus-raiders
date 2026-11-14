@@ -66,8 +66,8 @@
 .up-level .cur { color: var(--blue); }
 .up-level .next { display: inline-flex; align-items: center; gap: 2px; color: #2fbf4f; }
 .up-level .next .arr { font-size: 10px; transform: scaleX(-1); }
-.pips { display: flex; gap: 3px; margin-top: 4px; flex-wrap: wrap; }
-.pips i { flex: 1; min-width: 6px; max-width: 14px; height: 8px; border-radius: 4px; background: #c9d9f0; box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.1); }
+.pips { display: flex; gap: 2px; margin-top: 4px; flex-wrap: nowrap; min-width: 0; }
+.pips i { flex: 1; min-width: 0; max-width: 14px; height: 8px; border-radius: 4px; background: #c9d9f0; box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.1); }
 .pips i.on { background: linear-gradient(180deg, #8af07a, #2fbf4f); box-shadow: 0 0 0 1px #17702d inset; }
 .meter { margin-top: 5px; height: 9px; border-radius: 5px; background: #c9d9f0; overflow: hidden; }
 .meter i { display: block; height: 100%; border-radius: 5px; background: linear-gradient(180deg, #8af07a, #2fbf4f); }
@@ -233,6 +233,10 @@
 .d-pip { position: absolute; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: #fff; border: 3px solid #ff3b4e; }
 .d-skull { position: absolute; right: -18px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-size: 22px; background: #3a1630; border: 3px solid #fff; }
 .res-dist.endless { align-items: center; gap: 2px; }
+.res-boss { gap: 6px; }
+.res-boss .so-close { text-align: center; font-size: 26px; color: var(--gold); letter-spacing: 1.5px; paint-order: stroke fill; -webkit-text-stroke: 5px var(--outline); text-shadow: 0 3px 0 var(--outline); animation: so-close 0.9s ease-in-out infinite alternate; }
+.res-boss .d-track i { background: linear-gradient(180deg, #ff7a6b, #d01d3a); }
+@keyframes so-close { from { scale: 1; } to { scale: 1.08; } }
 .d-big { font-size: 56px; color: #fff; -webkit-text-stroke: 7px var(--outline); paint-order: stroke fill; text-shadow: 0 4px 0 var(--outline); line-height: 1; }
 .d-big small { font-size: 26px; margin-left: 4px; }
 .d-best { display: flex; align-items: center; gap: 6px; font-size: 18px; color: var(--outline); }

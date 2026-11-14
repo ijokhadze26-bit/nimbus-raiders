@@ -30,11 +30,19 @@ export const CAMERA = {
   crowdLift: 0.8,
   crowdBack: 0.4,
   crowdLook: 7,
+  // 9:16 frames (16:9 phones, desktop) keep fov 52 (no tall-phone widening), so a big blob's lift pushed the
+  // next gate row under the top HUD: there the camera backs off further and looks further ahead with the crowd
+  wideCrowdBack: 0.55,
+  wideCrowdLook: 2.5,
   crowdZoom: 0.4,    // boss arena: uniform pull-back with the crowd
   damping: 6,
   bossHeight: 13,
   bossBack: 15,
   bossLook: 12,
+  // boss arena on 9:16 frames (fov 52): rise / back off / look-ahead shift so the boss clears the HP bar
+  bossWideLift: 0.32,
+  bossWideBack: 0.45,
+  bossWideLook: 1.5,
   near: 0.3,
   far: 700,
 };

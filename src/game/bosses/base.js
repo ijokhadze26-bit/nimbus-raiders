@@ -7,6 +7,10 @@
 import { bossDef, cadenceFor } from '../../data/bosses.js';
 
 const DROP_TIME = 0.85, INTRO_TIME = 1.25, DEATH_TIME = 1.55;
+// Soft enrage: past ENRAGE_AFTER s of fighting, attacks come 1 + (t - ENRAGE_AFTER) / ENRAGE_RAMP times as
+// often and warnings shrink toward the 0.9 s floor, so a squad too small to win (a small blob could dodge
+// Ironhorn's half-road charges for minutes) is settled in about a minute. Normal fights (12-25 s) never reach it.
+const ENRAGE_AFTER = 40, ENRAGE_RAMP = 25;
 
 export class BaseBoss {
   constructor(game, cfg) {
@@ -77,7 +81,7 @@ export class BaseBoss {
 
   nextCooldown() {
     const [a, b] = this.def.cooldown;
-    return this.game.rng.range(a, b) / cadenceFor(this.def, this.tier, this.phase);
+    return this.game.rng.range(a, b) / (cadenceFor(this.def, this.tier, this.phase) * (1 + this.enrage()));
   }
 
   update(dt) {
@@ -225,7 +229,10 @@ export class BaseBoss {
   squadCenter() { return this.game.squad.center(this.c); }
 
   /** Warning time for an attack: shrinks a little with tier (and optionally phase 2), never below 0.9 s. */
-  warnTime(base, p2 = 0) { return Math.max(0.9, base - 0.03 * (this.tier - 1) - (this.phase === 2 ? p2 : 0)); }
+  warnTime(base, p2 = 0) { return Math.max(0.9, base - 0.03 * (this.tier - 1) - (this.phase === 2 ? p2 : 0) - Math.min(0.5, 0.25 * this.enrage())); }
+
+  /** Soft-enrage level: 0 for the first ENRAGE_AFTER s of the fight, then +1 every ENRAGE_RAMP s. */
+  enrage() { return this.state === 'fight' ? Math.max(0, this.t - ENRAGE_AFTER) / ENRAGE_RAMP : 0; }
 
   /** Count that grows with level tier: n + floor((tier - 1) * perTier). */
   tierCount(n, perTier = 0.5) { return n + Math.floor((this.tier - 1) * perTier); }

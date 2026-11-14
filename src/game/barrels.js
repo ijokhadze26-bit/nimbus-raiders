@@ -40,7 +40,7 @@ export class Barrels {
   // ---------------- visuals pooling ----------------
   displayKey(b) {
     const k = b.reward.kind;
-    if (k === 'weapon') return 'weapon:' + this.rewardTier(b);
+    if (k === 'weapon') return 'weapon:' + this.rewardTier(b) + (this.game.weapons.tier >= MAX_TIER ? ':max' : '');
     if (k === 'troops') return 'troops:' + (b.reward.amount || 1);
     return k;
   }
@@ -54,7 +54,11 @@ export class Barrels {
     if (!d) {
       d = buildRewardDisplay(b.reward.kind, b.reward.amount, this.rewardTier(b));
       d.userData.key = key;
-      if (d.userData.label) drawBadge(d.userData.label, '+' + (b.reward.amount || 1));
+      if (d.userData.label) {
+        // at the top tier a gun barrel pays 25 coins instead (applyReward)
+        if (b.reward.kind === 'weapon') drawBadge(d.userData.label, key.endsWith(':max') ? '+25' : 'GUN UP', '#ffae1a', '#a85400');
+        else drawBadge(d.userData.label, '+' + (b.reward.amount || 1));
+      }
     }
     d.scale.setScalar(1.45);
     d.position.set(0, 0, 0);
@@ -220,7 +224,8 @@ export class Barrels {
         }
         const d = b.display;
         if (d) {
-          d.rotation.y = this.time * 1.8 + b.ph;
+          // the rifle wobbles (±35°) instead of spinning, so it never turns edge-on into a thin stick
+          d.rotation.y = b.reward.kind === 'weapon' ? Math.sin(this.time * 1.8 + b.ph) * 0.6 : this.time * 1.8 + b.ph;
           d.position.y = Math.sin(this.time * 2.4 + b.ph) * 0.14;
           if (d.userData.rotor) d.userData.rotor.rotation.y = this.time * 30;
           if (d.userData.labelMesh) d.userData.labelMesh.rotation.y = -d.rotation.y;

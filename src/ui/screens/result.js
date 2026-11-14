@@ -19,6 +19,7 @@ export function createResult(ui) {
   root.innerHTML = '<div class="result-wrap"></div>';
   const wrap = root.querySelector('.result-wrap');
   let token = 0;
+  let shownFor = null; // { levelId, done } for the result on screen: NEXT acts once, for that level
 
   function winHtml(a) {
     const endless = a.mode === 'endless';
@@ -59,8 +60,10 @@ export function createResult(ui) {
     const dist = endless
       ? `<div class="res-dist endless"><div class="d-big num">${fmt(a.dist)}<small>m</small></div>
           <div class="d-best">${a.newBest ? '<span class="new-best">NEW BEST!</span>' : `${icon('trophy')} BEST ${fmt(a.best)} m`}</div></div>`
+      : a.bossMax ? bossHtml(a)
       : `<div class="res-dist"><div class="d-label">DISTANCE <b class="num">${pct}%</b></div>
           <div class="d-track"><i style="--p:${pct}%"></i><span class="d-pip" style="left:${pct}%"></span><span class="d-skull">${icon('skull')}</span></div></div>`;
+    const tip = a.bossMax ? TIPS[2] : TIPS[Math.floor(Math.random() * TIPS.length)];
     return `
       <div class="panel panel-result lose pop">
         <div class="ribbon ribbon-red"><span>SQUAD DOWN</span></div>
@@ -68,7 +71,7 @@ export function createResult(ui) {
         <div class="lose-ico">${icon('heart')}<span class="crack"></span></div>
         ${dist}
         <div class="res-coins"><span class="coin-ico">${icon('coin')}</span><span class="num amt">+0</span></div>
-        <div class="tip">${TIPS[Math.floor(Math.random() * TIPS.length)]}</div>
+        <div class="tip">${tip}</div>
         <div class="res-btns">
           <button type="button" class="btn btn-gold btn-lg" data-act="retry">${icon('retry')}<span>RETRY</span></button>
           <div class="btn-row">
@@ -77,6 +80,16 @@ export function createResult(ui) {
           </div>
         </div>
       </div>`;
+  }
+
+  /** Lost at the boss: how much hp it had left (a near-win reads as one: 'SO CLOSE!'). */
+  function bossHtml(a) {
+    const left = Math.max(1, Math.min(100, Math.ceil((a.bossHp / a.bossMax) * 100)));
+    const close = left <= 25;
+    return `<div class="res-dist res-boss">
+        ${close ? '<div class="so-close">SO CLOSE!</div>' : ''}
+        <div class="d-label">${a.bossName || 'BOSS'} <b class="num">${left}%</b> HP LEFT</div>
+        <div class="d-track boss-hp"><i style="--p:${Math.max(4, left)}%"></i><span class="d-skull">${icon('skull')}</span></div></div>`;
   }
 
   async function play(a, my) {
@@ -112,6 +125,7 @@ export function createResult(ui) {
       const a = { ...r, ...(g.lastAward && g.lastAward.win === r.win ? g.lastAward : {}) };
       if (a.length == null) a.length = g.run?.length || 0;
       token++;
+      shownFor = { levelId: a.levelId || 0, done: false };
       wrap.innerHTML = a.win ? winHtml(a) : loseHtml(a);
       root.classList.toggle('is-win', !!a.win);
       play(a, token);
@@ -121,7 +135,9 @@ export function createResult(ui) {
     onAct(act) {
       const g = ui.game;
       if (act === 'next') {
-        const id = (g.run?.levelId || 0) + 1;
+        if (!shownFor || shownFor.done) return;
+        shownFor.done = true;
+        const id = shownFor.levelId + 1;
         if (!getLevel(id) || id > ui.save.data.unlockedLevel || !g.startLevel(id)) ui.nav('map');
       } else if (act === 'retry') g.retry();
       else if (act === 'home') ui.nav('title');

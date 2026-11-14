@@ -34,6 +34,22 @@ export function installMobile(game, engine) {
   window.addEventListener('pagehide', hide);
   document.addEventListener('freeze', hide);
 
+  // Landscape phones: the game is portrait-only. A full-screen 'turn your phone' card (styles.css shows it only
+  // for touch screens in landscape) covers everything, and the run pauses so nothing happens behind it.
+  const hint = document.createElement('div');
+  hint.className = 'rotate-hint';
+  hint.setAttribute('data-ui', '');
+  hint.innerHTML = '<div class="rh-phone"></div><div class="rh-title">TURN YOUR PHONE UPRIGHT</div><div class="rh-sub">Nimbus Raiders plays in portrait</div>';
+  document.body.appendChild(hint); // outside #app: its transform would make the fixed card frame-relative
+  const landscape = window.matchMedia?.('(orientation: landscape) and (pointer: coarse) and (max-height: 540px)');
+  if (landscape) {
+    const check = () => { if (landscape.matches) game.pause(); };
+    check();
+    landscape.addEventListener?.('change', check);
+    // a run that starts while the card is up (deep link, autoplay) pauses right away too
+    game.events?.on?.('game:state', ({ state }) => { if (state === 'playing' && landscape.matches) setTimeout(check, 0); });
+  }
+
   // WebGL context loss (GPU reset, too many tabs, iOS backgrounding): pause and show a notice; three
   // rebuilds everything when the browser restores the context, otherwise offer a reload.
   let overlay = null, reloadT = 0;

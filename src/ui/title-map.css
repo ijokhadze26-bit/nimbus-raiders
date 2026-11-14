@@ -68,6 +68,7 @@
 .map-scroll {
   position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; touch-action: pan-y; -webkit-overflow-scrolling: touch;
   scrollbar-width: none; overscroll-behavior: contain;
+  padding-top: var(--safe-t); /* notch: the top bar moves down by the inset, so does the top of the map */
 }
 .map-scroll::-webkit-scrollbar { display: none; }
 .map-inner {

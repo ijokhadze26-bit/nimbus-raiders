@@ -33,7 +33,7 @@ export class World {
     // Sky + sea
     this.sky = createSky();
     scene.add(this.sky.mesh);
-    this.sea = createSea();
+    this.sea = createSea(this.sky);
     scene.add(this.sea.mesh);
     scene.fog = new THREE.Fog('#cdeeff', 70, 210);
 
@@ -141,7 +141,7 @@ export class World {
     const az = THREE.MathUtils.degToRad(t.sun.az), el = THREE.MathUtils.degToRad(t.sun.el);
     u.uSunDir.value.set(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el));
     const s = this.sea.uniforms;
-    s.uLight.value.set(t.sea.light); s.uShade.value.set(t.sea.shade); s.uDeep.value.set(t.sea.deep); s.uHorizon.value.set(t.sky.horizon);
+    s.uLight.value.set(t.sea.light); s.uShade.value.set(t.sea.shade); s.uDeep.value.set(t.sea.deep); // uHorizon etc. are the sky's own uniforms
     this.scene.fog.color.set(t.sky.horizon);
     this.scene.fog.near = t.fog.near; this.scene.fog.far = t.fog.far;
     this.hemi.color.set(t.hemi.sky); this.hemi.groundColor.set(t.hemi.ground); this.hemi.intensity = t.hemi.intensity;

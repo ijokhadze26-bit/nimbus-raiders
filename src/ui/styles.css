@@ -37,6 +37,30 @@ body::before {
 }
 @media (min-aspect-ratio: 10/16) { #app { border-radius: 0; } }
 @media (max-aspect-ratio: 9/16) { #app { box-shadow: none; } }
+/* Phones in portrait fill the whole screen even when browser toolbars make the visible area wider than 9:16
+   (iPhone Safari, 16:9 Androids): no blue side bars. Desktop keeps the 9:16 frame. The camera keeps the
+   vertical fov there, so a wider frame only shows more sky beside the road. */
+@media (max-width: 600px) and (max-aspect-ratio: 3/4) {
+  #app { width: 100vw; box-shadow: none; }
+}
+
+/* ---------- landscape phones: ask for portrait (core/mobile.js pauses the run while this shows) ---------- */
+.rotate-hint { display: none; }
+@media (orientation: landscape) and (pointer: coarse) and (max-height: 540px) {
+  .rotate-hint {
+    position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    background: radial-gradient(120% 90% at 50% 20%, #5fb4ff 0%, #2f6fd6 60%, #1c3f9a 100%);
+    font-family: var(--font-display); color: #fff; text-align: center; pointer-events: auto; touch-action: none;
+  }
+  .rotate-hint .rh-phone {
+    width: 54px; height: 92px; border-radius: 12px; border: 5px solid #fff; box-shadow: 0 5px 0 var(--outline);
+    animation: rh-turn 2.2s ease-in-out infinite;
+  }
+  .rotate-hint .rh-title { font-size: 30px; letter-spacing: 1px; paint-order: stroke fill; -webkit-text-stroke: 6px var(--outline); }
+  .rotate-hint .rh-sub { font-family: var(--font-body); font-weight: 800; font-size: 16px; opacity: 0.92; }
+  #app { visibility: hidden; }
+}
+@keyframes rh-turn { 0%, 20% { transform: rotate(-90deg); } 55%, 100% { transform: rotate(0deg); } }
 #game-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
 #ui { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 2; font-family: var(--font-display); color: #fff; }
 :where(#ui) button { font-family: var(--font-display); color: #fff; }
@@ -48,7 +72,8 @@ body::before {
 .screens { position: absolute; inset: 0; pointer-events: none; z-index: 6; }
 .screen { position: absolute; inset: 0; pointer-events: auto; overflow: hidden; }
 .screen.enter { animation: scr-in 0.34s cubic-bezier(.2, 1, .3, 1) both; }
-.screen.leave { animation: scr-out 0.22s ease-in both; pointer-events: none; }
+.screen.leave { animation: scr-out 0.22s ease-in both; }
+.screen.leave, .screen.leave * { pointer-events: none !important; }
 .screen.enter .pop { animation: panel-in 0.46s cubic-bezier(.2, 1.45, .4, 1) both; }
 .screen.leave .pop { animation: panel-out 0.2s ease-in both; }
 @keyframes scr-in { from { opacity: 0; transform: scale(1.04); } to { opacity: 1; transform: none; } }
