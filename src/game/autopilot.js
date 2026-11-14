@@ -1,12 +1,16 @@
 // Bot steering for tests/balance. Priorities: dodge active telegraphs > pass the best gate (accounts for the
 // value it can still shoot onto the gate) > avoid the enemy-dense side when small / aim at the horde when
 // strong > line up with worthwhile barrels (and never run into an unbroken one) > in the boss arena, stand
-// in front of the boss.
+// in front of the boss. Blades and gaps are a hard filter on the final x: the whole formation (not just Pip)
+// is tested against each hazard; power tokens (and coins when idle) are grabbed when the path is safe.
 import { applyGate, predictGate } from './gates.js';
-import { TARGET_CLAMP } from '../config.js';
+import { TARGET_CLAMP, MEMBER_CLAMP } from '../config.js';
+import { BLADE_R } from '../models/obstacles.js';
 import { MAX_TIER } from '../data/weapons.js';
 
 const LOOK = 75;
+const HAZ_LOOK = 24;     // start lining up this far before a blade / gap
+const BLADE_PAD = 0.4, GAP_PAD = 0.35, GAP_SIDE = 0.22;
 const CAND = [];
 for (let x = -TARGET_CLAMP; x <= TARGET_CLAMP + 1e-6; x += 0.4) CAND.push(Math.round(x * 100) / 100);
 
@@ -33,13 +37,16 @@ export class Autopilot {
       const gate = this.gateGoal();
       const near = gate && gate.dz < 30;
       if (near) x = gate.x;
+      if (x === null) x = this.pickupGoal(gate, false);
       if (x === null) x = this.hordeGoal();
       if (x === null) x = this.barrelGoal(gate);
+      if (x === null) x = this.pickupGoal(gate, true);
       if (x === null && gate) x = gate.x;
       if (x === null && game.boss && game.run && game.run.phase === 'boss') x = game.boss.x;
       if (x !== null) x = this.avoidBarrels(x);
     }
     if (x !== null) this.targetX = x;
+    if (!tel.length) this.targetX = this.avoidHazards(this.targetX);
     this.targetX = Math.max(-TARGET_CLAMP, Math.min(TARGET_CLAMP, this.targetX));
     return this.targetX;
   }
@@ -157,6 +164,90 @@ export class Autopilot {
     return best ? best.x : null;
   }
 
+  /**
+   * Members expected to die to blades / gaps if the leader goes to cx (formation slots shifted with it,
+   * moving blades predicted at the moment each member reaches them). 0 = clean path.
+   */
+  hazardLoss(cx) {
+    const game = this.game, obs = game.obstacles;
+    if (!obs || (!obs.blades.length && !obs.gaps.length)) return 0;
+    const squad = game.squad, L = squad.leader, ms = squad.members;
+    const speed = Math.max(1, game.run ? game.run.speed : 9);
+    const dx = cx - L.x;
+    const stride = Math.max(1, Math.floor(ms.length / 80));
+    const c = squad.center(this.c);
+    const back = c.z + c.r;
+    let loss = 0;
+    const R = BLADE_R + 0.2 + BLADE_PAD;
+    for (const b of obs.blades) {
+      if (L.z - b.z > HAZ_LOOK || b.z > back + R) continue;
+      const hit = (x, z) => {
+        const dz = z - b.z;
+        if (dz < -R) return false;
+        const bx = obs.bladeX(b, Math.max(0, dz / speed));
+        return Math.abs(x - bx) < R;
+      };
+      if (!squad.pipGone && hit(cx, L.z)) loss += 3;
+      for (let i = 0; i < ms.length; i += stride) if (hit(clampX(ms[i].tx + dx), ms[i].tz)) loss += stride;
+    }
+    const dist = -L.z;
+    for (const g of obs.gaps) {
+      if (g.from - dist > HAZ_LOOK || g.to < -back) continue;
+      const side = GAP_SIDE - GAP_PAD;
+      const over = (x, z) => -z < g.to && (g.lane === 'C' || (g.lane === 'R' ? x > side : x < -side));
+      if (!squad.pipGone && over(cx, L.z)) loss += 3;
+      for (let i = 0; i < ms.length; i += stride) if (over(clampX(ms[i].tx + dx), ms[i].tz)) loss += stride;
+    }
+    return loss;
+  }
+
+  /** Keeps x when it is clean, otherwise the nearby candidate that loses the fewest members. */
+  avoidHazards(x) {
+    const base = this.hazardLoss(x);
+    if (base === 0) return x;
+    const L = this.game.squad.leader;
+    let best = x, bs = base * 10;
+    for (const cx of CAND) {
+      const s = this.hazardLoss(cx) * 10 + Math.abs(cx - x) * 0.6 + Math.abs(cx - L.x) * 0.2;
+      if (s < bs) { bs = s; best = cx; }
+    }
+    return best;
+  }
+
+  /** Power tokens worth a detour (coins = true: nearest coin when nothing else matters). */
+  pickupGoal(gate, coins) {
+    const game = this.game, p = game.pickups;
+    if (!p) return null;
+    const L = game.squad.leader;
+    const magnet = game.powers && game.powers.has('magnet');
+    if (coins) {
+      if (magnet) return null;
+      let best = null, bd = Infinity;
+      for (const cn of p.coins) {
+        const dz = L.z - cn.z;
+        if (cn.state !== 0 || dz < 1 || dz > 26) continue;
+        if (gate && gate.dz < dz + 6) continue;
+        if (dz < bd && this.hazardLoss(cn.x) === 0) { bd = dz; best = cn.x; }
+      }
+      return best;
+    }
+    const h = game.horde, count = game.squad.count;
+    let best = null, bv = 0;
+    for (const tk of p.tokens) {
+      const dz = L.z - tk.z;
+      if (tk.state !== 0 || dz < 0.5 || dz > 40) continue;
+      if (magnet) continue;                                 // the magnet brings it anyway
+      if (gate && gate.dz < dz + 4) continue;              // a gate decision comes first
+      if (this.hazardLoss(tk.x) > 0) continue;
+      const brave = tk.kind === 'freeze' || tk.kind === 'shield';
+      if (h && h.count && !brave && h.densityAt(tk.x, 1.9, L.z - 42, L.z + 1) > count * 0.6) continue;
+      let v = 40 - Math.abs(tk.x - L.x) * 2 - dz * 0.2;
+      if (game.powers && game.powers.has(tk.kind)) v *= 0.3;
+      if (v > bv) { bv = v; best = tk.x; }
+    }
+    return best;
+  }
+
   /** Shift x so the blob doesn't run into an unbroken barrel that is about to be reached. */
   avoidBarrels(x) {
     const game = this.game;
@@ -178,3 +269,5 @@ export class Autopilot {
     return x;
   }
 }
+
+function clampX(x) { return x < -MEMBER_CLAMP ? -MEMBER_CLAMP : x > MEMBER_CLAMP ? MEMBER_CLAMP : x; }

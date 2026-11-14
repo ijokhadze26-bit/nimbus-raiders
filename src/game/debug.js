@@ -65,8 +65,27 @@ export function createDebug(game) {
       game.gates.skipAll();
       game.horde.skipAll();
       game.barrels.skipAll();
+      if (game.obstacles) game.obstacles.skipAll();
+      if (game.pickups) game.pickups.skipAll();
       game.snapCamera();
       return debug.state();
+    },
+    /** Starts a run from an ad-hoc level def (tests / balance scratch levels); missing fields get defaults. */
+    startCustom(def = {}) {
+      const d = { id: 99, name: 'Test Run', theme: 'noon', length: 300, speed: 9, stars: [10, 30], reward: 0, boss: null, events: [], ...def };
+      game.beginRun(d, 'level');
+      return debug.state();
+    },
+    /** Live hazards / pickups near the squad (tests). */
+    hazards() {
+      const o = game.obstacles, p = game.pickups;
+      return {
+        blades: o ? o.blades.map((b) => ({ x: Math.round(b.x * 100) / 100, z: Math.round(b.z * 10) / 10, moving: !!b.range })) : [],
+        gaps: o ? o.gaps.map((g) => ({ lane: g.lane, from: g.from, to: g.to })) : [],
+        tokens: p ? p.tokens.length : 0,
+        coins: p ? p.coins.length : 0,
+        pipGone: game.squad.pipGone,
+      };
     },
     killBoss() { if (game.boss && game.boss.kill) game.boss.kill(); return debug.state(); },
     /** Throwaway arena run against one boss: bossTest('oculon', { tier, hp, squad, weapon }). */

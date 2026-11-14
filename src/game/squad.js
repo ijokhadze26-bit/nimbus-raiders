@@ -9,6 +9,7 @@ import { weaponForTier } from '../data/weapons.js';
 import { markInstances } from '../core/pool.js';
 
 const GA = Math.PI * (3 - Math.sqrt(5)); // golden angle
+const _tmpSlot = { tx: 0, tz: 0 };
 const C = FORMATION.spacing * 0.525;     // phyllotaxis scale for ~spacing neighbor distance
 const MAX_DYING = 64;
 export const SHADOW_LAYER = 1;
@@ -38,6 +39,12 @@ export class Squad {
 
     this.pip = buildPip();
     game.scene.add(this.pip.root);
+    this.pipScale = this.pip.root.scale.x;
+    // gap falls: Pip tumbles into the hole (pipFall); while pipGone the next raider leads invisibly and
+    // steps up as Pip (pop-in) once the leader is back over solid road
+    this.pipGone = false;
+    this.pipPop = 1;
+    this.pipFall = { on: false, t: 0, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, spin: 0 };
 
     const cap = FORMATION.maxRendered + MAX_DYING;
     this.raiderMat = toonMaterial();
@@ -110,6 +117,9 @@ export class Squad {
   reset(count = 1, x = 0) {
     this.leader.x = x; this.leader.z = 0; this.leader.vx = 0;
     this.time = 0; this.cheer = 0;
+    this.pipGone = false; this.pipPop = 1; this.pipFall.on = false;
+    this.pip.root.rotation.set(0, 0, 0);
+    this.pip.root.scale.setScalar(this.pipScale);
     for (const m of this.members) this.free.push(m);
     for (const d of this.dying) this.free.push(d);
     this.members.length = 0;
@@ -171,7 +181,7 @@ export class Squad {
 
   /** Brings rendered raiders in line with count (pop-ins at leader / deaths from the back). */
   syncMembers(reason) {
-    const want = Math.min(this.count, FORMATION.maxRendered) - 1;
+    const want = this.wantMembers();
     while (this.members.length < want) {
       const m = this.alloc();
       const rng = this.game.rng;
@@ -187,6 +197,78 @@ export class Squad {
     }
   }
 
+  /** Rendered raiders wanted for the count (Pip is one of them unless he fell into a gap). */
+  wantMembers() { return Math.min(this.count, FORMATION.maxRendered) - (this.pipGone ? 0 : 1); }
+
+  /**
+   * Gap falls (called by obstacles while a hole overlaps the blob): every member (and Pip) whose position
+   * test(x, z) says is over the void tumbles down. One squad:change { reason:'gap' } for the batch.
+   */
+  fallCheck(test) {
+    const ms = this.members, L = this.leader;
+    let k = 0, lost = 0, px = 0, pz = 0;
+    for (let i = 0; i < ms.length; i++) {
+      const m = ms[i];
+      if (test(m.x, m.z)) { this.startDeath(m, 'gap'); lost++; px = m.x; pz = m.z; } else ms[k++] = m;
+    }
+    ms.length = k;
+    if (lost) this.keepSlots();
+    if (!this.pipGone && test(L.x, L.z)) {
+      this.pipGone = true;
+      const f = this.pipFall;
+      f.on = true; f.t = 0; f.x = L.x; f.z = L.z; f.y = 0;
+      f.vx = L.vx * 0.12; f.vy = 1.6; f.vz = 1.2; f.spin = L.x > 0 ? -5 : 5;
+      lost++; px = L.x; pz = L.z;
+      if (this.game.events.wants('squad:lost')) this.game.events.emit('squad:lost', { pos: { x: L.x, y: 0.5, z: L.z }, reason: 'gap' });
+    }
+    if (!lost) return 0;
+    this.count = Math.max(0, this.count - lost);
+    const ev = this.game.events, pos = { x: px, y: 0, z: pz };
+    if (ev.wants('obstacle:kill')) ev.emit('obstacle:kill', { kind: 'gap', pos });
+    ev.emit('squad:change', { count: this.count, delta: -lost, reason: 'gap', pos });
+    if (this.count === 0) this.game.onSquadEmpty('gap');
+    return lost;
+  }
+
+  /**
+   * After members drop out of the middle of the list, every later member's slot index shifts and the blob
+   * would reshuffle across the road. Greedy re-pairing (each slot, inner first, takes the nearest free
+   * member) keeps survivors where they stand.
+   */
+  keepSlots() {
+    const ms = this.members, n = ms.length;
+    if (n < 2) return;
+    const pool = this._pool || (this._pool = []);
+    pool.length = 0;
+    for (let i = 0; i < n; i++) pool.push(ms[i]);
+    for (let i = 0; i < n; i++) {
+      this.slotTarget(_tmpSlot, i);
+      let k = 0, kd = Infinity;
+      for (let j = 0; j < pool.length; j++) {
+        const dx = pool[j].x - _tmpSlot.tx, dz = pool[j].z - _tmpSlot.tz, d2 = dx * dx + dz * dz;
+        if (d2 < kd) { kd = d2; k = j; }
+      }
+      ms[i] = pool[k];
+      pool[k] = pool[pool.length - 1]; pool.pop();
+    }
+  }
+
+  /** Pip is back over solid road: the raider nearest the leader steps up as Pip. */
+  pipReturn() {
+    this.pipGone = false;
+    const L = this.leader, ms = this.members;
+    while (ms.length > Math.max(0, this.wantMembers())) {
+      let k = 0, kd = Infinity;
+      for (let i = 0; i < ms.length; i++) {
+        const dx = ms[i].x - L.x, dz = ms[i].z - L.z, d2 = dx * dx + dz * dz;
+        if (d2 < kd) { kd = d2; k = i; }
+      }
+      this.free.push(ms.splice(k, 1)[0]);
+    }
+    this.pipPop = 0;
+    this.pip.root.visible = true;
+  }
+
   startDeath(m, reason) {
     if (this.game.events.wants('squad:lost')) this.game.events.emit('squad:lost', { pos: { x: m.x, y: 0.5, z: m.z }, reason });
     if (this.dying.length >= MAX_DYING) { this.free.push(m); return; }
@@ -197,6 +279,13 @@ export class Squad {
     m.vz = 1.5 + Math.random() * 2;
     m.spin = (Math.random() - 0.5) * 12;
     m.kind = reason === 'gap' ? 1 : 0;
+    if (m.kind === 1) {
+      // no hop: drop straight into the hole, keep some forward momentum, tumble
+      m.vy = 0.4 + Math.random() * 0.9;
+      m.vx = (Math.random() - 0.5) * 1.2;
+      m.vz = 0.6 + Math.random() * 1.4;
+      m.spin = (Math.random() < 0.5 ? -1 : 1) * (5 + Math.random() * 5);
+    }
     this.dying.push(m);
   }
 
@@ -229,19 +318,37 @@ export class Squad {
     L.z -= forward * dt;
     const k = 1 - Math.exp(-FORMATION.ease * dt);
     const ms = this.members;
+    // members standing on solid road never step sideways into a hole (formation re-centering would drag
+    // the survivors of a straddling blob into it); only the ones that run over the void fall
+    const obs = this.game.obstacles;
+    const hole = obs && obs.gaps.length ? obs.overGap : null;
     for (let i = 0; i < ms.length; i++) {
       const m = ms[i];
       this.slotTarget(m, i);
+      if (hole && ((hole(m.tx, m.z) && !hole(m.x, m.z)) || (hole(m.tx, m.z - 2.5) && !hole(m.x, m.z - 2.5)))) m.tx = m.x;
       m.x += (m.tx - m.x) * k;
       m.z += (m.tz - m.z) * k - forward * dt * (1 - k);
       if (m.pop < 1) m.pop = Math.min(1, m.pop + dt / 0.32);
     }
+    if (this.pipPop < 1) this.pipPop = Math.min(1, this.pipPop + dt / 0.32);
+    const f = this.pipFall;
+    if (f.on) {
+      f.t += dt;
+      f.x += f.vx * dt; f.z += (f.vz - forward) * dt;
+      f.vy -= 14 * dt; f.y += f.vy * dt;
+    }
+    if (this.pipGone && this.count > 0 && (!f.on || f.t > 0.45)) {
+      const obs = this.game.obstacles;
+      if (!obs || !obs.overGap(L.x, L.z)) this.pipReturn();
+    }
+    // reserves (count beyond the rendered members) refill the blob once Pip leads on solid road again
+    if (!this.pipGone && this.members.length < this.wantMembers()) this.syncMembers('gap');
     for (let i = this.dying.length - 1; i >= 0; i--) {
       const d = this.dying[i];
       d.t += dt;
       d.x += d.vx * dt; d.z += (d.vz - forward) * dt;
       d.vy -= 14 * dt; d.y += d.vy * dt;
-      const life = d.kind === 1 ? 1.2 : 0.55;
+      const life = d.kind === 1 ? 1.3 : 0.55;
       if (d.t >= life) { this.dying[i] = this.dying[this.dying.length - 1]; this.dying.pop(); this.free.push(d); }
     }
   }
@@ -253,8 +360,7 @@ export class Squad {
     this.runBlend += (running - this.runBlend) * Math.min(1, dt * 6);
     this.cheer += ((phase === 'won' ? 1 : 0) - this.cheer) * Math.min(1, dt * 4);
     const L = this.leader;
-    this.pip.root.position.set(L.x, 0, L.z);
-    this.pip.animate(t, Math.max(0.25, this.runBlend), L.vx, this.cheer);
+    this.syncPip(t);
     const arr = this.raiders.instanceMatrix.array;
     let n = 0;
     const rb = Math.max(0.3, this.runBlend);
@@ -273,9 +379,9 @@ export class Squad {
     }
     for (let i = 0; i < this.dying.length; i++) {
       const d = this.dying[i];
-      const life = d.kind === 1 ? 1.2 : 0.55;
+      const life = d.kind === 1 ? 1.3 : 0.55;
       const f = d.t / life;
-      const sc = d.kind === 1 ? 1 - f * 0.6 : (f < 0.25 ? 1 + f * 1.2 : Math.max(0.01, 1.3 * (1 - (f - 0.25) / 0.75)));
+      const sc = d.kind === 1 ? Math.max(0.05, 1 - f * f * 0.85) : (f < 0.25 ? 1 + f * 1.2 : Math.max(0.01, 1.3 * (1 - (f - 0.25) / 0.75)));
       _e.set(d.spin * d.t, 0, d.spin * d.t * 0.6);
       _q.setFromEuler(_e);
       _m.compose(_p.set(d.x, Math.max(d.kind === 1 ? -20 : 0, d.y), d.z), _q, _s.set(sc, sc, sc));
@@ -288,12 +394,36 @@ export class Squad {
     if (n) markInstances(this.raiders.instanceMatrix, n);
   }
 
+  /** Pip rig: normal run, tumbling into a gap, hidden while he is gone, pop-in when he steps back up. */
+  syncPip(t) {
+    const L = this.leader, pip = this.pip, f = this.pipFall;
+    if (f.on) {
+      const life = 1.15, u = Math.min(1, f.t / life);
+      pip.root.visible = true;
+      pip.root.position.set(f.x, Math.max(-20, f.y), f.z);
+      pip.root.rotation.set(f.spin * f.t * 0.8, 0, f.spin * f.t);
+      pip.root.scale.setScalar(this.pipScale * Math.max(0.05, 1 - u * u * 0.8));
+      pip.animate(t * 1.6, 0.9, 0, 0);
+      if (f.t >= life) {
+        f.on = false;
+        pip.root.rotation.set(0, 0, 0);
+        pip.root.scale.setScalar(this.pipScale);
+        pip.root.visible = !this.pipGone;
+      }
+      return;
+    }
+    if (this.pipGone) { pip.root.visible = false; return; }
+    pip.root.position.set(L.x, 0, L.z);
+    pip.root.scale.setScalar(this.pipScale * (this.pipPop < 1 ? popScale(this.pipPop) : 1));
+    pip.animate(t, Math.max(0.25, this.runBlend), L.vx, this.cheer);
+  }
+
   /** Shooter muzzle position: i=0 -> Pip, i>=1 -> members[i-1]. Writes into out {x,y,z}. */
   muzzle(i, out) {
-    if (i === 0 || this.members.length === 0) {
+    if ((i === 0 && !this.pipGone) || this.members.length === 0) {
       out.x = this.leader.x + 0.32; out.y = 0.9; out.z = this.leader.z - 0.75;
     } else {
-      const m = this.members[(i - 1) % this.members.length];
+      const m = this.members[Math.max(0, i - 1) % this.members.length];
       out.x = m.x + RAIDER_MUZZLE.x; out.y = RAIDER_MUZZLE.y + 0.1; out.z = m.z + RAIDER_MUZZLE.z;
     }
     return out;
