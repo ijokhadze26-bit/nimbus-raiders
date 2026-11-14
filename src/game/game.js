@@ -283,7 +283,10 @@ export class Game {
     if (MENU_STATES.has(this.state)) {
       const t = this.time;
       outPos.set(L.x * 0.3 + Math.sin(t * 0.2) * 1.5, 6.2, L.z + 9.5);
-      outLook.set(L.x * 0.2, 0.4, L.z - 3.5); // squad framed between the title logo and the PLAY button
+      // squad framed between the title logo and the PLAY button; wider frames (desktop 9:16) show less
+      // vertical room, so the look point slides toward the squad to lift it above the button
+      const wide = Math.max(0, Math.min(1, (this.camera.aspect - 0.47) / 0.1));
+      outLook.set(L.x * 0.2, 0.4 - 0.5 * wide, L.z - 3.5 + 1.5 * wide);
       return;
     }
     const boss = this.run && this.run.phase === 'boss';

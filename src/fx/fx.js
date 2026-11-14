@@ -24,6 +24,7 @@ const REWARD_TEXT = {
 // boss death: explosion stages on game time (the first ~0.28 s play out inside the 0.2x slow-mo)
 const DEATH_STAGES = [0, 0.045, 0.09, 0.14, 0.2, 0.27, 0.38, 0.52, 0.7, 0.92, 1.18];
 const DEATH_FINAL = 1.42;
+const MENU_STATES = new Set(['title', 'map', 'shop', 'settings', 'endless']);
 const rnd = (a, b) => a + Math.random() * (b - a);
 
 export function installFx(game) {
@@ -66,7 +67,7 @@ export class Fx {
     const ev = this.game.events, B = this.B, g = this.game;
     const on = (n, f) => ev.on(n, f);
     on('run:start', () => this.clear());
-    on('game:state', (p) => { if (p.state === 'title') this.clear(); });
+    on('game:state', (p) => { if (MENU_STATES.has(p.state)) this.clear(); });
     on('weapon:fire', (p) => this.flashes.fire(p, this.now));
     on('bullet:hit', (p) => {
       this.flashes.hit(p);
@@ -230,7 +231,7 @@ export class Fx {
   ambient(dt) {
     const g = this.game, sq = g.squad, run = g.run;
     const low = this.quality === 'low';
-    const running = (g.state === 'playing' || g.state === 'title') && sq.speed > 1;
+    const running = (g.state === 'playing' || MENU_STATES.has(g.state)) && sq.speed > 1;
     if (running && sq.count > 0) {
       const n = sq.members.length;
       const rate = Math.min(low ? 14 : 30, 10 + n * 0.5);

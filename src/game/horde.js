@@ -345,7 +345,7 @@ export class Horde {
     if (e.shield > 0) {
       e.shield--; e.sflash = 1;
       if (this.game.events.wants('bullet:hit')) this.game.events.emit('bullet:hit', { kind: 'shield', pos: p });
-      if (e.shield === 0) this.view.shatterShield(e);
+      if (e.shield === 0) { this.view.shatterShield(e); this.game.events.emit('enemy:shieldbreak', { pos: { x: e.x, y: 0.8, z: e.z } }); }
       return true;
     }
     const unit = b.unit || b.dmg;

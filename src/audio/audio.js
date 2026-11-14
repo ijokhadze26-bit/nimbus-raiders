@@ -11,7 +11,7 @@ import { bindAudio } from './bindings.js';
 const KEY = 'nimbusRaiders.audio';
 export const MUSIC_VOLUME = 0.5;
 export const SFX_VOLUME = 0.9;
-const SAVE_HOOKS = ['markDirty', 'dirty', 'touch', 'queue', 'schedule', 'commit', 'persist', 'save'];
+const SAVE_HOOKS = ['update', 'markDirty', 'dirty', 'touch', 'queue', 'schedule', 'commit', 'persist', 'save'];
 
 /** Builds the bus graph on any (Offline)AudioContext. */
 export function buildGraph(ctx) {
@@ -159,11 +159,19 @@ export class AudioSystem {
     const s = save && save.data && save.data.settings;
     if (s) {
       if (s.music === this.musicOn && s.sfx === this.sfxOn) return;
-      s.music = this.musicOn; s.sfx = this.sfxOn;
-      const hook = SAVE_HOOKS.find((k) => typeof save[k] === 'function');
-      if (hook) { try { save[hook](); } catch { /* ignore */ } }
       this.applying = true;
-      try { this.game.events.emit('settings:changed', { settings: s }); } finally { this.applying = false; }
+      try {
+        if (typeof save.setSetting === 'function') {
+          // the save's own setter writes (debounced) and emits save:changed + settings:changed
+          save.setSetting('music', this.musicOn);
+          save.setSetting('sfx', this.sfxOn);
+        } else {
+          s.music = this.musicOn; s.sfx = this.sfxOn;
+          const hook = SAVE_HOOKS.find((k) => typeof save[k] === 'function');
+          if (hook) { try { save[hook](); } catch { /* ignore */ } }
+          this.game.events.emit('settings:changed', { settings: s });
+        }
+      } finally { this.applying = false; }
       return;
     }
     try { localStorage.setItem(KEY, JSON.stringify({ music: this.musicOn, sfx: this.sfxOn })); } catch { /* ignore */ }

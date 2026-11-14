@@ -85,7 +85,7 @@ export function createResult(ui) {
         if (my !== token) return;
         if (i < a.stars) {
           stars[i].classList.add('on');
-          ui.sfx('star', i);
+          ui.sfx('star', { index: i });
           ui.vibrate(18);
         } else stars[i].classList.add('dim');
         await wait(330);

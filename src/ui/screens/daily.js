@@ -52,7 +52,7 @@ export function createDaily(ui) {
     t.classList.remove('today');
     t.classList.add('claimed');
     bump(t, 'got');
-    ui.sfx('purchase');
+    ui.sfx('daily');
     ui.vibrate(30);
     msg.innerHTML = `${icon('coin')} +${fmt(res.coins)}${res.skin ? ` &middot; ${skinById(res.skin)?.name || 'Skin'} unlocked!` : ''}`;
     msg.classList.remove('show'); void msg.offsetWidth; msg.classList.add('show');
