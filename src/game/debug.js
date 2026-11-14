@@ -1,6 +1,7 @@
 // Debug / test API (window.__game.debug). Balance + smoke tests depend on these names.
 import { Loop } from '../core/loop.js';
 import { MAX_TIER } from '../data/weapons.js';
+import { bossTest } from './bosses/test.js';
 
 export function createDebug(game) {
   const debug = {
@@ -68,6 +69,8 @@ export function createDebug(game) {
       return debug.state();
     },
     killBoss() { if (game.boss && game.boss.kill) game.boss.kill(); return debug.state(); },
+    /** Throwaway arena run against one boss: bossTest('oculon', { tier, hp, squad, weapon }). */
+    bossTest(type, opts) { return bossTest(game, type, opts); },
     setTimeScale(s = 1) { game.timeScale = Math.max(0, Math.min(4, s)); return game.timeScale; },
   };
   return debug;
