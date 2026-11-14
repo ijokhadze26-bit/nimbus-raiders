@@ -272,6 +272,7 @@ export class Game {
     this.bullets.sync();
     this.updateCamera(dt);
     this.world.sync(dt, L.x, L.z, this.camera.position.z);
+    if (this.fx) this.fx.update(); // stage3-fx
   }
 
   cameraGoal(outPos, outLook) {

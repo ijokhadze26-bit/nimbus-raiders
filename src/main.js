@@ -7,6 +7,7 @@ import { Input } from './core/input.js';
 import { Loop } from './core/loop.js';
 import { Game } from './game/game.js';
 import { Hud } from './ui/hud.js';
+import { installFx } from './fx/fx.js'; // stage3-fx
 
 function readParams() {
   const q = new URLSearchParams(location.search);
@@ -26,6 +27,7 @@ async function boot() {
   const input = new Input(app);
   const game = new Game({ engine, input, params });
   window.__game = game;
+  installFx(game); // stage3-fx: sets game.fx (updated from game.sync)
   const hud = new Hud(game, document.getElementById('ui'));
   game.hud = hud;
 
