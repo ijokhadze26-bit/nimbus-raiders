@@ -23,8 +23,9 @@ export const CAMERA = {
   followX: 0.3,
   lookX: 0.15,
   damping: 6,
-  bossHeight: 13,
-  bossBack: 15,
+  bossHeight: 14.5,
+  bossBack: 18,
+  bossLook: 12,
   near: 0.3,
   far: 700,
 };

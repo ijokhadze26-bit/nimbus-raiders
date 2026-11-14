@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { FORMATION, MEMBER_CLAMP, MOVE } from '../config.js';
 import { buildPip } from '../models/pip.js';
-import { buildRaiderGeometry, buildRaiderGunGeometry, buildRaiderShadowGeometry, RAIDER_MUZZLE } from '../models/raider.js';
+import { buildRaiderGeometry, buildRaiderGunGeometry, buildPipGunGeometry, buildRaiderShadowGeometry, RAIDER_MUZZLE } from '../models/raider.js';
 import { toonMaterial, toonGradient } from '../models/materials.js';
 import { weaponForTier } from '../data/weapons.js';
 
@@ -67,6 +67,12 @@ export class Squad {
     this.pip.gunMat.color.set(hex);
   }
 
+  /** Swaps the gun silhouette of all raiders + Pip to the weapon tier's model. */
+  setGunTier(tier) {
+    this.guns.geometry = buildRaiderGunGeometry(tier);
+    this.pip.gun.geometry = buildPipGunGeometry(tier);
+  }
+
   reset(count = 1, x = 0) {
     this.leader.x = x; this.leader.z = 0; this.leader.vx = 0;
     this.time = 0; this.cheer = 0;
@@ -111,6 +117,22 @@ export class Squad {
     this.syncMembers(reason);
     this.game.events.emit('squad:change', { count: this.count, delta: -1, reason, pos: { x: m.x, y: 0.5, z: m.z } });
     if (this.count === 0) this.game.onSquadEmpty(reason);
+  }
+
+  /** Kills a specific member object (no-op if it is no longer in the formation). */
+  killMemberObj(m, reason = 'horde') {
+    const i = this.members.indexOf(m);
+    if (i >= 0) this.killMember(i, reason); else this.remove(1, reason);
+  }
+
+  /** Blob center + radius (formation disc behind the leader). Writes into out {x, z, r}. */
+  center(out) {
+    const n = this.members.length;
+    const R = C * Math.sqrt(n + 0.5);
+    out.x = this.leader.x;
+    out.z = this.leader.z + (n ? FORMATION.leaderGap + R * 0.85 : 0);
+    out.r = n ? R + 0.3 : 0.5;
+    return out;
   }
 
   /** Brings rendered raiders in line with count (pop-ins at leader / deaths from the back). */

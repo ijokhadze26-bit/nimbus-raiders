@@ -4,9 +4,12 @@
 //   hit(target, bullet) -> true if the bullet is consumed (otherwise pierce is spent)
 import * as THREE from 'three';
 import { BULLETS } from '../config.js';
-import { WEAPONS } from '../data/weapons.js';
+import { WEAPONS, HELPER_SHOTS } from '../data/weapons.js';
 import { part, merge, G } from '../models/util.js';
 import { writeYawMatrix } from '../core/pool.js';
+
+// tail cone pointing back (+Z) from the bullet center
+const tail = (r, len, color, a, z0 = 0) => part(G.cone(r, len, 6), color, { r: [Math.PI / 2, 0, 0], p: [0, 0, z0 + len / 2], a });
 
 function styleGeometry(w) {
   const st = w.style, L = st.length, r = st.radius;
@@ -14,43 +17,54 @@ function styleGeometry(w) {
   const body = new THREE.Color(w.color);
   const core = new THREE.Color(st.core);
   const halo = new THREE.Color(w.color).offsetHSL(0, 0.05, 0.05);
+  const trail = new THREE.Color(st.trail || w.color);
   const along = [Math.PI / 2, 0, 0];
   switch (st.shape) {
-    case 'bolt':
+    case 'bolt': // short fat pistol bolt
       return merge([
         part(G.capsule(r * 1.55, L * 1.05, 2, 7), halo, { r: along, a: 0.35 }),
         part(G.capsule(r, L, 2, 6), body, { r: along, a: 1, bright: 1.1 }),
         part(G.capsule(r * 0.45, L * 0.75, 1, 5), core, { r: along, a: 1, p: [0, r * 0.3, -L * 0.1] }),
       ]);
-    case 'tracer':
+    case 'tracer': // rifle tracer with a long fading streak
       return merge([
+        tail(r * 1.6, L * 1.6, trail, 0.3, L * 0.3),
         part(G.capsule(r * 1.7, L, 1, 7), halo, { r: along, a: 0.3 }),
         part(G.capsule(r, L * 0.95, 1, 6), body, { r: along, a: 1, bright: 1.1 }),
         part(G.sphere(r * 1.6, 6, 4), core, { p: [0, 0, -L * 0.5], a: 1 }),
       ]);
-    case 'laser':
+    case 'laser': // thin, very long rapid laser
       return merge([
         part(G.cyl(r * 2.4, r * 2.4, L, 6), halo, { r: along, a: 0.35 }),
         part(G.cyl(r * 1.2, r * 1.2, L * 1.02, 5), body, { r: along, a: 1, bright: 1.1 }),
         part(G.cyl(r * 0.5, r * 0.5, L * 1.03, 4), core, { r: along, a: 1 }),
       ]);
-    case 'beam':
+    case 'beam': // thick glowing beam with a wide afterglow
       return merge([
-        part(G.capsule(r * 1.8, L, 2, 8), halo, { r: along, a: 0.35 }),
+        tail(r * 2.2, L * 1.3, trail, 0.22, L * 0.35),
+        part(G.capsule(r * 1.9, L, 2, 8), halo, { r: along, a: 0.35 }),
         part(G.capsule(r, L, 2, 7), body, { r: along, a: 1 }),
         part(G.capsule(r * 0.45, L, 1, 5), core, { r: along, a: 1 }),
       ]);
-    case 'orb':
+    case 'orb': // plasma orb with a short comet tail (fired as a 3-way fan)
       return merge([
+        tail(r * 1.1, r * 5, trail, 0.35, r * 0.4),
         part(G.sphere(r * 1.6, 9, 6), halo, { a: 0.35, s: [1, 1, 1.3] }),
         part(G.sphere(r, 8, 6), body, { a: 1 }),
         part(G.sphere(r * 0.5, 6, 4), core, { a: 1, p: [0, r * 0.3, 0] }),
       ]);
-    case 'nova':
-    default:
+    case 'shell': // turret cannon shell
       return merge([
-        part(G.cone(r * 1.2, 2.2, 10), new THREE.Color(st.trail || w.color), { r: [-Math.PI / 2, 0, 0], p: [0, 0, 1.1], a: 0.55 }),
-        part(G.sphere(r * 1.6, 12, 9), halo, { a: 0.4 }),
+        tail(r * 1.3, 1.6, trail, 0.4, r * 0.6),
+        part(G.sphere(r * 1.5, 9, 6), halo, { a: 0.35 }),
+        part(G.capsule(r, r * 1.6, 2, 8), body, { r: along, a: 1 }),
+        part(G.sphere(r * 0.55, 6, 4), core, { a: 1, p: [0, 0, -r * 0.9] }),
+      ]);
+    case 'nova':
+    default: // big piercing nova orb with a long golden trail
+      return merge([
+        part(G.cone(r * 1.2, 2.6, 10), trail, { r: [-Math.PI / 2, 0, 0], p: [0, 0, 1.3], a: 0.55 }),
+        part(G.sphere(r * 1.7, 12, 9), halo, { a: 0.4 }),
         part(G.sphere(r, 12, 9), body, { a: 1 }),
         part(G.sphere(r * 0.6, 10, 8), core, { a: 1 }),
       ]);
@@ -64,9 +78,10 @@ export class Bullets {
     this.active = [];
     this.free = [];
     this.meshes = [];
-    this.counts = new Int32Array(WEAPONS.length);
+    const styles = WEAPONS.concat(HELPER_SHOTS);
+    this.counts = new Int32Array(styles.length);
     const cap = BULLETS.capacityPerStyle;
-    for (const w of WEAPONS) {
+    for (const w of styles) {
       const mat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, fog: false, toneMapped: false });
       const mesh = new THREE.InstancedMesh(styleGeometry(w), mat, cap);
       mesh.frustumCulled = false;
@@ -92,10 +107,11 @@ export class Bullets {
 
   get count() { return this.active.length; }
 
-  spawn(tier, x, y, z, vx, vz, dmg, pierce) {
+  /** tier 1..6 = weapon styles, 7 = drone laser, 8 = turret shell. unit = damage of one real shot. */
+  spawn(tier, x, y, z, vx, vz, dmg, pierce, unit = dmg, range = BULLETS.range) {
     if (this.active.length >= BULLETS.capacityPerStyle * 2) return null;
-    const b = this.free.length ? this.free.pop() : { x: 0, y: 0, z: 0, vx: 0, vz: 0, dmg: 1, pierce: 0, style: 0, dist: 0, nh: 0, hits: [null, null, null, null, null, null, null, null] };
-    b.x = x; b.y = y; b.z = z; b.vx = vx; b.vz = vz; b.dmg = dmg; b.pierce = pierce;
+    const b = this.free.length ? this.free.pop() : { x: 0, y: 0, z: 0, vx: 0, vz: 0, dmg: 1, unit: 1, pierce: 0, style: 0, dist: 0, range: 60, nh: 0, hits: [null, null, null, null, null, null, null, null] };
+    b.x = x; b.y = y; b.z = z; b.vx = vx; b.vz = vz; b.dmg = dmg; b.unit = unit; b.pierce = pierce; b.range = range; b.vy = 0;
     b.style = tier - 1; b.dist = 0; b.nh = 0; b.ang = Math.atan2(-vx, -vz);
     this.active.push(b);
     return b;
@@ -110,16 +126,16 @@ export class Bullets {
   update(dt) {
     const list = this.active;
     const sys = this.systems;
-    const range = BULLETS.range;
     for (let i = list.length - 1; i >= 0; i--) {
       const b = list[i];
       let z0 = b.z;
       b.x += b.vx * dt;
       b.z += b.vz * dt;
-      const step = Math.abs(b.vz * dt);
+      if (b.vy) { b.y += b.vy * dt; if (b.y < 0.55) { b.y = 0.55; b.vy = 0; } }
+      const step = Math.hypot(b.vx * dt, b.vz * dt);
       b.dist += step;
       const z1 = b.z;
-      let dead = b.dist > range;
+      let dead = b.dist > b.range;
       // swept collision: repeatedly take the nearest hit along travel (largest z), pierce as allowed
       for (let guard = 0; !dead && guard < 8; guard++) {
         let best = null, bestSys = null, bestZ = -Infinity;
@@ -128,8 +144,13 @@ export class Bullets {
           if (t && t.z > bestZ) { best = t; bestSys = sys[s]; bestZ = t.z; }
         }
         if (!best) break;
-        const consumed = bestSys.hit(best, b);
-        if (consumed || b.pierce <= 0) { dead = true; break; }
+        const res = bestSys.hit(best, b);
+        if (res === 'carry') { // bundled shots left over: keep flying without spending pierce
+          if (b.nh < b.hits.length) b.hits[b.nh++] = best;
+          z0 = bestZ;
+          continue;
+        }
+        if (res === true || b.pierce <= 0) { dead = true; break; }
         b.pierce--;
         if (b.nh < b.hits.length) b.hits[b.nh++] = best;
         z0 = bestZ;

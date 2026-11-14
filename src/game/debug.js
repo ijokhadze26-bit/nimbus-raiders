@@ -17,7 +17,11 @@ export function createDebug(game) {
         squad: game.squad.count,
         tier: game.weapons.tier,
         enemies: game.horde ? game.horde.count : 0,
-        bossHp: boss ? boss.hp : 0,
+        bossHp: boss ? Math.ceil(boss.hp) : 0,
+        bossState: boss ? boss.state : null,
+        bossPhase: boss ? boss.phase : 0,
+        telegraphs: game.telegraph ? game.telegraph.active.length : 0,
+        kills: run ? run.kills : 0,
         bossMax: boss ? boss.maxHp : 0,
         coins: run ? run.coins : 0,
         fps: Math.round(game.loopFps || 0),
@@ -58,6 +62,8 @@ export function createDebug(game) {
       game.squad.leader.z = -(run.length - 3);
       for (const m of game.squad.members) m.z = game.squad.leader.z + 1;
       game.gates.cursor = game.gates.events.length;
+      game.horde.skipAll();
+      game.barrels.skipAll();
       game.snapCamera();
       return debug.state();
     },

@@ -52,3 +52,16 @@ export function writeMatrix(arr, index, m) {
   const e = m.elements, o = index * 16;
   for (let k = 0; k < 16; k++) arr[o + k] = e[k];
 }
+
+/**
+ * Yaw (about Y) then roll (about the local Z axis) with non-uniform scale, written straight into an
+ * instance matrix array (no allocation). M = T * Ry(yaw) * Rz(roll) * S.
+ */
+export function writeYawRollMatrix(arr, index, x, y, z, yaw, roll, sx, sy, sz) {
+  const cy = Math.cos(yaw), syw = Math.sin(yaw), cr = Math.cos(roll), sr = Math.sin(roll);
+  const o = index * 16;
+  arr[o] = cy * cr * sx; arr[o + 1] = sr * sx; arr[o + 2] = -syw * cr * sx; arr[o + 3] = 0;
+  arr[o + 4] = -cy * sr * sy; arr[o + 5] = cr * sy; arr[o + 6] = syw * sr * sy; arr[o + 7] = 0;
+  arr[o + 8] = syw * sz; arr[o + 9] = 0; arr[o + 10] = cy * sz; arr[o + 11] = 0;
+  arr[o + 12] = x; arr[o + 13] = y; arr[o + 14] = z; arr[o + 15] = 1;
+}

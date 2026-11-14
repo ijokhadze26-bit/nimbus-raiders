@@ -9,6 +9,12 @@ import { Weapons } from './weapons.js';
 import { Bullets } from './bullets.js';
 import { Gates } from './gates.js';
 import { Autopilot } from './autopilot.js';
+import { Horde } from './horde.js';
+import { Barrels } from './barrels.js';
+import { Helpers } from './helpers.js';
+import { Telegraph } from './telegraph.js';
+import { Bosses } from './bosses/index.js';
+import { Shake } from '../fx/shake.js';
 import { Run } from './run.js';
 import { createDebug } from './debug.js';
 import { getLevel, LEVELS, LEVEL_COUNT } from '../data/levels.js';
@@ -31,8 +37,7 @@ export class Game {
     this.save = null;
     this.bank = { coins: 0 };
     // later-stage systems (null until implemented)
-    this.barrels = null; this.horde = null; this.obstacles = null; this.pickups = null;
-    this.powers = null; this.helpers = null; this.telegraph = null; this.boss = null;
+    this.obstacles = null; this.pickups = null; this.powers = null; this.boss = null;
     this.resultTimer = -1;
     this.lastResult = null;
     this.camLook = new THREE.Vector3(0, 0, -14);
@@ -41,7 +46,11 @@ export class Game {
 
     const ev = this.events;
     ev.setRate('weapon:fire', 22); ev.setRate('bullet:hit', 30); ev.setRate('enemy:die', 60);
-    ev.setRate('squad:lost', 40); ev.setRate('run:progress', 10);
+    ev.setRate('squad:lost', 40); ev.setRate('run:progress', 10); ev.setRate('boss:hp', 20);
+    this.shake = new Shake();
+    this.slow = { scale: 1, left: 0 };
+    ev.on('fx:shake', (p) => this.shake.add(p.amount || 0));
+    ev.on('fx:slowmo', (p) => { this.slow.scale = p.scale ?? 0.2; this.slow.left = p.duration ?? 1; });
 
     this.world = new World();
     this.bullets = new Bullets();
@@ -49,7 +58,12 @@ export class Game {
     this.weapons = new Weapons();
     this.gates = new Gates();
     this.autopilot = new Autopilot();
-    this.systems = [this.world, this.bullets, this.squad, this.weapons, this.gates, this.autopilot];
+    this.horde = new Horde();
+    this.barrels = new Barrels();
+    this.helpers = new Helpers();
+    this.telegraph = new Telegraph();
+    this.bosses = new Bosses();
+    this.systems = [this.world, this.bullets, this.squad, this.weapons, this.gates, this.horde, this.barrels, this.helpers, this.telegraph, this.bosses, this.autopilot];
     for (const s of this.systems) s.init(this);
 
     if (this.quality.setting === 'low') engine.applyQuality('low');
@@ -89,6 +103,7 @@ export class Game {
     this.weapons.reset(this.run, 1 + (this.save?.data?.upgrades?.tier || 0));
     this.weapons.enabled = true;
     this.gates.reset(this.run);
+    this.resetCombat(this.run);
     this.input.reset(0);
     this.autopilot.reset();
     this.snapCamera();
@@ -96,6 +111,16 @@ export class Game {
     this.events.emit('run:start', { levelId: def.id, mode, theme: def.theme });
     this.events.emit('run:phase', { phase: 'run' });
     if (this.quality.setting === 'auto') Object.assign(this.quality, { sampling: true, acc: 0, frames: 0, t: 0 });
+  }
+
+  resetCombat(run) {
+    this.horde.reset(run);
+    this.barrels.reset(run);
+    this.helpers.reset();
+    this.telegraph.reset();
+    this.bosses.reset();
+    this.shake.reset();
+    this.slow.left = 0;
   }
 
   pause() {
@@ -126,6 +151,7 @@ export class Game {
     this.timeScale = 1;
     this.bullets.reset();
     this.gates.reset(null);
+    this.resetCombat(null);
     this.squad.pip.root.visible = true;
     this.squad.reset(ATTRACT_COUNT, 0);
     this.weapons.enabled = false;
@@ -175,7 +201,9 @@ export class Game {
 
   /** One logic step (no rendering). */
   step(rawDt) {
-    const dt = rawDt * this.timeScale;
+    let scale = this.timeScale;
+    if (this.slow.left > 0) { scale *= this.slow.scale; this.slow.left -= rawDt; }
+    const dt = rawDt * scale;
     this.time += dt;
     this.events.now = this.time;
     if (this.state === 'playing') {
@@ -186,10 +214,15 @@ export class Game {
       run.update(dt, -this.squad.leader.z);
       run.stats.maxSquad = Math.max(run.stats.maxSquad, this.squad.count);
       this.gates.update(dt);
+      this.barrels.update(dt);
+      this.horde.update(dt);
+      this.helpers.update(dt);
       if (run.active) this.weapons.update(dt);
       this.bullets.update(dt);
+      this.telegraph.update(dt);
+      this.bosses.update(dt);
       if (run.phase === 'run' && run.dist >= run.length - (run.boss ? 2 : 0)) {
-        if (run.boss && this.boss) run.setPhase('boss');
+        if (run.boss) { run.setPhase('boss'); this.bosses.spawn(run.boss); }
         else this.win();
       }
       if (this.resultTimer > 0) {
@@ -201,7 +234,8 @@ export class Game {
       const tx = this.state === 'title' ? Math.sin(t * 0.35) * 1.6 : this.squad.leader.x;
       this.squad.update(dt, tx, this.state === 'title' ? 4.5 : 0);
       this.bullets.update(dt);
-      if (this.state === 'title') this.gates.update(dt);
+      this.gates.update(dt);
+      if (this.state === 'result') { this.horde.update(dt); this.telegraph.update(dt); this.bosses.update(dt); }
     }
   }
 
@@ -217,6 +251,11 @@ export class Game {
     const L = this.squad.leader;
     this.squad.sync(dt, this.run ? this.run.phase : 'title');
     this.gates.sync(dt);
+    this.barrels.sync(dt);
+    this.horde.sync(dt);
+    this.helpers.sync(dt);
+    this.telegraph.sync(dt);
+    this.bosses.sync(dt);
     this.bullets.sync();
     this.updateCamera(dt);
     this.world.sync(dt, L.x, L.z, this.camera.position.z);
@@ -232,7 +271,7 @@ export class Game {
     }
     const boss = this.run && this.run.phase === 'boss';
     outPos.set(L.x * CAMERA.followX, boss ? CAMERA.bossHeight : CAMERA.height, L.z + (boss ? CAMERA.bossBack : CAMERA.back));
-    outLook.set(L.x * CAMERA.lookX, 0, L.z - CAMERA.lookAhead);
+    outLook.set(L.x * CAMERA.lookX, 0, L.z - (boss ? CAMERA.bossLook : CAMERA.lookAhead));
   }
 
   snapCamera() {

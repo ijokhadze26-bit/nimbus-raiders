@@ -33,6 +33,7 @@ export class Weapons {
     this.tier = nt;
     const w = this.weapon;
     this.game.squad.setGunColor(w.color);
+    this.game.squad.setGunTier(nt);
     if (changed && !silent) {
       const L = this.game.squad.leader;
       this.game.events.emit('weapon:tier', { tier: nt, name: w.name, pos: { x: L.x, y: 1.5, z: L.z } });
@@ -56,7 +57,8 @@ export class Weapons {
     const visual = Math.min(S, maxVolleys);
     this.lastShotsPerSec = S;
     if (visual <= 0) return;
-    const dmg = w.damage * this.dmgMul * (S / visual);  // DPS conserved
+    const unit = w.damage * this.dmgMul;
+    const dmg = unit * (S / visual);                   // DPS conserved (bundled shots)
     this.acc += visual * dt;
     const shooters = squad.rendered;
     const bullets = game.bullets;
@@ -70,7 +72,7 @@ export class Weapons {
       const lead = (s / Math.max(1, total)) * dt * w.speed;
       for (let k = 0; k < w.pellets; k++) {
         const ang = w.pellets > 1 ? (k - (w.pellets - 1) / 2) * w.spread * DEG : 0;
-        bullets.spawn(this.tier, p.x, p.y, p.z + lead, Math.sin(ang) * w.speed, -Math.cos(ang) * w.speed, dmg, w.pierce);
+        bullets.spawn(this.tier, p.x, p.y, p.z + lead, Math.sin(ang) * w.speed, -Math.cos(ang) * w.speed, dmg, w.pierce, unit);
       }
       if (!fired) { fired = true; this.firePos.x = p.x; this.firePos.y = p.y; this.firePos.z = p.z; }
     }

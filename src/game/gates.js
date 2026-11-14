@@ -178,14 +178,19 @@ export class Gates {
   }
 
   shatter(g) {
-    const n = Math.round(10 * (g.width / GATE.width) + 8);
     _c.copy(RED).lerp(BLUE, g.colorT);
+    this.burst(g.x, 0.3, g.z, g.width, GATE.height, _c, Math.round(10 * (g.width / GATE.width) + 8));
+  }
+
+  /** Generic glass-shard burst (also used by shattering enemy shields and barrels). */
+  burst(x, y, z, w, h, color, n) {
+    _c2.set(color);
     for (let i = 0; i < n && this.shardData.length < MAX_SHARDS; i++) {
       this.shardData.push({
-        x: g.x + (Math.random() - 0.5) * g.width, y: 0.3 + Math.random() * GATE.height, z: g.z,
+        x: x + (Math.random() - 0.5) * w, y: y + Math.random() * h, z,
         vx: (Math.random() - 0.5) * 5, vy: 1 + Math.random() * 4, vz: 1 + Math.random() * 4,
         rx: Math.random() * 6, ry: Math.random() * 6, sp: (Math.random() - 0.5) * 14,
-        t: 0, life: 0.6 + Math.random() * 0.4, s: 0.6 + Math.random() * 0.9, r: _c.r, gg: _c.g, b: _c.b,
+        t: 0, life: 0.6 + Math.random() * 0.4, s: 0.6 + Math.random() * 0.9, r: _c2.r, gg: _c2.g, b: _c2.b,
       });
     }
   }
