@@ -320,9 +320,14 @@ export class Game {
 
   /** Called every animation frame by the loop (dt clamped, real = wall-clock frame time). */
   frame(dt, real = dt) {
+    const perf = this.perf && this.perf.on ? this.perf.cur : null; // debug.perfStart() harness only
+    let t = perf ? performance.now() : 0;
     if (this.state === 'playing' || MENU_STATES.has(this.state) || this.state === 'result') this.step(dt);
+    if (perf) { const t1 = performance.now(); perf.step = t1 - t; t = t1; }
     this.sync(dt);
+    if (perf) { const t1 = performance.now(); perf.sync = t1 - t; t = t1; }
     this.engine.render();
+    if (perf) perf.render = performance.now() - t;
     this.sampleQuality(real);
   }
 

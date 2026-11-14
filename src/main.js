@@ -5,6 +5,7 @@ import './ui/styles.css';
 import { Engine } from './core/engine.js';
 import { Input } from './core/input.js';
 import { Loop } from './core/loop.js';
+import { PerfProbe } from './core/perf.js';
 import { Game } from './game/game.js';
 import { Save } from './save/save.js';
 import { installProgress } from './save/progress.js';
@@ -44,10 +45,16 @@ async function boot() {
     await Promise.race([document.fonts.load("100px 'Lilita One'"), new Promise((r) => setTimeout(r, 1500))]);
   } catch { /* ignore */ }
 
+  const perf = (game.perf = new PerfProbe(engine));
   const loop = new Loop((dt, real) => {
     game.loopFps = loop.fps;
     game.frame(dt, real);
-    ui.update(dt);
+    if (perf.on) {
+      const t = performance.now();
+      ui.update(dt);
+      perf.cur.ui = performance.now() - t;
+      perf.record(real * 1000);
+    } else ui.update(dt);
   });
   game.loop = loop;
 

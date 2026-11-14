@@ -90,6 +90,9 @@ export function createDebug(game) {
     killBoss() { if (game.boss && game.boss.kill) game.boss.kill(); return debug.state(); },
     /** Throwaway arena run against one boss: bossTest('oculon', { tier, hp, squad, weapon }). */
     bossTest(type, opts) { return bossTest(game, type, opts); },
+    /** Frame profiler (harness): perfStart() then perfStop() -> per-phase JS ms, draw calls, heap growth. */
+    perfStart() { game.perf?.start(); return true; },
+    perfStop() { return game.perf ? game.perf.stop() : null; },
     setTimeScale(s = 1) { game.timeScale = Math.max(0, Math.min(4, s)); return game.timeScale; },
   };
   return debug;
