@@ -49,6 +49,7 @@ export class Game {
     this.obstacles = null; this.pickups = null; this.powers = null; this.boss = null;
     this.resultTimer = -1;
     this.lastResult = null;
+    this.idleFrames = 0;
     this.camLook = new THREE.Vector3(0, 0, -14);
     this.camPos = new THREE.Vector3(0, CAMERA.height, CAMERA.back);
     // auto quality: rolling fps monitor for the whole run (see sampleQuality)
@@ -129,6 +130,7 @@ export class Game {
   tierColor(tier) { return tierLook(this.skins.weapon, tier).color; }
 
   beginRun(def, mode, seed = 1) {
+    this.engine.flushQuality(); // a deferred shadow switch recompiles here, under the screen transition
     this.rng.seed(def.id * 7919 + (mode === 'endless' ? seed : 0));
     this.run = new Run(def, mode, this.events);
     if (mode === 'endless') this.endless.start(this.run, seed); else this.endless.stop();
@@ -202,6 +204,7 @@ export class Game {
   }
 
   toTitle() {
+    this.engine.flushQuality();
     this.run = null;
     this.endless.stop();
     this.timeScale = 1;
@@ -320,16 +323,33 @@ export class Game {
 
   /** Called every animation frame by the loop (dt clamped, real = wall-clock frame time). */
   frame(dt, real = dt) {
+    // paused: the picture can't change, so after a couple of frames stop re-rendering it (battery, heat);
+    // a resize / context restore asks for a fresh frame (engine.needsFrame)
+    if (this.state === 'paused') {
+      if (this.idleFrames > 2 && !this.engine.needsFrame) return;
+      this.idleFrames++;
+    } else this.idleFrames = 0;
+    this.engine.needsFrame = false;
+    const perf = this.perf && this.perf.on ? this.perf.cur : null; // debug.perfStart() harness only
+    let t = perf ? performance.now() : 0;
     if (this.state === 'playing' || MENU_STATES.has(this.state) || this.state === 'result') this.step(dt);
+    if (perf) { const t1 = performance.now(); perf.step = t1 - t; t = t1; }
     this.sync(dt);
+    if (perf) { const t1 = performance.now(); perf.sync = t1 - t; t = t1; }
     this.engine.render();
+    if (perf) perf.render = performance.now() - t;
     this.sampleQuality(real);
   }
 
-  /** 'high' | 'low': renderer settings + the geometry that dominates the frame (squad mesh LOD). */
-  applyQuality(q) {
-    this.engine.applyQuality(q);
+  /**
+   * 'high' | 'low': renderer settings, the geometry that dominates the frame (squad mesh + gun LOD) and the
+   * sky (cloud count, cloud-sea octaves). defer: keep the shadow shader rebuild for the next safe point.
+   */
+  applyQuality(q, opts) {
+    if (q === 'high' && this.engine.dprScale !== 1) this.engine.dprScale = 1; // explicit High = full resolution
+    this.engine.applyQuality(q, opts);
     this.squad.setLod(q);
+    this.world.setQuality(q);
   }
 
   holdQuality(s) { this.quality.hold = Math.max(this.quality.hold, s); }
@@ -415,7 +435,13 @@ export class Game {
     const fps = this.loopFps || 60;
     q.ema += (fps - q.ema) * (1 - Math.exp(-real / QUALITY.autoTau));
     q.low = q.ema < QUALITY.autoMinFps ? q.low + real : 0;
-    if (q.low >= QUALITY.autoLowSeconds) this.applyQuality('low');
+    if (q.low < QUALITY.autoLowSeconds) return;
+    // step 1: same look at 75% resolution (fill rate is the usual phone bottleneck); step 2: low quality.
+    // Both apply without a shader rebuild (see Engine.applyQuality), so the switch itself never hitches.
+    const e = this.engine;
+    if (e.dprScale === 1 && e.pixelRatioFor('high') > 1.2) e.setDprScale(0.75);
+    else this.applyQuality('low', { defer: true });
+    Object.assign(q, { ema: 60, low: 0, hold: 1.5 });
   }
 }
 

@@ -107,7 +107,7 @@ export function buildPowerToken(kind, { ground = true } = {}) {
     for (let i = 0; i < n; i++) { const y = g.attributes.position.getY(i) / 2.2; col.set([1, 1, 1, 0.55 * (1 - y)], i * 4); }
     g.setAttribute('color', new THREE.BufferAttribute(col, 4));
     return g;
-  }), new THREE.MeshBasicMaterial({ color: st.glow, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, toneMapped: false }));
+  }), new THREE.MeshBasicMaterial({ color: st.glow, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, forceSinglePass: true, toneMapped: false }));
   pillar.renderOrder = 2;
   const ring = new THREE.Mesh(once('ring', () => new THREE.RingGeometry(0.55, 0.78, 36).rotateX(-Math.PI / 2)),
     new THREE.MeshBasicMaterial({ color: st.glow, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));

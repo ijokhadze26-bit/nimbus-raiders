@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { GATE, LANES, COLORS, FORMATION } from '../config.js';
 import { buildGateVisual, shardGeometry } from '../models/gate.js';
-import { drawLabel, signed } from '../models/labels.js';
+import { drawLabel, signed, labelReady } from '../models/labels.js';
 import { hasHit } from './bullets.js';
 import { markInstances } from '../core/pool.js';
 
@@ -45,10 +45,11 @@ export class Gates {
     this.priority = 10;
     game.bullets.addTargetSystem(this);
 
-    this.shards = new THREE.InstancedMesh(shardGeometry(), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false }), MAX_SHARDS);
+    this.shards = new THREE.InstancedMesh(shardGeometry(), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.85, side: THREE.DoubleSide, forceSinglePass: true, depthWrite: false }), MAX_SHARDS);
     this.shards.frustumCulled = false;
     this.shards.count = 0;
     this.shards.renderOrder = 3;
+    this.shards.setColorAt(0, _c.set(1, 1, 1)); // instanceColor exists from the start: one shader program
     game.scene.add(this.shards);
     this.shardData = [];
     this.hitPos = { x: 0, y: 0, z: 0 };
@@ -265,7 +266,7 @@ export class Gates {
       const ps = 1 + Math.sin(Math.min(1, pu) * Math.PI) * 0.22 * Math.min(1, pu + 0.2);
       v.labelMesh.scale.setScalar(ps);
       if ((g.colorT > 0.5) !== g.labelBlue) g.dirty = true;
-      if (g.dirty) { this.drawGateLabel(g); g.dirty = false; }
+      if (g.dirty && labelReady(v.label)) { this.drawGateLabel(g); g.dirty = false; }
       if (g.state === 'live') {
         v.panelMat.opacity = 0.62 + fl * 0.25;
         v.group.scale.set(1, 1, 1);

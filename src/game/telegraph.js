@@ -66,7 +66,9 @@ function makeStripeTexture() {
   return t;
 }
 
-const mat = (opts) => new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, ...opts });
+// forceSinglePass: one flat tint per material, so back/front blending order cannot change the result, and
+// three's two-pass DoubleSide path would bump the material version (program lookup) twice per frame
+const mat = (opts) => new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, forceSinglePass: true, ...opts });
 const circleGeo = new THREE.CircleGeometry(1, 48).rotateX(-Math.PI / 2);
 const planeGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 const wallGeo = new THREE.CylinderGeometry(1, 1, 1, 48, 1, true).translate(0, 0.5, 0);

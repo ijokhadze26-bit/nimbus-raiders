@@ -12,7 +12,17 @@ export function createLabel(width = 256, height = 128) {
   texture.anisotropy = 4;
   texture.generateMipmaps = true;
   texture.minFilter = THREE.LinearMipmapLinearFilter;
-  return { canvas, ctx, texture, key: null };
+  return { canvas, ctx, texture, key: null, drawn: -1e9 };
+}
+
+/**
+ * Rate limit for labels that change on every bullet hit (gate values, barrel hp): each redraw re-uploads the
+ * canvas and rebuilds its mipmaps, so at most one redraw per label every `ms` (20 Hz by default). A label
+ * whose key was reset (fresh from the pool) always draws.
+ */
+export function labelReady(label, ms = 50) {
+  if (label.key === null) return true;
+  return performance.now() - label.drawn >= ms;
 }
 
 /**
@@ -24,6 +34,7 @@ export function drawLabel(label, text, opts = {}) {
   const key = text + '|' + (opts.key || '') + '|' + (opts.fill || '') + (opts.stroke || '');
   if (label.key === key && !opts.force) return false;
   label.key = key;
+  label.drawn = performance.now();
   const { ctx, canvas } = label;
   const w = canvas.width, h = canvas.height;
   if (opts.clear !== false) ctx.clearRect(0, 0, w, h);

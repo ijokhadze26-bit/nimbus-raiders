@@ -47,6 +47,36 @@ export function writeYawMatrix(arr, index, x, y, z, a, sx, sy = sx, sz = sx) {
   arr[o + 12] = x; arr[o + 13] = y; arr[o + 14] = z; arr[o + 15] = 1;
 }
 
+/**
+ * Scratch transform for the hot-loop writers below (hundreds of instances per frame): fill XF, then call
+ * with (array, index) only. Doubles passed as call arguments get boxed on the heap whenever the call is not
+ * inlined (big per-frame loops exhaust the inlining budget), which was ~80 KB of garbage per frame.
+ * Layout: x, y, z, yaw, roll, sx, sy, sz.
+ */
+export const XF = new Float64Array(8);
+
+/** writeYawRollMatrix from XF. */
+export function writeXfYawRoll(arr, index) {
+  const yaw = XF[3], roll = XF[4], sx = XF[5], sy = XF[6], sz = XF[7];
+  const cy = Math.cos(yaw), syw = Math.sin(yaw), cr = Math.cos(roll), sr = Math.sin(roll);
+  const o = index * 16;
+  arr[o] = cy * cr * sx; arr[o + 1] = sr * sx; arr[o + 2] = -syw * cr * sx; arr[o + 3] = 0;
+  arr[o + 4] = -cy * sr * sy; arr[o + 5] = cr * sy; arr[o + 6] = syw * sr * sy; arr[o + 7] = 0;
+  arr[o + 8] = syw * sz; arr[o + 9] = 0; arr[o + 10] = cy * sz; arr[o + 11] = 0;
+  arr[o + 12] = XF[0]; arr[o + 13] = XF[1]; arr[o + 14] = XF[2]; arr[o + 15] = 1;
+}
+
+/** writeYawMatrix from XF (roll ignored). */
+export function writeXfYaw(arr, index) {
+  const a = XF[3], sx = XF[5], sy = XF[6], sz = XF[7];
+  const c = Math.cos(a), s = Math.sin(a);
+  const o = index * 16;
+  arr[o] = c * sx; arr[o + 1] = 0; arr[o + 2] = -s * sx; arr[o + 3] = 0;
+  arr[o + 4] = 0; arr[o + 5] = sy; arr[o + 6] = 0; arr[o + 7] = 0;
+  arr[o + 8] = s * sz; arr[o + 9] = 0; arr[o + 10] = c * sz; arr[o + 11] = 0;
+  arr[o + 12] = XF[0]; arr[o + 13] = XF[1]; arr[o + 14] = XF[2]; arr[o + 15] = 1;
+}
+
 /** Writes a full matrix from an Object3D-like compose into the array. */
 export function writeMatrix(arr, index, m) {
   const e = m.elements, o = index * 16;

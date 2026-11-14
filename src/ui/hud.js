@@ -297,7 +297,7 @@ export class Hud {
       if (lw !== this.lagW) { this.lagW = lw; this.bossLag.style.transform = `scaleX(${lw / 2000})`; }
     }
     const visible = (g.state === 'playing' || g.state === 'paused') && sq.count > 0;
-    this.bubble.style.display = visible ? '' : 'none';
+    if (visible !== this.bubbleShown) { this.bubbleShown = visible; this.bubble.style.display = visible ? '' : 'none'; }
     if (!visible) return;
     if (sq.count !== this.count) { this.count = sq.count; this.bubbleInner.textContent = String(sq.count); }
     const L = sq.leader;
@@ -309,11 +309,28 @@ export class Hud {
     if (near !== this.faded) { this.faded = near; this.bubble.classList.toggle('faded', near); }
     _v.set(L.x, 2.25 + sq.pip.body.position.y, L.z).project(g.camera);
     const w = g.engine.width, h = g.engine.height;
-    const x = Math.max(34, Math.min(w - 34, (_v.x * 0.5 + 0.5) * w)), y = Math.max(120, Math.min(h - 20, (-_v.y * 0.5 + 0.5) * h));
-    this.bubble.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
+    const x = Math.round(Math.max(34, Math.min(w - 34, (_v.x * 0.5 + 0.5) * w)) * 2) / 2, y = Math.round(Math.max(120, Math.min(h - 20, (-_v.y * 0.5 + 0.5) * h)) * 2) / 2;
+    if (x !== this.bx || y !== this.by) { this.bx = x; this.by = y; this.bubble.style.transform = `translate3d(${x}px, ${y}px, 0)`; }
   }
 }
 
 function el(tag, cls) { const e = document.createElement(tag); e.className = cls; return e; }
-function restartAnim(node) { node.style.animation = 'none'; void node.offsetWidth; node.style.animation = ''; }
-function restartClass(node, cls) { node.classList.remove(cls); void node.offsetWidth; node.classList.add(cls); }
+// Restarting a CSS animation by reading offsetWidth forces a synchronous layout of the whole HUD (it ran on
+// every coin pickup). Rewinding the element's running animations does the same without layout.
+function rewind(node) {
+  if (!node.getAnimations) return false;
+  const list = node.getAnimations();
+  for (const a of list) { a.currentTime = 0; a.play(); }
+  return list.length > 0;
+}
+function restartAnim(node) {
+  if (rewind(node)) return;
+  node.style.animation = 'none';
+  requestAnimationFrame(() => { node.style.animation = ''; }); // restarts after this frame's style pass
+}
+function restartClass(node, cls) {
+  if (!node.classList.contains(cls)) { node.classList.add(cls); return; }
+  if (rewind(node)) return;
+  node.classList.remove(cls); // finished animation: re-add next frame (no forced layout)
+  requestAnimationFrame(() => node.classList.add(cls));
+}

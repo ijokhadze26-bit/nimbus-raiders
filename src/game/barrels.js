@@ -4,12 +4,13 @@
 import { LANES, MEMBER_CLAMP } from '../config.js';
 import { MAX_TIER } from '../data/weapons.js';
 import { buildBarrelVisual, buildRewardDisplay, BARREL_R } from '../models/barrel.js';
-import { drawLabel, drawBadge } from '../models/labels.js';
+import { drawLabel, drawBadge, labelReady } from '../models/labels.js';
 import { hasHit } from './bullets.js';
 
 const SPAWN_AHEAD = 110;
 const HIT_HALF = 0.95;
 const FLY_TIME = 0.45;
+const HP_LABEL = { fill: '#e8213a', stroke: '#5e0412', strokeWidth: 12, size: 104, shadow: false, y: 0.55 };
 let nextId = 1;
 
 export class Barrels {
@@ -79,7 +80,7 @@ export class Barrels {
 
   make(e) {
     const v = this.pool.length ? this.pool.pop() : buildBarrelVisual();
-    v.label.key = null;
+    v.label.key = null; v.labelHp = -1;
     v.body.visible = true; v.labelMesh.visible = true;
     v.group.visible = true;
     v.group.scale.set(1, 1, 1);
@@ -207,7 +208,8 @@ export class Barrels {
         v.body.scale.set(1 + pu * 0.08, 1 - pu * 0.06, 1 + pu * 0.08);
         b.flash = Math.max(0, b.flash - dt * 7);
         v.mat.emissiveIntensity = b.flash * 0.55;
-        drawLabel(v.label, String(Math.max(0, Math.ceil(b.hp))), { fill: '#e8213a', stroke: '#5e0412', strokeWidth: 12, size: 104, shadow: false, y: 0.55 });
+        const hp = Math.max(0, Math.ceil(b.hp));
+        if (hp !== v.labelHp && labelReady(v.label)) { v.labelHp = hp; drawLabel(v.label, String(hp), HP_LABEL); }
         v.labelMesh.scale.setScalar(1 + pu * 0.18);
         // weapon reward follows the current tier (next tier)
         if (b.reward.kind === 'weapon' && this.displayKey(b) !== b.displayKey) {

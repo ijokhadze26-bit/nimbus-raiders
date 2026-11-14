@@ -6,6 +6,7 @@ import { MotherMurk } from './mothermurk.js';
 import { Ironhorn } from './ironhorn.js';
 import { TempestKing } from './tempestking.js';
 import { BossEffects } from './effects.js';
+import { warmBoss } from '../warmup.js';
 
 export const BOSS_CLASSES = {
   grawlstone: Grawlstone,
@@ -33,6 +34,7 @@ export class Bosses {
     if (!cfg) return;
     const Cls = BOSS_CLASSES[cfg.type] || Grawlstone;
     if (Cls.preload) Cls.preload(this.game);
+    warmBoss(this.game, BOSS_CLASSES[cfg.type] ? cfg.type : 'grawlstone');
   }
 
   /** Spawns the level boss; unknown types fall back to Grawlstone until their class exists. */

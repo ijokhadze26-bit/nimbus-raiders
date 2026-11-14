@@ -61,8 +61,16 @@ export function buildRaiderShadowGeometry() {
  * gun material (tier color); dark parts stay dark. Each tier has its own silhouette.
  */
 const DARK = '#4b5672';
-function gunParts(tier) {
+// low LOD (squad guns on low quality): same parts, fewer round segments (a squad gun is a few pixels tall)
+const G0 = G;
+const GL = {
+  ...G,
+  cyl: (rt, rb, h) => G.cyl(rt, rb, h, 4),
+  sphere: (r) => G.sphere(r, 5, 3),
+};
+function gunParts(tier, low = false) {
   const W = '#ffffff';
+  const G = low ? GL : G0;
   switch (tier) {
     case 2: return [ // Storm Rifle: long barrel + stock + scope
       part(G.box(0.07, 0.08, 0.3), W, { p: [0, 0, -0.08] }),
@@ -107,11 +115,11 @@ const gunCache = new Map();
 /** Gun for a tier centered on its grip, pointing -Z (reward displays). */
 export function buildGunGeometry(tier = 1) { return merge(gunParts(tier)); }
 
-/** Raider gun for a tier (cached). */
-export function buildRaiderGunGeometry(tier = 1) {
-  const key = 'r' + tier;
+/** Raider gun for a tier (cached); lod 'low' = fewer segments. */
+export function buildRaiderGunGeometry(tier = 1, lod = 'high') {
+  const key = 'r' + tier + lod;
   if (!gunCache.has(key)) {
-    const g = merge(gunParts(tier));
+    const g = merge(gunParts(tier, lod === 'low'));
     g.translate(0.15, 0.33, -0.2);
     g.scale(RAIDER_SCALE, RAIDER_SCALE, RAIDER_SCALE);
     gunCache.set(key, g);

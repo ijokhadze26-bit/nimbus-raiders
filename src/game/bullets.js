@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { BULLETS } from '../config.js';
 import { WEAPONS, HELPER_SHOTS } from '../data/weapons.js';
 import { part, merge, G } from '../models/util.js';
-import { writeYawMatrix, markInstances } from '../core/pool.js';
+import { XF, writeXfYaw, markInstances } from '../core/pool.js';
 import { tierLook, isPrism, prismColor } from './skins.js';
 
 // tail cone pointing back (+Z) from the bullet center
@@ -196,7 +196,8 @@ export class Bullets {
       if (n >= BULLETS.capacityPerStyle) continue;
       // grow-in over the first 0.6u so bullets don't pop out of the guns
       const g = b.dist < 0.6 ? 0.4 + b.dist : 1;
-      writeYawMatrix(mesh.instanceMatrix.array, n, b.x, b.y, b.z, b.ang, g, g, g);
+      XF[0] = b.x; XF[1] = b.y; XF[2] = b.z; XF[3] = b.ang; XF[5] = XF[6] = XF[7] = g;
+      writeXfYaw(mesh.instanceMatrix.array, n);
     }
     for (let s = 0; s < this.meshes.length; s++) {
       const mesh = this.meshes[s];

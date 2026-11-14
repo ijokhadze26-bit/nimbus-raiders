@@ -184,7 +184,8 @@ export class UI {
     if (!g.quality) return;
     g.quality.setting = q;
     const want = q === 'low' ? 'low' : 'high';
-    if (g.engine.quality !== want) g.applyQuality ? g.applyQuality(want) : g.engine.applyQuality(want);
+    // (an auto-quality resolution step also counts as "not high": picking High restores full resolution)
+    if (g.engine.quality !== want || (want === 'high' && g.engine.dprScale !== 1)) g.applyQuality ? g.applyQuality(want) : g.engine.applyQuality(want);
     if (q === 'auto') Object.assign(g.quality, { ema: 60, low: 0, hold: 1.2 });
   }
 

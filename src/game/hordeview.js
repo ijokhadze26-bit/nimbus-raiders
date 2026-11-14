@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { ENEMY_TYPES, ENEMIES } from '../data/enemies.js';
 import { buildMurklingGeometry, buildShieldGeometry, buildSparkGeometry } from '../models/murklings.js';
 import { fxToonMaterial, blobShadowTexture } from '../models/materials.js';
-import { writeYawRollMatrix, writeYawMatrix, markInstances } from '../core/pool.js';
+import { XF, writeXfYawRoll, writeXfYaw, markInstances } from '../core/pool.js';
 import { part, merge, G } from '../models/util.js';
 
 const DIE_TIME = 0.17;
@@ -37,7 +37,7 @@ export class HordeView {
       scene.add(mesh);
       return { mesh, fx, n: 0 };
     });
-    this.shields = new THREE.InstancedMesh(buildShieldGeometry(), new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }), 320);
+    this.shields = new THREE.InstancedMesh(buildShieldGeometry(), new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true, toneMapped: false }), 320);
     this.shields.frustumCulled = false; this.shields.count = 0; this.shields.renderOrder = 4;
     this.shields.setColorAt(0, _c.set(1, 1, 1));
     this.sparks = new THREE.InstancedMesh(buildSparkGeometry(), new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, fog: false }), 320);
@@ -96,7 +96,8 @@ export class HordeView {
         yaw = Math.max(-0.5, Math.min(0.5, e.vx * 0.18)) + (e.charging ? 0 : Math.sin(time * 0.9 + e.ph * 3) * 0.35);
         e.flash = Math.max(0, e.flash - fd);
       }
-      writeYawRollMatrix(vm.mesh.instanceMatrix.array, vm.n, e.x, y, e.z, yaw, roll, sx, sy, sz);
+      XF[0] = e.x; XF[1] = y; XF[2] = e.z; XF[3] = yaw; XF[4] = roll; XF[5] = sx; XF[6] = sy; XF[7] = sz;
+      writeXfYawRoll(vm.mesh.instanceMatrix.array, vm.n);
       const fo = vm.n * 3;
       const fx = vm.fx.array;
       fx[fo] = flash * 0.7;
@@ -106,13 +107,15 @@ export class HordeView {
       // blob shadow
       if (nb < this.cap) {
         const bs = d.r * 2.5 * (e.state === 1 ? Math.max(0, 1 - e.t / DIE_TIME) : 1 - y * 0.8);
-        writeYawMatrix(bArr, nb++, e.x, 0.02, e.z + 0.05, 0, bs, 1, bs * 0.85);
+        XF[0] = e.x; XF[1] = 0.02; XF[2] = e.z + 0.05; XF[3] = 0; XF[5] = bs; XF[6] = 1; XF[7] = bs * 0.85;
+        writeXfYaw(bArr, nb++);
       }
       if (e.state !== 0) continue;
       if (e.shield > 0 && ns < 320) {
         const hurt = 1 - e.shield / d.shieldHits;
         const p = 1 + e.sflash * 0.12;
-        writeYawRollMatrix(sArr, ns, e.x, y, e.z, yaw, roll * 0.6, sx * p, sy * p, sz);
+        XF[0] = e.x; XF[1] = y; XF[2] = e.z; XF[3] = yaw; XF[4] = roll * 0.6; XF[5] = sx * p; XF[6] = sy * p; XF[7] = sz;
+        writeXfYawRoll(sArr, ns);
         const fl = e.sflash;
         _c.setRGB(1 + hurt * 0.5 + fl * 0.9, 1 - hurt * 0.35 + fl * 0.9, 1 - hurt * 0.1 + fl * 0.9);
         if (hurt > 0.5 && Math.sin(time * 40 + e.ph) > 0.4) _c.multiplyScalar(0.6);
@@ -122,7 +125,8 @@ export class HordeView {
       }
       if (d.blastRadius && nk < 320) {
         const fl = 0.75 + 0.5 * Math.abs(Math.sin(time * 31 + e.ph * 5));
-        writeYawMatrix(kArr, nk++, e.x + Math.sin(roll) * -1.1 + 0.06, y + 1.12 * sy, e.z + 0.03, time * 7 + e.ph, fl);
+        XF[0] = e.x + Math.sin(roll) * -1.1 + 0.06; XF[1] = y + 1.12 * sy; XF[2] = e.z + 0.03; XF[3] = time * 7 + e.ph; XF[5] = XF[6] = XF[7] = fl;
+        writeXfYaw(kArr, nk++);
       }
     }
     for (const m of ms) {
@@ -143,7 +147,8 @@ export class HordeView {
       const f = b.t / 0.32;
       if (f >= 1) { bd.splice(i, 1); continue; }
       const s = b.r * (f < 0.35 ? 0.4 + (f / 0.35) * 0.6 : 1 - (f - 0.35) / 0.65 * 0.9);
-      writeYawMatrix(xArr, nx++, b.x, 0.5, b.z, 0, s, s * 0.7, s);
+      XF[0] = b.x; XF[1] = 0.5; XF[2] = b.z; XF[3] = 0; XF[5] = s; XF[6] = s * 0.7; XF[7] = s;
+      writeXfYaw(xArr, nx++);
     }
     this.blastMesh.count = nx;
     if (nx) markInstances(this.blastMesh.instanceMatrix, nx);
