@@ -55,9 +55,14 @@ export class Grawlstone extends BaseBoss {
     const slams = []; // { at, mark, boulder, hit }
     let t = 0;
     const self = this;
+    // the fight's opening slam lands off-centre (to the roomier side of the road): a new player who freezes
+    // loses part of a small squad, not all of it
+    const first = !self.slammed;
+    self.slammed = true;
     const place = () => {
       const c = self.squadCenter();
-      const mark = game.telegraph.circle(clampX(c.x + rng.range(-0.5, 0.5)), c.z + rng.range(-0.8, 0.4), r, dur, { attack: 'slam' });
+      const off = first && slams.length === 0 ? (c.x > 0 ? -1 : 1) * (spec.firstOffset || 0) : rng.range(-0.5, 0.5);
+      const mark = game.telegraph.circle(clampX(c.x + off), c.z + rng.range(-0.8, 0.4), r, dur, { attack: 'slam' });
       slams.push({ start: t, mark, boulder: null, hit: false });
     };
     place();

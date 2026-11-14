@@ -43,6 +43,9 @@ export class Weapons {
 
   upgrade(n = 1) { return this.setTier(this.tier + n); }
 
+  /** Gate hits per second the squad's fire is worth (device independent: always the high-quality budget). */
+  gateShotsPerSec(S = this.lastShotsPerSec, w = this.weapon) { return Math.min(S, BULLETS.budgetHigh / w.pellets) * w.pellets; }
+
   budget() { return this.game.engine && this.game.engine.quality === 'low' ? BULLETS.budgetLow : BULLETS.budgetHigh; }
 
   update(dt) {
@@ -59,6 +62,9 @@ export class Weapons {
     if (visual <= 0) return;
     const unit = w.damage * this.dmgMul;
     const dmg = unit * (S / visual);                   // DPS conserved (bundled shots)
+    // gate credit per visual bullet: a gate climbs as fast as it would under the high-quality budget, so a
+    // phone that auto-drops to low quality (fewer, fatter bullets) earns the same troops from a gate
+    const gw = this.gateShotsPerSec(S, w) / (visual * w.pellets);
     this.acc += visual * dt;
     const shooters = squad.rendered;
     const bullets = game.bullets;
@@ -72,7 +78,8 @@ export class Weapons {
       const lead = (s / Math.max(1, total)) * dt * w.speed;
       for (let k = 0; k < w.pellets; k++) {
         const ang = w.pellets > 1 ? (k - (w.pellets - 1) / 2) * w.spread * DEG : 0;
-        bullets.spawn(this.tier, p.x, p.y, p.z + lead, Math.sin(ang) * w.speed, -Math.cos(ang) * w.speed, dmg, w.pierce, unit);
+        const b = bullets.spawn(this.tier, p.x, p.y, p.z + lead, Math.sin(ang) * w.speed, -Math.cos(ang) * w.speed, dmg, w.pierce, unit);
+        if (b) b.gw = gw;
       }
       if (!fired) { fired = true; this.firePos.x = p.x; this.firePos.y = p.y; this.firePos.z = p.z; }
     }

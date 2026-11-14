@@ -184,8 +184,9 @@ export class Game {
     this.events.emit('game:resume', {});
   }
 
-  quitToMenu() { this.toTitle(); }
+  quitToMenu() { this.settleEndless(); this.toTitle(); }
   retry() {
+    this.settleEndless();
     if (this.run && this.run.mode === 'endless') this.startEndless();
     else if (this.run) this.beginRun(this.run.def, this.run.mode);
     else this.startLevel(1);
@@ -218,6 +219,21 @@ export class Game {
   }
 
   // ---------------- run outcome ----------------
+  /**
+   * Endless has no win: an endless run abandoned from pause (HOME / RETRY) still pays out and records its
+   * distance, exactly like a wipe-out (run:lose with quit:true so audio skips the lose stinger).
+   */
+  settleEndless() {
+    const run = this.run;
+    if (!run || run.mode !== 'endless' || !run.active) return;
+    run.setPhase('lost');
+    run.coinsEarned = run.coins;
+    this.bank.coins += run.coinsEarned;
+    const p = { levelId: run.levelId, mode: run.mode, dist: Math.round(run.dist), coins: run.coinsEarned, kills: run.kills, quit: true };
+    this.lastResult = { win: false, ...p };
+    this.events.emit('run:lose', p);
+  }
+
   onSquadEmpty(reason) {
     const run = this.run;
     if (!run || !run.active || this.state !== 'playing') return;

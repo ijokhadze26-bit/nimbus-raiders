@@ -90,7 +90,7 @@ export class Autopilot {
     if (!row) return null;
     const t = Math.max(0, (L.z - row.z) / speed);
     const w = game.weapons;
-    const bulletsPerSec = Math.min(w.lastShotsPerSec, w.budget() / w.weapon.pellets) * w.weapon.pellets;
+    const bulletsPerSec = w.gateShotsPerSec();
     const count = game.squad.count;
     let best = null, bestScore = -Infinity;
     for (const g of row.gates) {

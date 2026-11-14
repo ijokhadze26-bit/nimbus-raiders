@@ -30,6 +30,7 @@ export class Helpers {
     for (const h of this.droneList) this.release(h);
     for (const h of this.turretList) this.release(h);
     this.droneList.length = 0; this.turretList.length = 0;
+    this.time = 0; // drone orbit angles / boss aim wobble are gameplay inputs: same run, same shots
   }
 
   visual(kind) {

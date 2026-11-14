@@ -15,11 +15,15 @@ export const ENDLESS = {
 
 export const ENDLESS_BOSSES = ['grawlstone', 'oculon', 'mothermurk', 'ironhorn', 'tempestking'];
 
-/** Boss config of arena n (1-based): rotates through the roster, hp and tier climb every arena. */
+/**
+ * Boss config of arena n (1-based): rotates through the roster. HP grows gently (the capped squad's fire
+ * is flat, so steep HP growth turns into one hard wall); later arenas get meaner through tier = faster
+ * cadence, shorter warnings and bigger broods instead.
+ */
 export function endlessBoss(n) {
   const type = ENDLESS_BOSSES[(n - 1) % ENDLESS_BOSSES.length];
-  const hp = Math.min(450000, Math.round(9000 * Math.pow(1.9, n - 1) / 500) * 500);
-  return { type, hp, tier: Math.min(5, n) };
+  const hp = Math.min(240000, Math.round(30000 * Math.pow(1.32, n - 1) / 500) * 500) + 15000 * Math.max(0, n - 9);
+  return { type, hp, tier: Math.min(7, n) };
 }
 
 /** Reward after beating arena n. */
@@ -45,22 +49,22 @@ export class EndlessGen {
   }
 
   /**
-   * Difficulty knobs at distance d (u), from the squad a good run has there (E: ~45 at 200 u, ~330 at the
-   * first boss, the 999 cap by the second) and the weapon tier it has probably reached.
+   * Difficulty knobs at distance d (u), from the squad a good run has there (E: ~28 at 200 u, ~330 at the
+   * first boss, ~950 by 1200 u) and the weapon tier it has probably reached.
    */
   knobs(d) {
-    const E = Math.min(950, 1 + 330 * Math.pow(d / 700, 1.6));
+    const E = Math.min(950, 1 + 330 * Math.pow(d / 700, 2));
     const dpm = d < 150 ? 2.2 : d < 350 ? 4.5 : d < 700 ? 7 : d < 1200 ? 13.5 : 20;
     const late = Math.max(0, (d - 1400) / 700);          // past the cap: numbers keep climbing slowly
     return {
       E,
       add: Math.max(4, Math.round(0.45 * E)),            // good add gate max
-      horde: Math.min(700, Math.round(Math.max(10, 0.55 * E) * (1 + 0.4 * late))),
+      horde: Math.min(900, Math.round(Math.max(10, 0.55 * E) * (1 + 0.4 * late))),
       barrel: Math.max(8, Math.round(E * dpm * 0.6 * (1 + 0.3 * late))),
       troops: Math.max(4, Math.round(0.25 * E)),
       hits: Math.round(450 + 0.12 * d),                  // ladder hits per rung
       shields: Math.min(0.35, 0.12 + late * 0.08),
-      tanks: Math.min(0.2, 0.08 + late * 0.04),
+      tanks: Math.min(0.25, 0.08 + late * 0.05),
     };
   }
 
@@ -92,9 +96,11 @@ export class EndlessGen {
     const slot = i % 3;
     if (i === 0) return 'intro';
     let kind;
-    if (slot === 0) kind = weighted(r, [['gates', 3], ['shootRed', d > 60 ? 2 : 0], ['ladder', d > 90 ? 3.5 : 0], ['ladderC', d > 120 ? 1.4 : 0], ['movingGates', d > 400 ? 1.4 : 0]]);
+    if (slot === 0) kind = weighted(r, [['gates', 3], ['shootRed', d > 60 ? 2 : 0], ['ladder', d > 90 ? (d < 600 ? 3.5 : 2) : 0], ['ladderC', d > 120 ? (d < 600 ? 1.4 : 0.6) : 0], ['movingGates', d > 400 ? 1.4 : 0], ['toll', d > 1100 ? 1 + d / 1400 : 0]]);
     else if (slot === 1) kind = weighted(r, [['barrels', 4], ['bonus', d > 100 ? 1 : 0]]);
-    else kind = weighted(r, [['horde', 5], ['hordeSide', d > 200 ? 2.5 : 0], ['hazard', d > 300 ? 2 : 0]]);
+    // past ~900 u the squad sits near the cap: threats that cost troops whatever the count (hazards, and
+    // gauntlets = a horde with a blade or gap in the same stretch) take a growing share
+    else kind = weighted(r, [['horde', 5], ['hordeSide', d > 200 ? 2.5 : 0], ['hazard', d > 300 ? 2 + d / 700 : 0], ['gauntlet', d > 900 ? 1.5 + d / 1400 : 0]]);
     if (kind === this.last && kind !== 'horde' && kind !== 'barrels') kind = slot === 0 ? 'gates' : slot === 1 ? 'barrels' : 'horde';
     this.last = kind;
     return kind;
@@ -119,6 +125,13 @@ export class EndlessGen {
         if (t < 0.4) out.push(gate(at, o, 'add', { value: -j(K.add * 0.6), max: -1 }));             // stays red
         else if (t < 0.65 && at > 150) out.push(gate(at, o, 'div', { rung: 2, hitsPerStep: 99999 })); // plain ÷2
         else out.push(gate(at, o, 'add', { value: Math.max(1, Math.round(max * 0.25)), max: Math.max(2, Math.round(max * 0.45)) }));
+        return step;
+      }
+      case 'toll': {
+        // both red (the squad is near the cap, growth is worth little): shoot the −N down, or gamble on
+        // climbing the ÷2 to ×2 before you reach it
+        out.push(gate(at, side, 'add', { value: -j(0.24 * K.E), max: -Math.round(0.05 * K.E) }));
+        out.push(gate(at, o, 'div', { rung: 2, hitsPerStep: j(K.hits * 1.4) }));
         return step;
       }
       case 'shootRed': {
@@ -147,12 +160,13 @@ export class EndlessGen {
         out.push(gate(at, 'C', 'mul', { rung: 3, hitsPerStep: j(K.hits * 1.6) }));
         return step;
       case 'barrels': {
-        const early = at < 900;
-        const rewards = [['weapon', early ? 4 : 1.2], ['troops', 3], ['drone', 1.3], ['turret', at > 300 ? 1 : 0], ['coins', 1], ['shield', 0.5], ['rapid', 0.5]];
-        // every other barrel row before 1400 u offers a gun, so the weapon curve can't stall on bad luck
-        const a = this.barrelRows++ % 2 === 0 && at < 1400 ? 'weapon' : weighted(r, rewards);
+        const early = at < 900, capped = at > 1400; // troops are worth nothing at the cap: helpers / powers
+        const rewards = [['weapon', early ? 2.2 : 1.2], ['troops', capped ? 0 : 3], ['drone', capped ? 2.4 : 1.3], ['turret', at > 300 ? (capped ? 2 : 1) : 0], ['coins', 1], ['shield', capped ? 1.2 : 0.5], ['rapid', capped ? 1.2 : 0.5], ['freeze', capped ? 0.8 : 0]];
+        // every third barrel row before 1400 u offers a gun, so the weapon curve can't stall on bad luck
+        // (without racing to the top tier before the first arena either)
+        const a = this.barrelRows++ % 3 === 0 && at < 1400 ? 'weapon' : weighted(r, rewards);
         let b = weighted(r, rewards);
-        if (b === a) b = a === 'troops' ? 'coins' : 'troops';
+        if (b === a) b = a === 'troops' || capped ? 'coins' : 'troops';
         const amt = (kd) => (kd === 'troops' ? j(K.troops) : kd === 'coins' ? 15 + Math.round(at / 40) : 1);
         const hp = (kd, f) => j(K.barrel * f * (kd === 'weapon' ? 0.5 : 1)); // guns stay reachable for weak squads
         out.push(barrel(at, side, hp(a, 1), a, amt(a)));
@@ -169,6 +183,13 @@ export class EndlessGen {
         out.push(barrel(at + 4, side, j(K.barrel * 0.4), r.chance(0.5) ? 'weapon' : 'troops', j(K.troops * 1.4)));
         out.push(coins(at, o, 8, 'line'));
         return step + 4;
+      case 'gauntlet': {
+        // a horde charges while a blade sweeps / a gap opens in one lane: dodging and fighting at once
+        out.push(horde(at + 18, j(K.horde * 0.8), this.mix(at, K)));
+        if (r.chance(0.5)) out.push(blade(at + 6, side, { moving: { range: 1.2, speed: r.range(1.0, 1.4) } }));
+        else out.push(gap(at + 2, side, 10));
+        return step + 8;
+      }
       case 'hazard':
         if (r.chance(0.5)) out.push(blade(at, side, at > 1200 ? { moving: { range: 1.4, speed: 1.2 } } : {}));
         else out.push(gap(at - 6, side, Math.round(10 + Math.min(8, at / 300))));

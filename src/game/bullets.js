@@ -134,7 +134,7 @@ export class Bullets {
     if (this.active.length >= BULLETS.capacityPerStyle * 2) return null;
     const b = this.free.length ? this.free.pop() : { x: 0, y: 0, z: 0, vx: 0, vz: 0, dmg: 1, unit: 1, pierce: 0, style: 0, dist: 0, range: 60, nh: 0, hits: [null, null, null, null, null, null, null, null] };
     b.x = x; b.y = y; b.z = z; b.vx = vx; b.vz = vz; b.dmg = dmg; b.unit = unit; b.pierce = pierce; b.range = range; b.vy = 0;
-    b.style = tier - 1; b.dist = 0; b.nh = 0; b.ang = Math.atan2(-vx, -vz);
+    b.style = tier - 1; b.dist = 0; b.nh = 0; b.ang = Math.atan2(-vx, -vz); b.gw = 1;
     this.active.push(b);
     return b;
   }

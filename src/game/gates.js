@@ -97,7 +97,7 @@ export class Gates {
       id: nextId++, op: e.op === 'add' ? 'add' : 'ladder', lane: e.lane,
       baseX: LANES[e.lane] ?? 0, x: LANES[e.lane] ?? 0, z: -e.at, width, halfW: width / 2,
       value: e.value | 0, step: e.step ?? GATE.step, max: e.max ?? ((e.value | 0) + GATE.maxExtra),
-      rung: 0, hits: 0, hitsPerStep: e.hitsPerStep ?? GATE.hitsPerStep,
+      rung: 0, hits: 0, credit: 0, hitsPerStep: e.hitsPerStep ?? GATE.hitsPerStep,
       moving: e.moving || null, phase: (e.at * 0.37) % 6.283,
       state: 'live', t: 0, colorT: 0, punch: 0, flash: 0, visual: null, row: null, dirty: true, labelBlue: false,
     };
@@ -220,11 +220,18 @@ export class Gates {
   }
 
   hit(g, b) {
+    // b.gw: how many real shots this visual bullet stands for at the high-quality budget (1 there; more on
+    // low quality) -> whole hits are applied, the fraction carries to the next bullet
+    g.credit += b.gw ?? 1;
+    const n = Math.floor(g.credit);
+    g.credit -= n;
     if (g.op === 'add') {
-      if (g.value < g.max) g.value = Math.min(g.max, g.value + g.step);
-    } else if (g.rung < GATE.rungs.length - 1) {
-      g.hits++;
-      if (g.hits >= g.hitsPerStep) { g.hits = 0; g.rung++; g.punch = 1.4; }
+      if (g.value < g.max) g.value = Math.min(g.max, g.value + g.step * n);
+    } else {
+      for (let i = 0; i < n && g.rung < GATE.rungs.length - 1; i++) {
+        g.hits++;
+        if (g.hits >= g.hitsPerStep) { g.hits = 0; g.rung++; g.punch = 1.4; }
+      }
     }
     g.punch = Math.max(g.punch, 0.8);
     g.flash = Math.max(g.flash, 0.5);

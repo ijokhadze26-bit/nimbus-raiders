@@ -67,7 +67,8 @@ export function bindAudio(audio, game) {
     const end = audio.fx('win', null);
     holdUntil = (typeof end === 'number' ? end : now() + 2.2) + 0.4;
   });
-  on('run:lose', () => {
+  on('run:lose', (p) => {
+    if (p && p.quit) return; // endless run abandoned from the pause menu: no lose stinger
     if (audio.music) audio.music.stop(0.4);
     if (audio.sfxEngine) audio.sfxEngine.stopAllLoops();
     const end = audio.fx('lose', null);

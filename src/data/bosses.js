@@ -6,11 +6,11 @@ export const BOSSES = {
     type: 'grawlstone', name: 'GRAWLSTONE', subtitle: 'THE MOSSY COLOSSUS', hp: 1600,
     distance: 26,                      // stands this far ahead of the halted squad
     hitbox: { halfW: 3.1, front: 1.7 },
-    firstAttack: 1.0,
+    firstAttack: 0.4,
     cooldown: [1.7, 2.4],              // pause between attacks (s)
     phase2Cadence: 1.35,               // cooldown divisor below 50% hp
     attacks: [
-      { id: 'slam', weight: 3, minPhase: 1, telegraph: 1.1, radius: 2.3, count: 1, count2: 2, radius2: 2.1, gap: 0.6 },
+      { id: 'slam', weight: 3, minPhase: 1, telegraph: 1.1, radius: 2.0, firstOffset: 1.5, count: 1, count2: 2, radius2: 2.1, gap: 0.6 },
       { id: 'roll', weight: 2, minPhase: 2, telegraph: 1.6, launch: 0.9, halfW: 1.45 },
     ],
   },
@@ -18,7 +18,7 @@ export const BOSSES = {
     type: 'oculon', name: 'OCULON', subtitle: 'THE STORM EYE', hp: 2600,
     distance: 26, hitbox: { halfW: 3.6, front: 2.6 }, hitY: 6.3, sway: 0.3,
     enterTime: 1.3,
-    firstAttack: 1.0,
+    firstAttack: 0.4,
     cooldown: [1.8, 2.6],
     phase2Cadence: 1.4,
     attacks: [
@@ -32,7 +32,7 @@ export const BOSSES = {
     type: 'mothermurk', name: 'MOTHER MURK', subtitle: 'QUEEN OF THE GOO', hp: 3200,
     distance: 27, hitbox: { halfW: 4.0, front: 3.4 }, hitY: 3.6, sway: 0.18,
     enterTime: 1.4,
-    firstAttack: 0.8,
+    firstAttack: 0.4,
     cooldown: [1.9, 2.7],
     phase2Cadence: 1.3,
     attacks: [
@@ -45,7 +45,7 @@ export const BOSSES = {
     type: 'ironhorn', name: 'IRONHORN', subtitle: 'THE MECH RHINO', hp: 3000,
     distance: 26, hitbox: { halfW: 2.8, front: 4.6 }, hitY: 3.2, sway: 0.1,
     enterTime: 1.5,
-    firstAttack: 1.0,
+    firstAttack: 0.4,
     cooldown: [1.7, 2.4],
     phase2Cadence: 1.35,
     attacks: [
@@ -59,7 +59,7 @@ export const BOSSES = {
     type: 'tempestking', name: 'TEMPEST KING', subtitle: 'LORD OF THE STORM', hp: 5200,
     distance: 28, hitbox: { halfW: 3.8, front: 2.4 }, hitY: 5.2, sway: 0.25,
     enterTime: 1.5,
-    firstAttack: 0.9,
+    firstAttack: 0.4,
     cooldown: [1.4, 2.0],
     phase2Cadence: 1.5,
     rotate: ['lightning', 'slam', 'orb', 'summon'],

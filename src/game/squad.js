@@ -182,11 +182,15 @@ export class Squad {
   /** Brings rendered raiders in line with count (pop-ins at leader / deaths from the back). */
   syncMembers(reason) {
     const want = this.wantMembers();
-    while (this.members.length < want) {
+    // reserves never pop in while the blob still straddles a hole: they would spawn behind Pip and run back
+    // into slots over the void (an invisible drain of the unrendered count); update() refills once clear
+    const hold = this.members.length < want && this.refillBlocked(want);
+    while (!hold && this.members.length < want) {
       const m = this.alloc();
       const rng = this.game.rng;
       m.x = this.leader.x + (rng.next() - 0.5) * 0.3;
       m.z = this.leader.z + 0.3;
+      m.tx = m.x; m.tz = m.z; // pooled objects must not carry an old slot target (autopilot reads tx/tz)
       m.pop = 0;
       m.ph = rng.next() * Math.PI * 2;
       this.members.push(m);
@@ -195,6 +199,17 @@ export class Squad {
       const m = this.members.pop();
       this.startDeath(m, reason);
     }
+  }
+
+  /** True while an active road gap overlaps the z-extent the blob would have with `want` members. */
+  refillBlocked(want) {
+    const obs = this.game.obstacles;
+    const gs = obs && obs.gaps;
+    if (!gs || !gs.length) return false;
+    const R = C * Math.sqrt(want + 0.5);
+    const front = -this.leader.z + 1, back = -(this.leader.z + FORMATION.leaderGap + R * 1.85 + 0.3) - 1;
+    for (let i = 0; i < gs.length; i++) if (gs[i].from < front && gs[i].to > back) return true;
+    return false;
   }
 
   /** Rendered raiders wanted for the count (Pip is one of them unless he fell into a gap). */

@@ -111,11 +111,17 @@ export class Telegraph {
       fill.position.y = 0.006;
       const edgeA = new THREE.Mesh(planeGeo, mat({ opacity: 1 }));
       const edgeB = new THREE.Mesh(planeGeo, mat({ opacity: 1 }));
-      group.add(base, fill, edgeA, edgeB);
-      v = { group, base, fill, edgeA, edgeB, tex };
+      // raised copy hovering over the helmets (a big squad hides the road decal): faint striped sheet + two
+      // glowing rails along the lane edges
+      const top = new THREE.Mesh(planeGeo, mat({ map: tex, opacity: 0.35, side: THREE.DoubleSide }));
+      const railA = new THREE.Mesh(planeGeo, mat({ opacity: 0.9, side: THREE.DoubleSide }));
+      const railB = new THREE.Mesh(planeGeo, mat({ opacity: 0.9, side: THREE.DoubleSide }));
+      group.add(base, fill, edgeA, edgeB, top, railA, railB);
+      v = { group, base, fill, edgeA, edgeB, tex, top, railA, railB };
     }
     for (const m of group.children) m.renderOrder = 2;
-    if (v.top) { v.top.renderOrder = 8; v.topFill.renderOrder = 8; }
+    if (v.topFill) { v.top.renderOrder = 8; v.topFill.renderOrder = 8; }
+    if (v.railA) { v.top.renderOrder = 8; v.railA.renderOrder = 8; v.railB.renderOrder = 8; }
     v.kind = kind;
     return v;
   }
@@ -217,6 +223,13 @@ export class Telegraph {
         v.edgeA.scale.set(0.16, 1, len); v.edgeA.position.x = -w / 2;
         v.edgeB.scale.set(0.16, 1, len); v.edgeB.position.x = w / 2;
         v.edgeA.material.opacity = v.edgeB.material.opacity = (0.8 + 0.2 * pulse) * fade;
+        const pop = Math.min(1, h.t / 0.12), y = OVERHEAD_Y + (1 - pop) * 1.2;
+        v.top.position.y = y;
+        v.top.scale.set(w, 1, len);
+        v.top.material.opacity = (after > 0 ? 0.55 : 0.18 + 0.2 * p + 0.08 * pulse) * fade * pop;
+        v.railA.scale.set(0.2, 1, len); v.railA.position.set(-w / 2, y + 0.005, 0);
+        v.railB.scale.set(0.2, 1, len); v.railB.position.set(w / 2, y + 0.005, 0);
+        v.railA.material.opacity = v.railB.material.opacity = (0.65 + 0.35 * pulse) * fade * pop;
       }
     }
   }
