@@ -186,7 +186,7 @@ export class Horde {
     const zMin = L.z - 2, zMax = c.z + c.r + 2;
     // quick reject: anything near the squad at all?
     let any = false;
-    for (let k = Math.floor(zMin); k <= Math.floor(zMax) && !any; k++) if (this.grid.buckets.has(k)) any = true;
+    for (let k = Math.floor(zMin); k <= Math.floor(zMax) && !any; k++) { const bk = this.grid.buckets.get(k); if (bk && bk.length) any = true; }
     if (!any) return;
     const mg = this.mgrid;
     mg.clear();

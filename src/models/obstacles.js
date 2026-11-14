@@ -333,7 +333,7 @@ export function buildGapView(theme, lane, from, to) {
   far.receiveShadow = near.receiveShadow = true;
   group.add(near, far);
 
-  const wallMat = cache.wallMat || (cache.wallMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: true }));
+  const wallMat = cache.wallMat || (cache.wallMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true, fog: true }));
   const wall = (w, x, z, ry) => {
     const m = new THREE.Mesh(gapWallGeometry(), wallMat);
     m.scale.set(w, 1, 1);

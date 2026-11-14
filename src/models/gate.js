@@ -70,7 +70,7 @@ export function buildGateVisual(width) {
   frame.castShadow = true;
   group.add(frame);
 
-  const panelMat = new THREE.MeshBasicMaterial({ map: glassTexture(), color: '#59c1ff', transparent: true, opacity: 0.62, depthWrite: false, side: THREE.DoubleSide, fog: true });
+  const panelMat = new THREE.MeshBasicMaterial({ map: glassTexture(), color: '#59c1ff', transparent: true, opacity: 0.62, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true, fog: true });
   const panel = new THREE.Mesh(cachedPlane(width - 0.2, height), panelMat);
   panel.position.set(0, height / 2 + 0.06, 0);
   panel.renderOrder = 2;

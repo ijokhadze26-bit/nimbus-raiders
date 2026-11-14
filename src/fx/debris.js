@@ -10,7 +10,7 @@ const _c = new THREE.Color();
 
 function chunkGeometry() {
   // squashed icosahedron = chunky faceted piece; non-indexed so the toon shading reads facet by facet
-  const g = new THREE.IcosahedronGeometry(0.5, 0).toNonIndexed();
+  const g = new THREE.IcosahedronGeometry(0.5, 0);
   g.scale(1, 0.8, 0.9);
   g.computeVertexNormals();
   return g;

@@ -11,6 +11,8 @@ import { buildGapView, disposeGapView } from '../models/obstacles.js';
 const AHEAD = 196, BEHIND = 24;
 const ROWS = Math.ceil((AHEAD + BEHIND) / TILE_LEN) + 2;
 const SEA_PUFFS = 150, SKY_PUFFS = 70, ISLANDS = 7;
+// low quality draws the cluster centres plus fewer satellites (same layout, lighter sky)
+const LOW_PUFFS = { sea: 84, sky: 36 };
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _e = new THREE.Euler();
 const _c = new THREE.Color(), _c2 = new THREE.Color();
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
@@ -47,6 +49,8 @@ export class World {
     sun.shadow.normalBias = 0.03;
     sun.shadow.camera.layers.enable(1); // shadow-only proxies (see squad.js SHADOW_LAYER)
     scene.add(sun, sun.target);
+    game.engine.sun = sun; // quality switches toggle its shadow
+    this.quality = 'high';
 
     // Road (half tiles, trims share the same instance matrices)
     const tex = roadTexture();
@@ -54,6 +58,7 @@ export class World {
     this.road = new THREE.InstancedMesh(halfTileGeometry(this.theme), this.roadMat, ROWS * 2);
     this.road.receiveShadow = true;
     this.road.frustumCulled = false;
+    this.road.setColorAt(0, _c.set(1, 1, 1)); // instanceColor exists before the shader warm-up compiles it
     this.trimMat = new THREE.MeshLambertMaterial({ color: '#f4c24f', emissive: '#b8801a', emissiveIntensity: 0.35, vertexColors: true });
     this.trim = new THREE.InstancedMesh(trimGeometry(), this.trimMat, ROWS * 2);
     this.trim.instanceMatrix = this.road.instanceMatrix;
@@ -82,6 +87,15 @@ export class World {
     this.rng = mulberry(7);
     this.buildClouds();
     this.setTheme('noon');
+  }
+
+  /** Low quality: fewer cloud puffs, 2-octave cloud sea (uniforms / counts only: no shader rebuild). */
+  setQuality(q) {
+    this.quality = q;
+    const low = q === 'low';
+    this.puffs.count = low ? LOW_PUFFS.sea : SEA_PUFFS;
+    this.skyPuffs.count = low ? LOW_PUFFS.sky : SKY_PUFFS;
+    this.sea.uniforms.uOctaves.value = low ? 2 : 4;
   }
 
   /** Cosmetic layout of puffs/islands (own RNG so gameplay determinism is untouched). */
@@ -252,23 +266,24 @@ export class World {
 
   updatePuffs(camZ) {
     const span = 260;
-    for (let i = 0; i < this.seaPuffData.length; i++) {
+    const ns = this.puffs.count, nk = this.skyPuffs.count;
+    for (let i = 0; i < ns; i++) {
       const d = this.seaPuffData[i];
       while (d.z > camZ + 30) d.z -= span;
       while (d.z < camZ - span + 30) d.z += span;
       _m.compose(_p.set(d.x, d.y, d.z), IDENT, _s.set(d.s, d.sy, d.s));
       this.puffs.setMatrixAt(i, _m);
     }
-    this.puffs.instanceMatrix.needsUpdate = true;
+    markInstances(this.puffs.instanceMatrix, ns);
     const t = this.time;
-    for (let i = 0; i < this.skyPuffData.length; i++) {
+    for (let i = 0; i < nk; i++) {
       const d = this.skyPuffData[i];
       let x = d.x + t * d.drift;
       x = ((x + 200) % 400 + 400) % 400 - 200;
       _m.compose(_p.set(x, d.y, camZ + d.dz), IDENT, _s.set(d.s, d.sy, d.s * 0.8));
       this.skyPuffs.setMatrixAt(i, _m);
     }
-    this.skyPuffs.instanceMatrix.needsUpdate = true;
+    markInstances(this.skyPuffs.instanceMatrix, nk);
   }
 
   updateIslands(camZ) {

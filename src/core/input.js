@@ -22,6 +22,7 @@ export class Input {
     window.addEventListener('pointermove', (e) => this.move(e), { passive: true });
     window.addEventListener('pointerup', (e) => this.up(e));
     window.addEventListener('pointercancel', (e) => this.up(e));
+    surface.addEventListener('lostpointercapture', (e) => this.up(e));
     window.addEventListener('keydown', (e) => this.key(e, true));
     window.addEventListener('keyup', (e) => this.key(e, false));
     window.addEventListener('blur', () => this.cancel());
@@ -37,6 +38,8 @@ export class Input {
     if (e.target && e.target.closest && e.target.closest(UI_SELECTOR)) return;
     if (this.pointerId !== null) return;
     this.pointerId = e.pointerId;
+    // keep receiving moves / the release when the finger slides off the game (over the HUD, off-screen)
+    try { this.surface.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
     this.dragging = true;
     this.startPx = e.clientX;
     this.lastPx = e.clientX;
@@ -46,7 +49,7 @@ export class Input {
 
   move(e) {
     if (!this.dragging || e.pointerId !== this.pointerId || !this.enabled) return;
-    const w = this.surface.clientWidth || 1;
+    const w = this.width || this.surface.clientWidth || 1; // width is pushed by Engine resize (no layout read)
     this.lastPx = e.clientX;
     const dx = e.clientX - this.startPx;
     const raw = this.startTarget + (dx / w) * MOVE.dragWorld;

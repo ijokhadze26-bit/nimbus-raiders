@@ -1,6 +1,6 @@
 // Z-bucket spatial grid (cell = 1u along z). Rebuilt every step by the owner:
 //   grid.clear(); grid.insert(obj, z) ...; grid.query(zMin, zMax, fn)
-// Buckets are reused arrays, so steady-state usage does not allocate.
+// Buckets are reused arrays (empty ones stay keyed), so steady-state usage does not allocate.
 
 export class ZGrid {
   constructor(cell = 1) {
@@ -10,15 +10,14 @@ export class ZGrid {
     this.spare = [];
   }
 
+  // Emptied buckets stay in the map (deleting + re-adding the same keys every step churned the hash table
+  // and allocated); cells far behind are dropped once the map has grown.
   clear() {
-    for (let i = 0; i < this.used.length; i++) {
-      const key = this.used[i];
-      const b = this.buckets.get(key);
-      b.length = 0;
-      this.spare.push(b);
-      this.buckets.delete(key);
-    }
+    for (let i = 0; i < this.used.length; i++) this.buckets.get(this.used[i]).length = 0;
     this.used.length = 0;
+    if (this.buckets.size > 256) {
+      for (const [key, b] of this.buckets) { this.spare.push(b); this.buckets.delete(key); }
+    }
   }
 
   insert(obj, z) {
@@ -27,8 +26,8 @@ export class ZGrid {
     if (!b) {
       b = this.spare.length ? this.spare.pop() : [];
       this.buckets.set(key, b);
-      this.used.push(key);
     }
+    if (b.length === 0) this.used.push(key);
     b.push(obj);
   }
 

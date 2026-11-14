@@ -177,7 +177,7 @@ export class BossEffects {
     if (!this.beam) {
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(9 * 2), 3));
-      const sheet = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ ...SOFT, color: '#ff4a6a', opacity: 0.4, side: THREE.DoubleSide }));
+      const sheet = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ ...SOFT, color: '#ff4a6a', opacity: 0.4, side: THREE.DoubleSide, forceSinglePass: true }));
       sheet.frustumCulled = false;
       const line = new THREE.Mesh(stripGeo, new THREE.MeshBasicMaterial({ ...SOFT, color: '#fff2f4' }));
       const burn = new THREE.Mesh(stripGeo, new THREE.MeshBasicMaterial({ ...SOFT, color: '#ff2a4a', opacity: 0.6 }));

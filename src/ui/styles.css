@@ -28,6 +28,8 @@ body::before {
 }
 #app {
   position: fixed; top: 0; bottom: 0; left: 50%; transform: translateX(-50%);
+  /* --app-h (visualViewport height, set by core/mobile.js) where 100dvh is unsupported (iOS < 15.4) */
+  width: min(100vw, calc(var(--app-h, 100vh) * 0.5625)); height: var(--app-h, 100vh);
   width: min(100vw, calc(100dvh * 0.5625)); height: 100dvh;
   overflow: hidden; touch-action: none; background: #cdeeff;
   box-shadow: 0 0 0 1px rgba(255,255,255,0.5), 0 0 60px rgba(10, 40, 110, 0.35);
@@ -191,3 +193,14 @@ body::before {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+/* ---------- WebGL context lost (core/mobile.js) ---------- */
+.gl-lost {
+  position: absolute; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;
+  background: rgba(8, 18, 60, 0.72); pointer-events: auto; font-family: var(--font-display); color: #fff; text-align: center;
+}
+.gl-lost[hidden] { display: none; }
+.gl-lost-card { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 24px; }
+.gl-lost-title { font-size: 34px; paint-order: stroke fill; -webkit-text-stroke: 6px var(--outline); }
+.gl-lost-text { font-family: var(--font-body); font-weight: 800; font-size: 16px; opacity: 0.9; }
+.gl-lost-btn { font-size: 24px; padding: 14px 28px; border-radius: 999px; min-height: 52px; }

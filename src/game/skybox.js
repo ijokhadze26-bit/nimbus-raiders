@@ -76,7 +76,7 @@ void main() {
 
 const SEA_FRAG = /* glsl */`
 uniform vec3 uLight; uniform vec3 uShade; uniform vec3 uDeep; uniform vec3 uHorizon;
-uniform vec3 uCam; uniform float uTime; uniform float uFadeNear; uniform float uFadeFar;
+uniform vec3 uCam; uniform float uTime; uniform float uFadeNear; uniform float uFadeFar; uniform float uOctaves;
 varying vec3 vWorld;
 float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 float noise(vec2 p) {
@@ -86,8 +86,10 @@ float noise(vec2 p) {
 }
 float fbm(vec2 p) {
   float v = 0.0, a = 0.5;
-  for (int i = 0; i < 4; i++) { v += a * noise(p); p = p * 2.03 + vec2(1.7, 9.2); a *= 0.5; }
-  return v;
+  // low quality stops after 2 octaves (uniform branch: same program for both qualities), rescaled to the
+  // 4-octave range so the puff thresholds below keep the same cloud cover
+  for (int i = 0; i < 4; i++) { if (float(i) >= uOctaves) break; v += a * noise(p); p = p * 2.03 + vec2(1.7, 9.2); a *= 0.5; }
+  return v * 0.9375 / (1.0 - 2.0 * a);
 }
 void main() {
   vec2 p = vWorld.xz * 0.028 + vec2(uTime * 0.012, uTime * 0.02);
@@ -108,7 +110,7 @@ export function createSea() {
   const uniforms = {
     uLight: { value: new THREE.Color() }, uShade: { value: new THREE.Color() }, uDeep: { value: new THREE.Color() },
     uHorizon: { value: new THREE.Color() }, uCam: { value: new THREE.Vector3() }, uTime: { value: 0 },
-    uFadeNear: { value: 60 }, uFadeFar: { value: 260 },
+    uFadeNear: { value: 60 }, uFadeFar: { value: 260 }, uOctaves: { value: 4 },
   };
   const mat = new THREE.ShaderMaterial({ uniforms, vertexShader: SEA_VERT, fragmentShader: SEA_FRAG, depthWrite: true, fog: false });
   const geo = new THREE.PlaneGeometry(1400, 1400, 1, 1);

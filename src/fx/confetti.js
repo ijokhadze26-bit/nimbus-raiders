@@ -19,11 +19,11 @@ export class Confetti {
     this.shown = false;
   }
 
-  setQuality(q) { this.max = q === 'low' ? 110 : this.cap; }
+  setQuality(q) { this.max = q === 'low' ? 110 : this.cap; this.low = q === 'low'; }
 
   resize() {
     const r = this.canvas.parentElement.getBoundingClientRect();
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = this.low ? 1 : Math.min(window.devicePixelRatio || 1, 2); // low quality: 1x overlay canvas
     const w = Math.max(1, Math.round(r.width)), h = Math.max(1, Math.round(r.height));
     if (w !== this.w || h !== this.h || dpr !== this.dpr) {
       this.w = w; this.h = h; this.dpr = dpr;

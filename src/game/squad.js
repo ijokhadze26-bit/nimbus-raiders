@@ -47,6 +47,7 @@ export class Squad {
     this.pipFall = { on: false, t: 0, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, spin: 0 };
 
     const cap = FORMATION.maxRendered + MAX_DYING;
+    this.lod = 'high';
     this.raiderMat = toonMaterial();
     this.raiderGeo = { high: buildRaiderGeometry(), low: null };
     this.raiders = new THREE.InstancedMesh(this.raiderGeo.high, this.raiderMat, cap);
@@ -74,6 +75,8 @@ export class Squad {
   setLod(q) {
     if (q === 'low' && !this.raiderGeo.low) this.raiderGeo.low = buildRaiderLowGeometry();
     this.raiders.geometry = q === 'low' ? this.raiderGeo.low : this.raiderGeo.high;
+    this.lod = q === 'low' ? 'low' : 'high';
+    this.guns.geometry = buildRaiderGunGeometry(this.gunTier || 1, this.lod);
   }
 
   setGunColor(hex) {
@@ -85,7 +88,7 @@ export class Squad {
   /** Swaps the gun silhouette of all raiders + Pip to the weapon tier's model. */
   setGunTier(tier) {
     this.gunTier = tier;
-    this.guns.geometry = buildRaiderGunGeometry(tier);
+    this.guns.geometry = buildRaiderGunGeometry(tier, this.lod);
     this.pip.gun.geometry = buildPipGunGeometry(tier);
   }
 

@@ -12,6 +12,8 @@ import { installProgress } from './save/progress.js';
 import { UI } from './ui/ui.js';
 import { createAudio } from './audio/audio.js';
 import { installFx } from './fx/fx.js';
+import { warmShaders } from './game/warmup.js';
+import { installMobile } from './core/mobile.js';
 
 function readParams() {
   const q = new URLSearchParams(location.search);
@@ -29,6 +31,8 @@ async function boot() {
   const app = document.getElementById('app');
   const engine = new Engine(app);
   const input = new Input(app);
+  input.width = engine.width;
+  engine.onResize.push((w) => { input.width = w; });
   const game = new Game({ engine, input, params });
   window.__game = game;
   // Install order: save -> progress -> audio (game.audio) -> fx (game.fx) -> ui (screens + HUD).
@@ -39,6 +43,7 @@ async function boot() {
   const ui = new UI(game, document.getElementById('ui'), params);
   game.ui = ui;
   game.hud = ui.hud;
+  warmShaders(game); // compile every material up front (no mid-run shader stalls)
 
   // Canvas labels need the display font; wait briefly (never block boot on it).
   try {
@@ -61,7 +66,7 @@ async function boot() {
   if (params.autopilot) game.debug.setAutopilot(true);
   if (!(params.level && game.startLevel(params.level))) game.toTitle();
 
-  document.addEventListener('visibilitychange', () => { if (document.hidden) game.pause(); });
+  installMobile(game, engine); // viewport, gesture guards, pause on hide, WebGL context loss
   loop.start();
   console.info('[nimbus] boot ok');
 }
