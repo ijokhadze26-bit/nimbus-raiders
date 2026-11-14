@@ -20,6 +20,8 @@ import { createDebug } from './debug.js';
 import { getLevel, LEVELS, LEVEL_COUNT } from '../data/levels.js';
 
 const ATTRACT_COUNT = 9;
+// stage3-ui hook: menu screens keep the live attract scene running behind them
+const MENU_STATES = new Set(['title', 'map', 'shop', 'settings', 'endless']);
 
 export class Game {
   constructor({ engine, input, params = {} }) {
@@ -234,10 +236,11 @@ export class Game {
         this.resultTimer -= rawDt;
         if (this.resultTimer <= 0) { this.resultTimer = -1; this.setState('result'); }
       }
-    } else if (this.state === 'title' || this.state === 'result') {
+    } else if (MENU_STATES.has(this.state) || this.state === 'result') {
       const t = this.time;
-      const tx = this.state === 'title' ? Math.sin(t * 0.35) * 1.6 : this.squad.leader.x;
-      this.squad.update(dt, tx, this.state === 'title' ? 4.5 : 0);
+      const menu = this.state !== 'result';
+      const tx = menu ? Math.sin(t * 0.35) * 1.6 : this.squad.leader.x;
+      this.squad.update(dt, tx, menu ? 4.5 : 0);
       this.bullets.update(dt);
       this.gates.update(dt);
       if (this.state === 'result') { this.horde.update(dt); this.telegraph.update(dt); this.bosses.update(dt); }
@@ -246,7 +249,7 @@ export class Game {
 
   /** Called every animation frame by the loop (dt clamped, real = wall-clock frame time). */
   frame(dt, real = dt) {
-    if (this.state === 'playing' || this.state === 'title' || this.state === 'result') this.step(dt);
+    if (this.state === 'playing' || MENU_STATES.has(this.state) || this.state === 'result') this.step(dt);
     this.sync(dt);
     this.engine.render();
     this.sampleQuality(real);
@@ -276,10 +279,10 @@ export class Game {
 
   cameraGoal(outPos, outLook) {
     const L = this.squad.leader;
-    if (this.state === 'title') {
+    if (MENU_STATES.has(this.state)) {
       const t = this.time;
       outPos.set(L.x * 0.3 + Math.sin(t * 0.2) * 1.5, 6.2, L.z + 9.5);
-      outLook.set(L.x * 0.2, 0.9, L.z - 9);
+      outLook.set(L.x * 0.2, 0.4, L.z - 3.5); // squad framed between the title logo and the PLAY button
       return;
     }
     const boss = this.run && this.run.phase === 'boss';

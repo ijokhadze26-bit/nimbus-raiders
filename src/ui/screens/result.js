@@ -1,0 +1,129 @@
+// Result screens. Win: stars pop in one by one, coins count up, NEXT / RETRY / HOME.
+// Lose: 'SQUAD DOWN', distance reached (% of the level or metres in endless), coins, RETRY / HOME.
+import { screenEl, countTo, bump, wait, fmt } from '../ui.js';
+import { icon } from '../icons.js';
+import { LEVEL_COUNT, getLevel } from '../../data/levels.js';
+import { coinMul } from '../../save/progress.js';
+
+const TIPS = [
+  'Shoot red gates to turn them blue before you pass!',
+  'Barrels hide new weapons - blast them open.',
+  'Watch the red circles: step out before the boss strikes.',
+  'Upgrade your Starting Squad in the shop.',
+  'Bigger squads fire more bullets. Grow fast!',
+  'Fizzbombs explode - pop them early to clear the horde.',
+];
+
+export function createResult(ui) {
+  const root = screenEl('result', 'dim-screen');
+  root.innerHTML = '<div class="result-wrap"></div>';
+  const wrap = root.querySelector('.result-wrap');
+  let token = 0;
+
+  function winHtml(a) {
+    const next = a.levelId < LEVEL_COUNT && a.mode === 'level';
+    const bonus = coinMul(ui.save) > 1 ? `<span class="bonus">+${Math.round((coinMul(ui.save) - 1) * 100)}% BONUS</span>` : '';
+    const tag = a.galaxy ? '<div class="unlock-tag legendary">GALAXY SKIN UNLOCKED!</div>'
+      : a.unlocked ? `<div class="unlock-tag">LEVEL ${a.unlocked} UNLOCKED!</div>` : '';
+    return `
+      <div class="rays"></div>
+      <div class="panel panel-result win pop">
+        <div class="ribbon ribbon-gold"><span>${a.mode === 'endless' ? 'BOSS DOWN!' : 'LEVEL CLEAR!'}</span></div>
+        <div class="res-level">${a.mode === 'endless' ? 'ENDLESS' : `LEVEL ${a.levelId}${getLevel(a.levelId)?.name ? ' · ' + getLevel(a.levelId).name : ''}`}</div>
+        <div class="big-stars">
+          <span class="bs bs1">${icon('star')}</span><span class="bs bs2">${icon('star')}</span><span class="bs bs3">${icon('star')}</span>
+        </div>
+        <div class="res-stats">
+          <div class="stat">${icon('squad')}<span class="num">${a.squad ?? 0}</span><small>SQUAD</small></div>
+          <div class="stat">${icon('damage')}<span class="num">${fmt(a.kills ?? 0)}</span><small>KILLS</small></div>
+        </div>
+        <div class="res-coins"><span class="coin-ico">${icon('coin')}</span><span class="num amt">+0</span>${bonus}</div>
+        ${tag}
+        <div class="res-btns">
+          ${next ? `<button type="button" class="btn btn-gold btn-lg" data-act="next"><span>NEXT</span><span class="play-ico">${icon('play')}</span></button>`
+    : `<button type="button" class="btn btn-gold btn-lg" data-act="map">${icon('map')}<span>MAP</span></button>`}
+          <div class="btn-row">
+            <button type="button" class="sq-btn btn-blue" data-act="retry" aria-label="Retry">${icon('retry')}<span>RETRY</span></button>
+            <button type="button" class="sq-btn btn-blue" data-act="home" aria-label="Home">${icon('home')}<span>HOME</span></button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function loseHtml(a) {
+    const endless = a.mode === 'endless';
+    const pct = a.length ? Math.max(0, Math.min(100, Math.round((a.dist / a.length) * 100))) : 0;
+    const dist = endless
+      ? `<div class="res-dist endless"><div class="d-big num">${fmt(a.dist)}<small>m</small></div>
+          <div class="d-best">${a.newBest ? '<span class="new-best">NEW BEST!</span>' : `${icon('trophy')} BEST ${fmt(a.best)} m`}</div></div>`
+      : `<div class="res-dist"><div class="d-label">DISTANCE <b class="num">${pct}%</b></div>
+          <div class="d-track"><i style="--p:${pct}%"></i><span class="d-pip" style="left:${pct}%"></span><span class="d-skull">${icon('skull')}</span></div></div>`;
+    return `
+      <div class="panel panel-result lose pop">
+        <div class="ribbon ribbon-red"><span>SQUAD DOWN</span></div>
+        <div class="res-level">${endless ? 'ENDLESS RUN' : `LEVEL ${a.levelId}`}</div>
+        <div class="lose-ico">${icon('heart')}<span class="crack"></span></div>
+        ${dist}
+        <div class="res-coins"><span class="coin-ico">${icon('coin')}</span><span class="num amt">+0</span></div>
+        <div class="tip">${TIPS[Math.floor(Math.random() * TIPS.length)]}</div>
+        <div class="res-btns">
+          <button type="button" class="btn btn-gold btn-lg" data-act="retry">${icon('retry')}<span>RETRY</span></button>
+          <div class="btn-row">
+            <button type="button" class="sq-btn btn-blue" data-act="map" aria-label="Map">${icon('map')}<span>MAP</span></button>
+            <button type="button" class="sq-btn btn-blue" data-act="home" aria-label="Home">${icon('home')}<span>HOME</span></button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  async function play(a, my) {
+    const amt = wrap.querySelector('.amt');
+    if (a.win) {
+      const stars = wrap.querySelectorAll('.bs');
+      await wait(420);
+      for (let i = 0; i < 3; i++) {
+        if (my !== token) return;
+        if (i < a.stars) {
+          stars[i].classList.add('on');
+          ui.sfx('star', i);
+          ui.vibrate(18);
+        } else stars[i].classList.add('dim');
+        await wait(330);
+      }
+    } else await wait(450);
+    if (my !== token || !amt) return;
+    ui.sfx('coin');
+    await countTo(amt, 0, a.coins || 0, Math.min(1100, 400 + (a.coins || 0) * 3), '+');
+    if (my !== token) return;
+    bump(amt.parentNode, 'bump');
+    const tag = wrap.querySelector('.unlock-tag');
+    if (tag) tag.classList.add('show');
+  }
+
+  return {
+    el: root,
+    show() {
+      const g = ui.game;
+      const r = g.lastResult || {};
+      // payout from the save layer (coin bonus applied); falls back to the game's own result
+      const a = { ...r, ...(g.lastAward && g.lastAward.win === r.win ? g.lastAward : {}) };
+      if (a.length == null) a.length = g.run?.length || 0;
+      token++;
+      wrap.innerHTML = a.win ? winHtml(a) : loseHtml(a);
+      root.classList.toggle('is-win', !!a.win);
+      play(a, token);
+      ui.refreshCoins(true);
+    },
+    hide() { token++; },
+    onAct(act) {
+      const g = ui.game;
+      if (act === 'next') {
+        const id = (g.run?.levelId || 0) + 1;
+        if (id > LEVEL_COUNT || id > ui.save.data.unlockedLevel) ui.nav('map'); else g.startLevel(id);
+      } else if (act === 'retry') g.retry();
+      else if (act === 'home') ui.nav('title');
+      else if (act === 'map') ui.nav('map');
+    },
+    onBack() { ui.nav('title'); },
+  };
+}

@@ -6,7 +6,9 @@ import { Engine } from './core/engine.js';
 import { Input } from './core/input.js';
 import { Loop } from './core/loop.js';
 import { Game } from './game/game.js';
-import { Hud } from './ui/hud.js';
+import { Save } from './save/save.js';
+import { installProgress } from './save/progress.js';
+import { UI } from './ui/ui.js';
 
 function readParams() {
   const q = new URLSearchParams(location.search);
@@ -26,8 +28,12 @@ async function boot() {
   const input = new Input(app);
   const game = new Game({ engine, input, params });
   window.__game = game;
-  const hud = new Hud(game, document.getElementById('ui'));
-  game.hud = hud;
+  // --- stage3-ui wiring: save + progress listeners + full UI (screens + HUD) ---
+  game.save = new Save(game.events);
+  installProgress(game);
+  const ui = new UI(game, document.getElementById('ui'), params);
+  game.ui = ui;
+  game.hud = ui.hud;
 
   // Canvas labels need the display font; wait briefly (never block boot on it).
   try {
@@ -37,7 +43,7 @@ async function boot() {
   const loop = new Loop((dt, real) => {
     game.loopFps = loop.fps;
     game.frame(dt, real);
-    hud.update();
+    ui.update(dt);
   });
   game.loop = loop;
 

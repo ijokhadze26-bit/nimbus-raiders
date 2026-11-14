@@ -1,0 +1,173 @@
+/* In-run HUD: top bar, progress, weapon badge, power timers, squad bubble, boss bar + card, banners, hint. */
+.hud { position: absolute; inset: 0; pointer-events: none; z-index: 4; transition: opacity 0.25s ease; }
+.hud.hidden { opacity: 0; visibility: hidden; transition: opacity 0.2s ease, visibility 0s 0.2s; }
+.hud-top {
+  position: absolute; top: calc(var(--safe-t) + 10px); left: calc(var(--safe-l) + 10px); right: calc(var(--safe-r) + 10px);
+  display: flex; align-items: center; gap: 10px;
+}
+.ibtn.hud-pause { width: 50px; height: 50px; border-radius: 16px; font-size: 22px; }
+.hud-center { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: stretch; gap: 3px; padding-top: 2px; }
+.hud-level {
+  display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 16px; letter-spacing: 0.5px; white-space: nowrap; overflow: hidden;
+  -webkit-text-stroke: 3.5px var(--outline); paint-order: stroke fill; text-shadow: 0 2px 0 var(--outline);
+}
+.hud-level .lv { color: #ffd34d; }
+.hud-level .ico { font-size: 20px; filter: drop-shadow(0 2px 0 var(--outline)); }
+.hud-prog { position: relative; height: 22px; margin-right: 14px; }
+.hud-prog .track {
+  position: absolute; inset: 2px 0; border-radius: 999px; overflow: hidden;
+  background: rgba(12, 34, 92, 0.55); border: 3px solid #fff; box-shadow: 0 3px 0 rgba(10, 28, 80, 0.45);
+}
+.hud-prog .fill { position: absolute; inset: 0; transform-origin: left center; transform: scaleX(0); border-radius: 999px;
+  background: linear-gradient(180deg, #9ff0ff 0%, #4dc3ff 45%, #2f8cff 100%); }
+.hud-prog .shine { position: absolute; left: 4px; right: 4px; top: 2px; height: 4px; border-radius: 3px; background: rgba(255, 255, 255, 0.5); }
+.hud-boss-ico {
+  position: absolute; right: -16px; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 22px;
+  background: radial-gradient(circle at 40% 35%, #ff7a8a, #d01d3a 70%); border: 3px solid #fff; box-shadow: 0 3px 0 #6a0d1d;
+}
+.hud-prog.near .hud-boss-ico, .hud.boss-phase .hud-boss-ico { animation: skull-pulse 0.6s ease-in-out infinite alternate; }
+.hud.boss-phase .hud-prog .fill { background: linear-gradient(180deg, #ffd27a, #ff8a3d 50%, #ff3b4e); }
+@keyframes skull-pulse { from { scale: 1; box-shadow: 0 3px 0 #6a0d1d, 0 0 0 0 rgba(255, 59, 78, 0.7); } to { scale: 1.15; box-shadow: 0 3px 0 #6a0d1d, 0 0 0 8px rgba(255, 59, 78, 0); } }
+.coin-pill.hud-coins { min-width: 86px; height: 40px; font-size: 21px; padding-left: 40px; pointer-events: none; }
+.hud-coins .coin-ico { font-size: 44px; }
+
+/* weapon tier badge */
+.hud-weapon {
+  --tc: #ffd34d;
+  position: absolute; left: calc(var(--safe-l) + 12px); bottom: calc(var(--safe-b) + 14px);
+  display: flex; align-items: center; gap: 8px; padding: 5px 14px 5px 5px; border-radius: 999px;
+  background: linear-gradient(180deg, rgba(14, 40, 104, 0.78), rgba(20, 52, 128, 0.66)); border: 3px solid #fff;
+  box-shadow: 0 4px 0 rgba(10, 28, 80, 0.45), 0 8px 14px rgba(8, 26, 80, 0.25);
+}
+.hud-weapon .w-ico {
+  width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-size: 28px; color: #fff;
+  background: radial-gradient(circle at 38% 32%, #fff 0%, var(--tc) 38%, color-mix(in srgb, var(--tc) 60%, #1b3a8a) 100%);
+  border: 3px solid #fff; box-shadow: 0 0 14px var(--tc);
+}
+.hud-weapon .w-ico .ico { filter: drop-shadow(0 2px 0 rgba(27, 58, 138, 0.8)); }
+.hud-weapon .w-col { display: flex; flex-direction: column; gap: 1px; }
+.hud-weapon .w-tier { font-size: 12px; letter-spacing: 1.5px; color: var(--tc); -webkit-text-stroke: 3px var(--outline); paint-order: stroke fill; }
+.hud-weapon .w-name { font-size: 17px; letter-spacing: 0.5px; -webkit-text-stroke: 3.5px var(--outline); paint-order: stroke fill; }
+.hud-weapon .w-pips { display: flex; gap: 3px; margin-top: 2px; }
+.hud-weapon .w-pips i { width: 12px; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.25); }
+.hud-weapon .w-pips i.on { background: var(--tc); box-shadow: 0 0 6px var(--tc); }
+.hud-weapon.pop { animation: badge-pop 0.55s cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes badge-pop { 0% { scale: 1; } 30% { scale: 1.25; filter: brightness(1.6); } 100% { scale: 1; } }
+
+/* power-up timers */
+.hud-powers { position: absolute; top: calc(var(--safe-t) + 74px); left: calc(var(--safe-l) + 12px); display: flex; gap: 10px; transition: top 0.3s ease; }
+.hud.boss-phase .hud-powers { top: calc(var(--safe-t) + 132px); }
+.pw { --pc: #4dc3ff; --f: 360deg; position: relative; width: 52px; height: 52px; }
+.pw-ring {
+  position: absolute; inset: 0; border-radius: 50%;
+  background: conic-gradient(var(--pc) var(--f), rgba(255, 255, 255, 0.22) 0);
+  box-shadow: 0 3px 0 rgba(10, 28, 80, 0.45);
+}
+.pw-ring::after { content: ''; position: absolute; inset: 5px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #2a5bd0, #13306f); border: 2px solid #fff; }
+.pw-ico { position: absolute; inset: 0; display: grid; place-items: center; font-size: 26px; color: var(--pc); filter: drop-shadow(0 0 6px var(--pc)); }
+.pw-lbl { position: absolute; left: 50%; bottom: -14px; transform: translateX(-50%); font-size: 11px; letter-spacing: 1px; -webkit-text-stroke: 3px var(--outline); paint-order: stroke fill; }
+.pw.in { animation: pw-in 0.4s cubic-bezier(.2, 1.6, .4, 1); }
+.pw.out { animation: pw-out 0.25s ease-in forwards; }
+.pw.ending .pw-ico { animation: blink 0.3s steps(2) infinite; }
+@keyframes pw-in { from { scale: 0; } to { scale: 1; } }
+@keyframes pw-out { to { scale: 0; opacity: 0; } }
+@keyframes blink { 50% { opacity: 0.25; } }
+
+/* drag hint */
+.hud-hint { position: absolute; left: 0; right: 0; bottom: calc(var(--safe-b) + 92px); display: flex; flex-direction: column; align-items: center; gap: 6px; transition: opacity 0.4s ease; }
+.hud-hint.hidden { opacity: 0; }
+.hint-track { position: relative; width: 210px; height: 70px; }
+.hint-track::before {
+  content: ''; position: absolute; left: 20px; right: 20px; top: 26px; height: 10px; border-radius: 6px;
+  background: rgba(255, 255, 255, 0.55); box-shadow: 0 0 0 3px rgba(27, 58, 138, 0.35);
+}
+.hint-track .arrow { position: absolute; top: 18px; font-size: 26px; color: #fff; filter: drop-shadow(0 2px 0 var(--outline)); }
+.hint-track .arrow.l { left: 0; }
+.hint-track .arrow.r { right: 0; transform: scaleX(-1); }
+.hint-track .hand { position: absolute; left: 50%; top: 14px; font-size: 58px; margin-left: -22px; animation: hand-sway 1.6s ease-in-out infinite; filter: drop-shadow(0 4px 4px rgba(10, 28, 80, 0.35)); }
+.hint-text { font-size: 26px; letter-spacing: 2px; -webkit-text-stroke: 5px var(--outline); paint-order: stroke fill; text-shadow: 0 3px 0 var(--outline); animation: breathe 1.6s ease-in-out infinite; }
+@keyframes hand-sway { 0%, 100% { translate: -62px 0; rotate: -8deg; } 50% { translate: 62px 0; rotate: 8deg; } }
+
+/* squad count bubble */
+.squad-bubble { position: absolute; left: 0; top: 0; will-change: transform; pointer-events: none; z-index: 3; }
+.squad-bubble .inner {
+  position: relative; transform: translate(-50%, -100%);
+  min-width: 46px; height: 38px; padding: 0 12px; border-radius: 19px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(180deg, #ffffff 0%, #e4f2ff 100%);
+  border: 3px solid var(--blue);
+  box-shadow: 0 3px 0 #1d5fc9, 0 6px 12px rgba(10, 40, 110, 0.3);
+  font-family: var(--font-display); font-size: 25px; line-height: 1; color: var(--outline); letter-spacing: 0.5px;
+}
+.squad-bubble .inner::after {
+  content: ''; position: absolute; left: 50%; bottom: -10px; transform: translateX(-50%);
+  border: 7px solid transparent; border-top: 8px solid var(--blue);
+}
+.squad-bubble.loss .inner { border-color: var(--red); color: #a3122a; box-shadow: 0 3px 0 #b0182d, 0 6px 12px rgba(110, 10, 30, 0.3); }
+.squad-bubble.loss .inner::after { border-top-color: var(--red); }
+
+/* boss bar */
+.boss-bar {
+  position: absolute; top: calc(var(--safe-t) + 70px); left: 50%; transform: translateX(-50%);
+  width: min(88%, 380px); z-index: 4; transition: opacity 0.3s ease, transform 0.3s ease; pointer-events: none;
+}
+.boss-bar.hidden { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+.boss-name {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  font-size: 22px; color: #fff; letter-spacing: 2px; margin-bottom: 4px;
+  -webkit-text-stroke: 5px #5a1020; paint-order: stroke fill; text-shadow: 0 3px 0 #5a1020;
+}
+.boss-name .skull { font-size: 22px; filter: drop-shadow(0 2px 0 #5a1020); }
+.boss-track {
+  position: relative; height: 24px; border-radius: 12px; overflow: hidden;
+  background: #3a1630; border: 3px solid #fff; box-shadow: 0 0 0 2px #5a1020, 0 5px 0 2px rgba(40, 10, 30, 0.55), 0 9px 16px rgba(10, 25, 70, 0.3);
+}
+.boss-fill, .boss-lag { position: absolute; inset: 0; transform-origin: left center; }
+.boss-lag { background: #ffe9a8; }
+.boss-fill { background: linear-gradient(180deg, #ff7a6b 0%, #ff3b4e 55%, #d01d3a 100%); }
+.boss-ticks { position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 calc(10% - 2px), rgba(58, 22, 48, 0.35) calc(10% - 2px) 10%); }
+.boss-bar.enraged .boss-fill { background: linear-gradient(180deg, #ffb35a 0%, #ff5a1f 55%, #c8270e 100%); animation: enrage 0.5s ease-in-out infinite alternate; }
+.boss-shine { position: absolute; left: 6px; right: 6px; top: 3px; height: 5px; border-radius: 4px; background: rgba(255, 255, 255, 0.45); }
+@keyframes enrage { from { filter: brightness(1); } to { filter: brightness(1.35); } }
+
+/* boss title card */
+.boss-card {
+  position: absolute; left: 0; right: 0; top: 30%; z-index: 4; text-align: center; pointer-events: none;
+  color: #fff; animation: card-in 1.4s cubic-bezier(.2, 1.2, .4, 1) both;
+}
+.boss-card.hidden { display: none; }
+.boss-card .warn {
+  display: inline-flex; align-items: center; gap: 8px; padding: 4px 16px 6px; border-radius: 12px; font-size: 20px; letter-spacing: 4px;
+  background: #ff3b4e; border: 3px solid #fff; box-shadow: 0 4px 0 #5a1020; -webkit-text-stroke: 4px #5a1020; paint-order: stroke fill;
+}
+.boss-card .warn .ico { font-size: 20px; }
+.boss-card .name {
+  margin-top: 6px; font-size: min(62px, 15cqw); letter-spacing: 2px; line-height: 1;
+  -webkit-text-stroke: 8px #5a1020; paint-order: stroke fill; text-shadow: 0 6px 0 #5a1020, 0 12px 24px rgba(40, 10, 30, 0.45);
+}
+@keyframes card-in {
+  0% { transform: scale(2.2); opacity: 0; } 14% { transform: scale(0.94); opacity: 1; } 22% { transform: scale(1); }
+  82% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.08) translateY(-12px); opacity: 0; }
+}
+
+/* weapon tier banner */
+.tier-banner {
+  --tc: #ffd34d;
+  position: absolute; left: 0; right: 0; top: 17%; z-index: 4; text-align: center; pointer-events: none;
+  color: #fff; animation: banner-in 1.5s cubic-bezier(.2, 1.4, .4, 1) both;
+}
+.tier-banner.hidden { display: none; }
+.tier-banner .sub {
+  display: inline-block; padding: 4px 18px 6px; border-radius: 12px; font-size: 18px; letter-spacing: 3px;
+  background: linear-gradient(180deg, #4aa8ff, #1f6fe0); border: 3px solid #fff; box-shadow: 0 4px 0 var(--outline);
+  -webkit-text-stroke: 4px var(--outline); paint-order: stroke fill;
+}
+.tier-banner .name {
+  margin-top: 4px; font-size: min(46px, 11.5cqw); color: var(--tc); -webkit-text-stroke: 7px var(--outline); paint-order: stroke fill;
+  text-shadow: 0 5px 0 var(--outline), 0 0 26px var(--tc);
+}
+@keyframes banner-in {
+  0% { transform: scale(0.3); opacity: 0; } 18% { transform: scale(1.12); opacity: 1; } 28% { transform: scale(1); }
+  80% { transform: scale(1); opacity: 1; } 100% { transform: translateY(-24px); opacity: 0; }
+}
