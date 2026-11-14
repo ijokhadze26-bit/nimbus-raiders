@@ -63,6 +63,9 @@ export class Horde {
     const count = Math.max(1, Math.min(ev.count | 0, MAX_ENEMIES - this.list.length));
     if (count <= 0) return;
     const lane = ev.lane || 'both';
+    // toughness: per event (endless ramps it) or per level (data/levels.js enemyHp); looks are unchanged
+    const def = this.game.run && this.game.run.def;
+    const hpMul = ev.hpMul ?? (def && def.enemyHp) ?? 1;
     const cx = lane === 'both' || lane === 'C' ? 0 : LANES[lane];
     const width = ev.width ?? (lane === 'both' || lane === 'C' ? 9.2 : 4.3);
     // type list from mix
@@ -93,7 +96,7 @@ export class Horde {
       for (const t of row) {
         const d = DEFS[t];
         x += d.spacing / 2;
-        this.place(t, x + rng.range(-0.14, 0.14), z - depth / 2 + rng.range(-0.24, 0.24), x - cx);
+        this.place(t, x + rng.range(-0.14, 0.14), z - depth / 2 + rng.range(-0.24, 0.24), x - cx, hpMul);
         x += d.spacing / 2;
       }
       z -= depth * 0.9;
@@ -114,12 +117,12 @@ export class Horde {
     this.game.events.emit('horde:incoming', { count });
   }
 
-  place(type, x, z, ox) {
+  place(type, x, z, ox, hpMul = 1) {
     const d = DEFS[type];
     const e = this.alloc();
     e.type = type; e.def = d;
     e.x = Math.max(-MEMBER_CLAMP, Math.min(MEMBER_CLAMP, x)); e.z = z; e.vx = 0; e.ox = ox;
-    e.hp = d.hp; e.shield = d.shieldHits || 0;
+    e.hp = d.hp * hpMul; e.shield = d.shieldHits || 0;
     e.state = ALIVE; e.t = 0; e.ph = this.game.rng.next() * Math.PI * 2;
     e.charging = false; e.flash = 0; e.sflash = 0; e.cd = 0; e.ckills = 0; e.slow = 1;
     this.list.push(e);

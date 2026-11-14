@@ -3,14 +3,33 @@
 // strong > line up with worthwhile barrels (and never run into an unbroken one) > in the boss arena, stand
 // in front of the boss. Blades and gaps are a hard filter on the final x: the whole formation (not just Pip)
 // is tested against each hazard; power tokens (and coins when idle) are grabbed when the path is safe.
+// Skill profiles (balance tests): 'pro' plays perfectly; 'casual' / 'novice' react late, misjudge close gate
+// calls, often judge a gate by its current number, dodge telegraphs late (or not at all), wobble and clip
+// hazard edges. Their randomness comes from the bot's own seeded rng (one seed per run), never game.rng.
 import { applyGate, predictGate } from './gates.js';
+import { Rng } from '../core/rng.js';
+import { ALIVE } from './horde.js';
 import { TARGET_CLAMP, MEMBER_CLAMP } from '../config.js';
 import { BLADE_R } from '../models/obstacles.js';
 import { MAX_TIER } from '../data/weapons.js';
 
 const LOOK = 75;
 const HAZ_LOOK = 24;     // start lining up this far before a blade / gap
+const GATE_ALIGN = 30;   // the chosen gate overrides everything but telegraphs this far before it
 const BLADE_PAD = 0.4, GAP_PAD = 0.35, GAP_SIDE = 0.22;
+
+// react: output delay (s) | wrongGate: chance to take the worse gate when the call is close (scores within
+// closeCall) | ignorePredict: chance per row to judge gates by their current value (no shooting value)
+// dodgeDelay: telegraph seen this late (s, includes react) | dodgeMiss: chance to ignore a telegraph
+// clip: chance per hazard to cut its edge by clipPad (u) | hazLook: lines up for hazards this late (u)
+// jitter: hand wobble amplitude (u) | barrelSkip / pickupSkip: chance per item to not bother
+// hordeNaive: judges a horde by headcount (pro weighs its hp against the squad's firepower)
+export const BOT_PROFILES = {
+  pro: { react: 0, wrongGate: 0, closeCall: 0, ignorePredict: 0, dodgeDelay: 0, dodgeMiss: 0, clip: 0, clipPad: 0, hazLook: HAZ_LOOK, jitter: 0, barrelSkip: 0, pickupSkip: 0 },
+  casual: { react: 0.35, wrongGate: 0.2, closeCall: 0.3, ignorePredict: 0.5, dodgeDelay: 0.4, dodgeMiss: 0.08, clip: 0.3, clipPad: 0.7, hazLook: 15, jitter: 0.35, barrelSkip: 0.15, pickupSkip: 0.3, hordeNaive: true },
+  novice: { react: 0.6, wrongGate: 0.35, closeCall: 0.45, ignorePredict: 0.8, dodgeDelay: 0.6, dodgeMiss: 0.6, clip: 0.5, clipPad: 1.0, hazLook: 11, jitter: 0.6, barrelSkip: 0.35, pickupSkip: 0.6, hordeNaive: true },
+};
+
 const CAND = [];
 for (let x = -TARGET_CLAMP; x <= TARGET_CLAMP + 1e-6; x += 0.4) CAND.push(Math.round(x * 100) / 100);
 
@@ -21,24 +40,96 @@ export class Autopilot {
     this.targetX = 0;
     this.choice = null;
     this.c = { x: 0, z: 0, r: 0 };
+    this.rng = new Rng(1);
+    this.seedBase = 1;
+    this.runs = 0;
+    this.setProfile('pro');
   }
 
-  reset() { this.choice = null; this.targetX = this.game.squad.leader.x; }
+  /** 'pro' | 'casual' | 'novice' (true = 'pro'). */
+  setProfile(name) {
+    const id = BOT_PROFILES[name] ? name : 'pro';
+    this.profileName = id;
+    this.p = BOT_PROFILES[id];
+    return id;
+  }
 
-  update() {
+  reset() {
+    this.choice = null;
+    this.targetX = this.game.squad.leader.x;
+    this.rng.seed(this.seedBase * 1013 + ++this.runs * 7919);
+    this.rolls = new WeakMap();   // per row / hazard / telegraph dice (stable while it is on screen)
+    this.seen = new WeakMap();    // danger zone -> time first seen
+    this.telRolls = new WeakMap();
+    this.clock = 0;
+    this.buf = [];                // delayed outputs [{t, x}]
+    this.wob = 0; this.wobT = 0; this.wobGoal = 0;
+  }
+
+  /** One die per object (rolled the first time it is asked). */
+  roll(obj, key) {
+    let r = this.rolls.get(obj);
+    if (!r) { r = {}; this.rolls.set(obj, r); }
+    if (r[key] === undefined) r[key] = this.rng.next();
+    return r[key];
+  }
+
+  update(dt = 1 / 60) {
+    const x = this.decide(dt);
+    const p = this.p;
+    if (!p.react && !p.jitter) return x;
+    this.clock += dt;
+    // hand wobble: a slow random walk toward a new offset every ~0.6 s
+    if (p.jitter) {
+      this.wobT -= dt;
+      if (this.wobT <= 0) { this.wobT = this.rng.range(0.4, 0.9); this.wobGoal = this.rng.range(-1, 1) * p.jitter; }
+      this.wob += (this.wobGoal - this.wob) * Math.min(1, dt * 3);
+    }
+    const out = Math.max(-TARGET_CLAMP, Math.min(TARGET_CLAMP, x + this.wob));
+    if (!p.react) return out;
+    this.buf.push({ t: this.clock, x: out });
+    let i = 0;
+    while (i < this.buf.length - 1 && this.buf[i + 1].t <= this.clock - p.react) i++;
+    if (i) this.buf.splice(0, i);
+    return this.buf[0].x;
+  }
+
+  /** Telegraphs / live danger zones this player has noticed (late, or never for some). */
+  perceived(tel, zones) {
+    const p = this.p;
+    if (!p.dodgeDelay && !p.dodgeMiss) return zones && zones.length ? tel.concat(zones) : tel;
+    const late = Math.max(0, p.dodgeDelay - p.react);
+    const out = [];
+    for (const h of tel) {
+      // telegraph handles are pooled: a handle whose clock went backwards is a new warning (new dice)
+      let r = this.telRolls.get(h);
+      if (!r || h.t < r.t) { r = { t: 0, miss: this.rng.next() }; this.telRolls.set(h, r); }
+      r.t = h.t;
+      if (h.t >= late && r.miss >= p.dodgeMiss) out.push(h);
+    }
+    if (zones) for (const z of zones) {
+      if (!this.seen.has(z)) this.seen.set(z, this.clock);
+      if (this.clock - this.seen.get(z) >= late && this.roll(z, 'miss') >= p.dodgeMiss) out.push(z);
+    }
+    return out;
+  }
+
+  decide() {
     const game = this.game;
     const L = game.squad.leader;
     const tel = game.telegraph ? game.telegraph.active : [];
     // live boss hazards that outlast their warning (charges, laser sweeps, quake crests, goo puddles)
     const zones = game.boss && game.boss.dangerZones;
     let x = null;
-    this.look = HAZ_LOOK;
-    if (tel.length || (zones && zones.length)) x = this.dodge(zones && zones.length ? tel.concat(zones) : tel);
+    const look = this.p.hazLook;
+    this.look = look;
+    const seen = tel.length || (zones && zones.length) ? this.perceived(tel, zones) : tel;
+    if (seen.length) x = this.dodge(seen);
     if (x === null) {
       const gate = this.gateGoal();
-      const near = gate && gate.dz < 30;
+      const near = gate && gate.dz < GATE_ALIGN;
       // a gate decision is not overruled by a hazard well past it (there is time to sidestep after passing)
-      this.look = near ? Math.min(HAZ_LOOK, gate.dz + 8) : HAZ_LOOK;
+      this.look = near ? Math.min(look, gate.dz + 8) : look;
       if (near) x = gate.x;
       if (x === null) x = this.pickupGoal(gate, false);
       if (x === null) x = this.hordeGoal();
@@ -49,7 +140,7 @@ export class Autopilot {
       if (x !== null) x = this.avoidBarrels(x);
     }
     if (x !== null) this.targetX = x;
-    if (!tel.length) this.targetX = this.avoidHazards(this.targetX);
+    if (!seen.length) this.targetX = this.avoidHazards(this.targetX);
     this.targetX = Math.max(-TARGET_CLAMP, Math.min(TARGET_CLAMP, this.targetX));
     return this.targetX;
   }
@@ -92,16 +183,24 @@ export class Autopilot {
     const w = game.weapons;
     const bulletsPerSec = w.gateShotsPerSec();
     const count = game.squad.count;
-    let best = null, bestScore = -Infinity;
+    const p = this.p;
+    const naive = p.ignorePredict && this.roll(row, 'naive') < p.ignorePredict;
+    let best = null, bestScore = -Infinity, second = null, secondScore = -Infinity;
     for (const g of row.gates) {
       if (g.state !== 'live') continue;
-      const hits = bulletsPerSec * Math.max(0, t - 0.5) * 0.8;
+      // the squad lines up with its gate GATE_ALIGN u before it at the latest: count only the shots it will
+      // surely put into the gate from then on (hordes / barrels may claim the bullets before that)
+      const hits = naive ? 0 : bulletsPerSec * Math.max(0, Math.min(t, GATE_ALIGN / speed) - 0.5) * 0.8;
       const pred = predictGate(g, hits);
       let score = applyGate(g, count, pred.value, pred.rung);
       if (g === this.choice) score *= 1.08; // hysteresis
-      if (score > bestScore) { bestScore = score; best = g; }
+      if (score > bestScore) { second = best; secondScore = bestScore; bestScore = score; best = g; }
+      else if (score > secondScore) { secondScore = score; second = g; }
     }
     if (!best) return null;
+    // a close call misread: the worse gate looks better to this player
+    if (second && p.wrongGate && this.roll(row, 'wrong') < p.wrongGate
+      && bestScore - secondScore <= p.closeCall * Math.max(1, Math.abs(bestScore))) best = second;
     this.choice = best;
     const inner = Math.max(0.2, best.halfW - 0.9);
     let x = best.x;
@@ -113,21 +212,51 @@ export class Autopilot {
     return { x: Math.max(best.x - inner, Math.min(best.x + inner, x)), dz: L.z - row.z };
   }
 
-  /** Small squad: steer to the thinner side of an incoming horde. Strong squad: face the horde. */
+  /**
+   * Weak squad: steer to the thinner side of an incoming horde. Strong squad: face the horde. 'pro' weighs
+   * the horde by its toughness (hp) against the squad's firepower; the others judge by headcount.
+   */
   hordeGoal() {
     const game = this.game;
     const h = game.horde;
     if (!h || h.count === 0) return null;
     const L = game.squad.leader;
     const zNear = L.z + 1, zFar = L.z - 42;
-    const total = h.densityAt(0, 6, zFar, zNear);
-    if (total === 0) return null;
     const count = game.squad.count;
-    const strong = count > total * 0.9 + 12;
+    if (this.p.hordeNaive) {
+      const total = h.densityAt(0, 6, zFar, zNear);
+      if (total === 0) return null;
+      const strong = count > total * 0.9 + 12;
+      let best = null, bestScore = Infinity;
+      for (const cx of CAND) {
+        const d = h.densityAt(cx, 1.9, zFar, zNear);
+        const score = (strong ? -d : d) + Math.abs(cx - L.x) * 0.15;
+        if (score < bestScore) { bestScore = score; best = cx; }
+      }
+      return best;
+    }
+    // hp per 0.2 u column across the road
+    const bins = this.bins || (this.bins = new Float32Array(52));
+    bins.fill(0);
+    let mass = 0, near = Infinity;
+    for (const e of h.list) {
+      if (e.state !== ALIVE || e.z < zFar || e.z > zNear) continue;
+      const m = e.hp + (e.shield || 0);
+      mass += m;
+      if (L.z - e.z < near) near = L.z - e.z;
+      bins[Math.max(0, Math.min(51, Math.round((e.x + 5.2) / 0.2)))] += m;
+    }
+    if (mass === 0) return null;
+    const w = game.weapons, wd = w.weapon;
+    const fire = w.lastShotsPerSec * wd.pellets * wd.damage * w.dmgMul * (1 + wd.pierce * 0.5);
+    // shoot into the thick of it while it is far, sidestep to the thin side before contact (unless it melts)
+    const strong = fire * 0.35 > mass || near > 16;
     let best = null, bestScore = Infinity;
     for (const cx of CAND) {
-      const d = h.densityAt(cx, 1.9, zFar, zNear);
-      const score = (strong ? -d : d) + Math.abs(cx - L.x) * 0.15;
+      let d = 0;
+      const i0 = Math.max(0, Math.round((cx - 1.9 + 5.2) / 0.2)), i1 = Math.min(51, Math.round((cx + 1.9 + 5.2) / 0.2));
+      for (let i = i0; i <= i1; i++) d += bins[i];
+      const score = (strong ? -d : d) / mass * 40 + Math.abs(cx - L.x) * 0.15;
       if (score < bestScore) { bestScore = score; best = cx; }
     }
     return best;
@@ -161,6 +290,7 @@ export class Autopilot {
       if (gate && gate.dz < dz + 12) continue; // a gate comes first
       const time = (dz - 3) / speed;
       if (dps * time * 0.75 < b.hp) continue;   // can't break it in time
+      if (this.p.barrelSkip && this.roll(b, 'skip') < this.p.barrelSkip) continue;
       const v = this.barrelValue(b) - Math.abs(b.x - L.x) * 2;
       if (v > bs) { bs = v; best = b; }
     }
@@ -181,8 +311,9 @@ export class Autopilot {
     const c = squad.center(this.c);
     const back = c.z + c.r;
     let loss = 0;
-    const R = BLADE_R + 0.2 + BLADE_PAD;
+    const p = this.p;
     for (const b of obs.blades) {
+      const R = BLADE_R + 0.2 + BLADE_PAD - (p.clip && this.roll(b, 'clip') < p.clip ? p.clipPad : 0);
       if (L.z - b.z > (this.look || HAZ_LOOK) || b.z > back + R) continue;
       const hit = (x, z) => {
         const dz = z - b.z;
@@ -196,7 +327,7 @@ export class Autopilot {
     const dist = -L.z;
     for (const g of obs.gaps) {
       if (g.from - dist > (this.look || HAZ_LOOK) || g.to < -back) continue;
-      const side = GAP_SIDE - GAP_PAD;
+      const side = GAP_SIDE - GAP_PAD + (p.clip && this.roll(g, 'clip') < p.clip ? p.clipPad : 0);
       const over = (x, z) => -z < g.to && (g.lane === 'C' || (g.lane === 'R' ? x > side : x < -side));
       if (!squad.pipGone && over(cx, L.z)) loss += 3;
       for (let i = 0; i < ms.length; i += stride) if (over(clampX(ms[i].tx + dx), ms[i].tz)) loss += stride;
@@ -240,6 +371,7 @@ export class Autopilot {
       const dz = L.z - tk.z;
       if (tk.state !== 0 || dz < 0.5 || dz > 40) continue;
       if (magnet) continue;                                 // the magnet brings it anyway
+      if (this.p.pickupSkip && this.roll(tk, 'skip') < this.p.pickupSkip) continue;
       if (gate && gate.dz < dz + 4) continue;              // a gate decision comes first
       if (this.hazardLoss(tk.x) > 0) continue;
       const brave = tk.kind === 'freeze' || tk.kind === 'shield';
