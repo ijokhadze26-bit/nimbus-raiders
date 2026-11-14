@@ -16,10 +16,11 @@ export class Weapons {
     this.muzzle = { x: 0, y: 0, z: 0 };
     this.firePos = { x: 0, y: 0, z: 0 };
     this.lastShotsPerSec = 0;
+    this.showAcc = 0;   // low quality draws budgetLow/budgetHigh of the volleys (decided per volley, never random)
   }
 
   reset(run, tier = 1, mods = {}) {
-    this.acc = 0; this.rr = 0;
+    this.acc = 0; this.rr = 0; this.showAcc = 0;
     this.rateMul = mods.rateMul ?? 1;
     this.dmgMul = mods.dmgMul ?? 1;
     this.setTier(tier, true);
@@ -46,7 +47,11 @@ export class Weapons {
   /** Gate hits per second the squad's fire is worth (device independent: always the high-quality budget). */
   gateShotsPerSec(S = this.lastShotsPerSec, w = this.weapon) { return Math.min(S, BULLETS.budgetHigh / w.pellets) * w.pellets; }
 
-  budget() { return this.game.engine && this.game.engine.quality === 'low' ? BULLETS.budgetLow : BULLETS.budgetHigh; }
+  /**
+   * Simulated bullets / s: always the high budget, so hits, overkill, shields and boss fights play out the same
+   * on every quality level. Low quality only *draws* fewer of them (see `show` below and Bullets.sync).
+   */
+  budget() { return BULLETS.budgetHigh; }
 
   update(dt) {
     const game = this.game;
@@ -76,10 +81,13 @@ export class Weapons {
       const idx = this.pickShooter(shooters);
       const p = squad.muzzle(idx, this.muzzle);
       const lead = (s / Math.max(1, total)) * dt * w.speed;
+      this.showAcc += BULLETS.budgetLow / BULLETS.budgetHigh;
+      const show = this.showAcc >= 1;
+      if (show) this.showAcc -= 1;
       for (let k = 0; k < w.pellets; k++) {
         const ang = w.pellets > 1 ? (k - (w.pellets - 1) / 2) * w.spread * DEG : 0;
         const b = bullets.spawn(this.tier, p.x, p.y, p.z + lead, Math.sin(ang) * w.speed, -Math.cos(ang) * w.speed, dmg, w.pierce, unit);
-        if (b) b.gw = gw;
+        if (b) { b.gw = gw; b.show = show; }
       }
       if (!fired) { fired = true; this.firePos.x = p.x; this.firePos.y = p.y; this.firePos.z = p.z; }
     }

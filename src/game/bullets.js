@@ -134,7 +134,7 @@ export class Bullets {
     if (this.active.length >= BULLETS.capacityPerStyle * 2) return null;
     const b = this.free.length ? this.free.pop() : { x: 0, y: 0, z: 0, vx: 0, vz: 0, dmg: 1, unit: 1, pierce: 0, style: 0, dist: 0, range: 60, nh: 0, hits: [null, null, null, null, null, null, null, null] };
     b.x = x; b.y = y; b.z = z; b.vx = vx; b.vz = vz; b.dmg = dmg; b.unit = unit; b.pierce = pierce; b.range = range; b.vy = 0;
-    b.style = tier - 1; b.dist = 0; b.nh = 0; b.ang = Math.atan2(-vx, -vz); b.gw = 1;
+    b.style = tier - 1; b.dist = 0; b.nh = 0; b.ang = Math.atan2(-vx, -vz); b.gw = 1; b.show = true;
     this.active.push(b);
     return b;
   }
@@ -189,8 +189,11 @@ export class Bullets {
     const counts = this.counts;
     counts.fill(0);
     const list = this.active;
+    // low quality: draw only the volleys flagged `show` (~budgetLow/budgetHigh); all bullets still simulate
+    const low = this.game.engine && this.game.engine.quality === 'low';
     for (let i = 0; i < list.length; i++) {
       const b = list[i];
+      if (low && !b.show) continue;
       const mesh = this.meshes[b.style];
       const n = counts[b.style]++;
       if (n >= BULLETS.capacityPerStyle) continue;

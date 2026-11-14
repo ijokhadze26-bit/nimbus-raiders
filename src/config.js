@@ -51,8 +51,8 @@ export const FORMATION = {
 export const START_SQUAD = 1;
 
 export const BULLETS = {
-  budgetHigh: 200,   // visual bullets / s
-  budgetLow: 110,
+  budgetHigh: 200,   // simulated (bundled) bullets / s, every quality
+  budgetLow: 110,    // low quality draws this many of them (simulation always runs budgetHigh)
   range: 60,         // how far ahead of the leader a bullet travels
   y: 0.55,
   capacityPerStyle: 640,
