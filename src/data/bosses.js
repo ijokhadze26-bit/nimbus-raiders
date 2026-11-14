@@ -14,6 +14,63 @@ export const BOSSES = {
       { id: 'roll', weight: 2, minPhase: 2, telegraph: 1.6, launch: 0.9, halfW: 1.45 },
     ],
   },
+  oculon: {
+    type: 'oculon', name: 'OCULON', subtitle: 'THE STORM EYE', hp: 2600,
+    distance: 26, hitbox: { halfW: 3.6, front: 2.6 }, hitY: 6.3, sway: 0.3,
+    enterTime: 1.3,
+    firstAttack: 1.0,
+    cooldown: [1.8, 2.6],
+    phase2Cadence: 1.4,
+    attacks: [
+      { id: 'orb', weight: 3, minPhase: 1, telegraph: 1.2, radius: 1.3, count: 3, count2: 4, flight: 0.75, stagger: 0.22, spread: 2.6 },
+      { id: 'stripe', weight: 2, minPhase: 1, telegraph: 1.25, halfW: 1.35, count: 1, count2: 2, stagger: 0.5 },
+      { id: 'spiral', weight: 3, minPhase: 2, telegraph: 1.05, radius: 1.1, count: 8, flight: 0.7, stagger: 0.11, maxR: 2.9 },
+      { id: 'laser', weight: 2, minPhase: 2, telegraph: 1.3, width: 5.2, sweep: 0.55 },
+    ],
+  },
+  mothermurk: {
+    type: 'mothermurk', name: 'MOTHER MURK', subtitle: 'QUEEN OF THE GOO', hp: 3200,
+    distance: 27, hitbox: { halfW: 4.0, front: 3.4 }, hitY: 3.6, sway: 0.18,
+    enterTime: 1.4,
+    firstAttack: 0.8,
+    cooldown: [1.9, 2.7],
+    phase2Cadence: 1.3,
+    attacks: [
+      { id: 'summon', weight: 3, minPhase: 1, windup: 1.1, count: 20, perTier: 8, count2: 30, max: 60, hpPerTier: 0.75,
+        mix: { grunt: 0.75, runner: 0.25 }, mix2: { grunt: 0.45, runner: 0.2, bomber: 0.2, tank: 0.15 } },
+      { id: 'puddle', weight: 3, minPhase: 1, telegraph: 1.1, radius: 1.6, count: 2, count2: 3, life: 5.5, flight: 0.8 },
+    ],
+  },
+  ironhorn: {
+    type: 'ironhorn', name: 'IRONHORN', subtitle: 'THE MECH RHINO', hp: 3000,
+    distance: 26, hitbox: { halfW: 2.8, front: 4.6 }, hitY: 3.2, sway: 0.1,
+    enterTime: 1.5,
+    firstAttack: 1.0,
+    cooldown: [1.7, 2.4],
+    phase2Cadence: 1.35,
+    attacks: [
+      { id: 'charge', weight: 3, minPhase: 1, telegraph: 1.4, speed: 30, back: 22 },
+      { id: 'stomp', weight: 2, minPhase: 1, telegraph: 1.0, halfW: 1.5, count: 1, count2: 2, travel: 0.45 },
+      { id: 'double', weight: 2, minPhase: 2, telegraph: 1.4, speed: 32, back: 24 },
+      { id: 'feint', weight: 2, minPhase: 2, telegraph: 1.4, switchAt: 0.7, speed: 32, back: 24 },
+    ],
+  },
+  tempestking: {
+    type: 'tempestking', name: 'TEMPEST KING', subtitle: 'LORD OF THE STORM', hp: 5200,
+    distance: 28, hitbox: { halfW: 3.8, front: 2.4 }, hitY: 5.2, sway: 0.25,
+    enterTime: 1.5,
+    firstAttack: 0.9,
+    cooldown: [1.4, 2.0],
+    phase2Cadence: 1.5,
+    rotate: ['lightning', 'slam', 'orb', 'summon'],
+    attacks: [
+      { id: 'slam', weight: 1, minPhase: 1, telegraph: 1.15, radius: 2.2, count: 1, count2: 2, stagger: 0.55 },
+      { id: 'orb', weight: 1, minPhase: 1, telegraph: 1.15, radius: 1.35, count: 4, count2: 6, flight: 0.7, stagger: 0.16, spread: 2.6 },
+      { id: 'summon', weight: 1, minPhase: 1, windup: 1.0, count: 22, perTier: 6, count2: 32, max: 60, hpPerTier: 0.75,
+        mix: { grunt: 0.7, runner: 0.3 }, mix2: { grunt: 0.4, runner: 0.25, bomber: 0.2, shield: 0.15 } },
+      { id: 'lightning', weight: 1, minPhase: 1, telegraph: 1.2, halfW: 1.25, count: 2, count2: 3, stagger: 0.45 },
+    ],
+  },
 };
 
 export function bossDef(type) { return BOSSES[type] || BOSSES.grawlstone; }

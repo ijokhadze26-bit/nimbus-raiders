@@ -25,8 +25,10 @@ export class Autopilot {
     const game = this.game;
     const L = game.squad.leader;
     const tel = game.telegraph ? game.telegraph.active : [];
+    // live boss hazards that outlast their warning (charges, laser sweeps, quake crests, goo puddles)
+    const zones = game.boss && game.boss.dangerZones;
     let x = null;
-    if (tel.length) x = this.dodge(tel);
+    if (tel.length || (zones && zones.length)) x = this.dodge(zones && zones.length ? tel.concat(zones) : tel);
     if (x === null) {
       const gate = this.gateGoal();
       const near = gate && gate.dz < 30;

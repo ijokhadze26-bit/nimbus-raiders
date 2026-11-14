@@ -1,7 +1,9 @@
 // BaseBoss: hp + hitbox (bullet target), entrance drop with shake, intro roar, weighted attack scheduler
 // (cooldowns scaled by level tier, faster in phase 2 below 50% hp), damage flash, death sequence with slow-mo,
 // then game.win(). Subclasses implement: buildModel(), startAttack(id, spec) -> attack { update(dt) -> done },
-// and optionally animate(dt, t), onPhase2(), onDeath().
+// and optionally animate(dt, t), onPhase2(), onDeath(), enterUpdate(f) (entrance pose, default: drop from the
+// sky), onLanded(). Steering: the boss sways toward the squad unless `lockX` is set (charges, sweeps).
+// Shared attack visuals live in game.bosses.effects (orbs, bolts, rings, puddles, laser).
 import { bossDef, cadenceFor } from '../../data/bosses.js';
 
 const DROP_TIME = 0.85, INTRO_TIME = 1.25, DEATH_TIME = 1.55;
@@ -23,6 +25,11 @@ export class BaseBoss {
     this.flash = 0;
     this.cooldown = this.def.firstAttack;
     this.attack = null;
+    this.lockX = null;
+    // hazards still live after their telegraph ended, shaped like telegraph handles
+    // ({ kind:'lane', x0, x1, zNear, zFar } | { kind:'circle', x, z, r }); the autopilot dodges them too
+    this.dangerZones = [];
+    this.effects = game.bosses.effects;
     this.kind = 'boss';
     this.priority = 9;
     this.hitTarget = { z: 0, boss: this };
@@ -36,6 +43,7 @@ export class BaseBoss {
     this.offTarget = game.bullets.addTargetSystem(this);
     const L = game.squad.leader;
     this.z = L.z - this.def.distance;
+    this.homeZ = this.z;
     this.root.position.set(0, this.y, this.z);
   }
 
@@ -49,6 +57,13 @@ export class BaseBoss {
   onPhase2() {}
   onDeath() {}
   disposeExtra() {}
+  /** Entrance pose for f = 0..1 (default: drop from the sky). */
+  enterUpdate(f) { this.y = 40 * (1 - f * f); }
+  /** Called once when the entrance ends (default: landing dust + big shake). */
+  onLanded() {
+    this.game.events.emit('fx:shake', { amount: 0.9 });
+    this.game.gates.burst(this.x, 0.2, this.z + 1.5, 7, 0.6, '#c9c2b4', 24);
+  }
 
   // ---------------- scheduler ----------------
   pickAttack() {
@@ -72,21 +87,21 @@ export class BaseBoss {
     this.flash = Math.max(0, this.flash - dt * 10);
     const L = game.squad.leader;
     if (this.state === 'enter') {
-      const f = Math.min(1, this.t / DROP_TIME);
-      this.y = 40 * (1 - f * f);
+      const f = Math.min(1, this.t / (this.def.enterTime || DROP_TIME));
+      this.enterUpdate(f);
       if (f >= 1) {
-        this.y = 0;
+        this.y = 0; this.z = this.homeZ;
         this.state = 'intro'; this.t = 0;
-        game.events.emit('fx:shake', { amount: 0.9 });
         game.events.emit('boss:spawn', { type: this.type, name: this.name, hp: this.maxHp });
         game.events.emit('boss:hp', { hp: this.hp, max: this.maxHp });
-        game.gates.burst(this.x, 0.2, this.z + 1.5, 7, 0.6, '#c9c2b4', 24);
+        this.onLanded();
       }
     } else if (this.state === 'intro') {
       if (this.t >= INTRO_TIME) { this.state = 'fight'; this.t = 0; }
     } else if (this.state === 'fight') {
-      // sway toward the squad a little
-      this.x += (L.x * 0.22 - this.x) * Math.min(1, dt * 1.2);
+      // sway toward the squad a little (attacks may pin x)
+      if (this.lockX === null) this.x += (L.x * (this.def.sway ?? 0.22) - this.x) * Math.min(1, dt * 1.2);
+      else this.x += (this.lockX - this.x) * Math.min(1, dt * 7);
       if (this.attack) {
         if (this.attack.update(dt)) { this.attack = null; this.cooldown = this.nextCooldown(); }
       } else if (game.squad.count > 0 && game.run && game.run.active) {
@@ -116,7 +131,8 @@ export class BaseBoss {
   }
 
   hit(t, b) {
-    const p = this.hitPos; p.x = b.x; p.y = b.y + 1.2; p.z = t.z;
+    const p = this.hitPos; p.x = b.x; p.z = t.z;
+    p.y = this.def.hitY != null ? this.def.hitY + (Math.random() - 0.5) * 2.2 : b.y + 1.2;
     if (this.game.events.wants('bullet:hit')) this.game.events.emit('bullet:hit', { kind: 'boss', pos: p });
     this.damage(b.dmg);
     return true;
@@ -138,7 +154,7 @@ export class BaseBoss {
     if (this.hp <= 0) this.die();
   }
 
-  kill() { if (this.alive) { if (this.state === 'enter') { this.state = 'fight'; this.y = 0; } this.damage(this.hp + 1); } }
+  kill() { if (this.alive) { if (this.state === 'enter') { this.state = 'fight'; this.y = 0; this.z = this.homeZ; } this.damage(this.hp + 1); } }
 
   die() {
     if (!this.alive) return;
@@ -146,7 +162,10 @@ export class BaseBoss {
     this.state = 'dying'; this.t = 0;
     if (this.attack && this.attack.cancel) this.attack.cancel();
     this.attack = null;
+    this.lockX = null;
+    this.dangerZones.length = 0;
     game.telegraph.reset();
+    if (this.effects) this.effects.beamOff(true);
     const pos = { x: this.x, y: 3, z: this.z };
     game.events.emit('boss:hp', { hp: 0, max: this.maxHp }, true);
     game.events.emit('boss:defeated', { type: this.type, pos });
@@ -186,12 +205,45 @@ export class BaseBoss {
     return n;
   }
 
+  /** Members (leader included) with |x - cx| < halfW and z in [z0, z1], as a fresh array. */
+  membersInBox(cx, halfW, z0, z1) {
+    const squad = this.game.squad, out = [];
+    for (const m of squad.members) if (Math.abs(m.x - cx) < halfW && m.z >= z0 && m.z <= z1) out.push(m);
+    const L = squad.leader;
+    if (Math.abs(L.x - cx) < halfW && L.z >= z0 && L.z <= z1) out.push(L);
+    return out;
+  }
+
+  /** Kills one member object (or the leader) if it is still alive. */
+  killMemberObj(m, reason = 'boss') {
+    const squad = this.game.squad;
+    if (squad.count <= 0) return;
+    if (m === squad.leader) squad.remove(1, reason);
+    else if (squad.members.includes(m)) squad.killMemberObj(m, reason);
+  }
+
   squadCenter() { return this.game.squad.center(this.c); }
+
+  /** Warning time for an attack: shrinks a little with tier (and optionally phase 2), never below 0.9 s. */
+  warnTime(base, p2 = 0) { return Math.max(0.9, base - 0.03 * (this.tier - 1) - (this.phase === 2 ? p2 : 0)); }
+
+  /** Count that grows with level tier: n + floor((tier - 1) * perTier). */
+  tierCount(n, perTier = 0.5) { return n + Math.floor((this.tier - 1) * perTier); }
+
+  dropZone(z) { const i = this.dangerZones.indexOf(z); if (i >= 0) this.dangerZones.splice(i, 1); }
+
+  /** Pops every live Murkling (summoned minions die with their boss). */
+  clearMinions() {
+    const h = this.game.horde;
+    if (!h) return;
+    for (const e of h.list) if (e.state === 0) h.kill(e, 'blast');
+  }
 
   /** Detaches the (cached, reused) model from the scene; geometry/materials stay alive for the next spawn. */
   dispose() {
     this.offTarget();
     this.game.scene.remove(this.root);
+    if (this.effects) this.effects.clear();
     this.disposeExtra();
   }
 }

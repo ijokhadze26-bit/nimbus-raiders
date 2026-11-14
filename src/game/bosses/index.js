@@ -1,13 +1,22 @@
 // Boss registry (type -> class) + director that owns the active boss (exposed as game.boss).
 // Adding a boss = a small BaseBoss subclass + a model + a data entry, then register it here.
 import { Grawlstone } from './grawlstone.js';
+import { Oculon } from './oculon.js';
+import { MotherMurk } from './mothermurk.js';
+import { Ironhorn } from './ironhorn.js';
+import { TempestKing } from './tempestking.js';
+import { BossEffects } from './effects.js';
 
 export const BOSS_CLASSES = {
   grawlstone: Grawlstone,
+  oculon: Oculon,
+  mothermurk: MotherMurk,
+  ironhorn: Ironhorn,
+  tempestking: TempestKing,
 };
 
 export class Bosses {
-  init(game) { this.game = game; this.active = null; this.models = new Map(); }
+  init(game) { this.game = game; this.active = null; this.models = new Map(); this.effects = new BossEffects(game); }
 
   /**
    * Boss models are built once per type and reused on every spawn (no per-fight geometry/material churn,
@@ -37,15 +46,16 @@ export class Bosses {
 
   clear() {
     if (this.active) this.active.dispose();
+    else this.effects.clear();
     this.active = null;
     this.game.boss = null;
   }
 
   reset() { this.clear(); }
 
-  update(dt) { if (this.active) this.active.update(dt); }
+  update(dt) { if (this.active) this.active.update(dt); this.effects.update(dt); }
 
-  sync(dt) { if (this.active) this.active.sync(dt); }
+  sync(dt) { if (this.active) this.active.sync(dt); this.effects.sync(); }
 
   dispose() { this.clear(); }
 }
