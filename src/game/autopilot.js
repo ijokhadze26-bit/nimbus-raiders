@@ -32,10 +32,13 @@ export class Autopilot {
     // live boss hazards that outlast their warning (charges, laser sweeps, quake crests, goo puddles)
     const zones = game.boss && game.boss.dangerZones;
     let x = null;
+    this.look = HAZ_LOOK;
     if (tel.length || (zones && zones.length)) x = this.dodge(zones && zones.length ? tel.concat(zones) : tel);
     if (x === null) {
       const gate = this.gateGoal();
       const near = gate && gate.dz < 30;
+      // a gate decision is not overruled by a hazard well past it (there is time to sidestep after passing)
+      this.look = near ? Math.min(HAZ_LOOK, gate.dz + 8) : HAZ_LOOK;
       if (near) x = gate.x;
       if (x === null) x = this.pickupGoal(gate, false);
       if (x === null) x = this.hordeGoal();
@@ -180,7 +183,7 @@ export class Autopilot {
     let loss = 0;
     const R = BLADE_R + 0.2 + BLADE_PAD;
     for (const b of obs.blades) {
-      if (L.z - b.z > HAZ_LOOK || b.z > back + R) continue;
+      if (L.z - b.z > (this.look || HAZ_LOOK) || b.z > back + R) continue;
       const hit = (x, z) => {
         const dz = z - b.z;
         if (dz < -R) return false;
@@ -192,7 +195,7 @@ export class Autopilot {
     }
     const dist = -L.z;
     for (const g of obs.gaps) {
-      if (g.from - dist > HAZ_LOOK || g.to < -back) continue;
+      if (g.from - dist > (this.look || HAZ_LOOK) || g.to < -back) continue;
       const side = GAP_SIDE - GAP_PAD;
       const over = (x, z) => -z < g.to && (g.lane === 'C' || (g.lane === 'R' ? x > side : x < -side));
       if (!squad.pipGone && over(cx, L.z)) loss += 3;

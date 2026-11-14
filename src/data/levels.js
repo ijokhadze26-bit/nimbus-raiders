@@ -4,7 +4,7 @@
 // from L4, bombers from L5, tanks from L6; ÷ ladders from L2, moving gates from L3, blades from L3, gaps from
 // L5. Up to L4 the left lane is never a trap (a player who barely steers still wins); from L5 on the lanes
 // have to be read. Boss rotation follows the spec (Tempest King on 10 as a mini fight and on 15 as the
-// finale). The game ignores event types it has no system for (blades / gaps / pickups until they exist).
+// finale).
 
 // ---------------- event builders (shared with data/endless.js) ----------------
 export const gate = (at, lane, op, extra = {}) => ({ type: 'gate', at, lane, op, ...extra });
@@ -36,6 +36,10 @@ const K = (lane, n = 8, pattern = 'line') => (at) => [coins(at, lane, n, pattern
 const U = (lane, kind) => (at) => [powerup(at, lane, kind)];
 const X = (lane, extra = {}) => (at) => [blade(at, lane, extra)];
 const O = (lane, length = 12) => (at) => [gap(at - length / 2, lane, length)];
+// staggered variants: a blade / gap `dz` past the beat (after its gate row, or after another hazard), so two
+// hazards never share one z and a good gate is never floating over a hole
+const Xd = (lane, dz, extra = {}) => (at) => [blade(at + dz, lane, extra)];
+const Od = (lane, length, dz) => (at) => [gap(at + dz, lane, length)];
 
 const START = 24, ARENA = 30;
 
@@ -91,7 +95,7 @@ export const LEVELS = [
     B([8, 'weapon', 1], [10, 'troops', 5]),
     [H(22, GR(0.3)), K('R', 6)],
     P(a(7, 12, mv(1.0, 1.4)), a(-4, 10)),
-    [C(x(2)), X('R'), K('L', 8)],
+    [C(x(2)), Xd('R', 12), K('L', 8)],
     H(50, GR(0.3)),
     B([36, 'weapon', 1], [40, 'drone', 1]),
     P(x(2, 800), a(10, 20)),                    // ×2 that climbs vs a fat add gate
@@ -99,7 +103,7 @@ export const LEVELS = [
     B([70, 'troops', 16], [70, 'turret', 1]),
     [P(x(2), a(-12, 16)), K('R', 8)],
     H(150, GR(0.35)),
-    [B([110, 'weapon', 1], [100, 'troops', 20]), X('R')],
+    [B([110, 'weapon', 1], [100, 'troops', 20]), Xd('R', 12)],
     P(a(16, 30), a(-10, 8)),
   ]),
   level({ id: 4, name: 'Violet Stampede', theme: 'dusk', length: 410, speed: 9.6, stars: [140, 300], reward: 70, boss: { type: 'ironhorn', hp: 11000, tier: 2 } }, [
@@ -110,7 +114,7 @@ export const LEVELS = [
     [C(x(2)), U('R', 'freeze'), K('L', 8)],
     H(56, GRS(0.25, 0.15)),                     // first Shieldbearers
     B([40, 'weapon', 1], [44, 'drone', 1]),
-    [P(a(24, 40, mv(1.1, 1.5)), dv(2, 600)), X('R')],
+    [P(a(24, 40, mv(1.1, 1.5)), dv(2, 600)), Xd('R', -10)],
     H(100, GRS(0.25, 0.15)),
     B([80, 'troops', 20], [80, 'turret', 1]),
     P(x(2), a(18, 30)),
@@ -125,10 +129,10 @@ export const LEVELS = [
     B([10, 'troops', 5], [8, 'weapon', 1]),
     [H(34, M5(0.2, 0, 0.18), 'L'), K('R', 8)],  // first Fizzbombs: pop one inside the pack
     P(dv(2, 260), a(6, 12)),
-    [C(x(2)), O('L', 10), K('R', 8)],
+    [C(x(2)), Od('L', 10, 8), K('R', 8)],
     H(70, M5(0.25, 0.1, 0.15)),
     B([40, 'coins', 30], [40, 'weapon', 1]),
-    [P(a(-14, 4), a(12, 22, mv(1.1, 1.6))), X('L')],
+    [P(a(-14, 4), a(12, 22, mv(1.1, 1.6))), Xd('L', -10)],
     [H(120, M5(0.25, 0.15, 0.15)), U('R', 'rapid')],
     B([90, 'troops', 22], [90, 'drone', 1]),
     P(a(20, 30), x(2)),
@@ -143,14 +147,14 @@ export const LEVELS = [
     B([8, 'weapon', 1], [12, 'troops', 7]),
     [H(38, M6(0.2, 0.1, 0.1, 0.06), 'L'), K('R', 8)],   // first Bulwark tanks
     P(dv(2, 220), a(6, 12)),
-    [C(x(2)), X('R'), K('L', 8)],
+    [C(x(2)), Xd('R', 12), K('L', 8)],
     H(80, M6(0.2, 0.12, 0.1, 0.06)),
     B([60, 'troops', 16], [50, 'weapon', 1]),
-    [P(dv(2, 700), a(14, 24)), O('L', 12)],
+    [P(dv(2, 700), a(14, 24)), Od('L', 12, -18)],
     [H(140, M6(0.2, 0.14, 0.12, 0.06)), U('R', 'shield')],
     B([100, 'drone', 1], [100, 'turret', 1]),
     P(x(2), a(22, 36, mv(1.2, 1.7))),
-    [H(260, M6(0.2, 0.2, 0.12, 0.08)), X('L'), X('R', mv(1.2, 1.1))],
+    [H(260, M6(0.2, 0.2, 0.12, 0.08)), X('L'), Xd('R', 14, mv(1.2, 1.1))],
     B([150, 'weapon', 1], [150, 'troops', 30]),
     P(a(-24, 10), a(26, 44)),
     [H(380, M6(0.2, 0.22, 0.12, 0.08)), U('L', 'freeze'), K('R', 10, 'zigzag')],
@@ -162,10 +166,10 @@ export const LEVELS = [
     B([12, 'troops', 8], [8, 'weapon', 1]),
     [H(44, M5(0.3, 0.1, 0.1), 'L'), K('R', 8)],
     P(a(8, 14, mv(1.2, 1.8)), dv(2, 300)),
-    [C(x(2)), O('L', 12), K('R', 8)],
+    [C(x(2)), Od('L', 12, 8), K('R', 8)],
     H(100, M6(0.22, 0.12, 0.12, 0.06)),
     B([60, 'weapon', 1], [60, 'coins', 40]),
-    [P(a(-18, 6), a(16, 28)), X('R')],
+    [P(a(-18, 6), a(16, 28)), Xd('R', 12)],
     [H(160, M6(0.22, 0.12, 0.12, 0.06), 'L'), B(null, [100, 'troops', 26])],
     P(x(2), a(24, 40)),
     [H(230, M6(0.22, 0.14, 0.12, 0.08)), O('R', 14), K('L', 10)],
@@ -182,10 +186,10 @@ export const LEVELS = [
     B([8, 'weapon', 1], [14, 'troops', 8]),
     [H(48, M6(0.25, 0.1, 0.1, 0.05), 'R'), K('L', 8)],
     P(dv(2, 240), a(8, 14)),
-    [P(a(-10, 16), a(-2, 8)), X('L')],          // both red: shoot the one with more room
+    [P(a(-10, 16), a(-2, 8)), Xd('L', -10)],          // both red: shoot the one with more room
     H(110, M6(0.22, 0.12, 0.12, 0.06)),
     B([70, 'weapon', 1], [70, 'drone', 1]),
-    [C(x(2)), O('L', 14), U('R', 'freeze')],
+    [C(x(2)), Od('L', 14, 8), U('R', 'freeze')],
     H(180, M6(0.22, 0.14, 0.12, 0.07)),
     P(a(20, 34, mv(1.3, 1.9)), dv(2, 750)),
     B([130, 'troops', 30], [130, 'turret', 1]),
@@ -203,10 +207,10 @@ export const LEVELS = [
     B([14, 'troops', 8], [8, 'weapon', 1]),
     H(54, M6(0.25, 0.1, 0.12, 0.05), 'L'),
     P(dv(2, 200), a(8, 14)),
-    [C(x(2)), O('R', 14), K('L', 8)],
+    [C(x(2)), Od('R', 14, 8), K('L', 8)],
     H(120, M6(0.22, 0.12, 0.14, 0.07)),
     B([80, 'weapon', 1], [80, 'troops', 20]),
-    [P(a(18, 30), a(-14, 30, mv(1.2, 1.8))), X('L'), X('R')],
+    [P(a(18, 30), a(-14, 30, mv(1.2, 1.8))), Xd('L', 10), Xd('R', 24)],
     H(200, M6(0.22, 0.14, 0.14, 0.07)),
     P(x(2), dv(3, 500)),
     B([140, 'drone', 1], [140, 'turret', 1]),
@@ -225,18 +229,18 @@ export const LEVELS = [
     B([14, 'troops', 9], [8, 'weapon', 1]),
     [H(58, M6(0.25, 0.12, 0.12, 0.06), 'L'), K('R', 8)],
     P(a(10, 16, mv(1.3, 2)), dv(2, 280)),
-    [C(x(2)), X('L', mv(1.2, 1.2)), K('R', 8)],
+    [C(x(2)), Xd('L', 12, mv(1.2, 1.2)), K('R', 8)],
     H(140, M6(0.22, 0.14, 0.14, 0.07)),
     B([90, 'weapon', 1], [100, 'drone', 1]),
-    [P(dv(2, 750), a(20, 34)), O('R', 16), U('L', 'shield')],
+    [P(dv(2, 750), a(20, 34)), Od('R', 14, 16), U('L', 'shield')],
     H(220, M6(0.22, 0.14, 0.14, 0.08)),
     P(a(-24, 24), a(-6, 14)),
     B([170, 'turret', 1], [170, 'troops', 34]),
     [H(300, M6(0.22, 0.14, 0.14, 0.09), 'R'), K('L', 10)],
     P(x(2), a(34, 56)),
-    [H(370, M6(0.22, 0.14, 0.14, 0.1)), X('L'), X('R', mv(1.4, 1.5))],
+    [H(370, M6(0.22, 0.14, 0.14, 0.1)), X('L'), Xd('R', 14, mv(1.4, 1.5))],
     B([240, 'weapon', 1], [240, 'drone', 1]),
-    [P(a(40, 64), dv(3, 800)), O('L', 16), U('R', 'rapid')],
+    [P(a(40, 64), dv(3, 800)), Od('L', 14, 16), U('R', 'rapid')],
     H(450, M6(0.22, 0.14, 0.14, 0.1)),
     P(x(2), a(-50, 20)),
     [H(560, M6(0.2, 0.26, 0.15, 0.1)), U('L', 'freeze'), K('R', 12, 'zigzag')],
@@ -269,19 +273,19 @@ function lateBeats(id, s, extra) {
     b([n(14), 'troops', n(9)], [8, 'weapon', 1]),
     [H(n(62), M6(0.25, 0.12, 0.12, 0.07), L), K(R, 8)],
     p(dv(2, n(300)), a(n(10), n(18), mv(1.3, 2))),
-    [C(x(2)), X(R, mv(1.3, 1.3)), O(L, 14)],
+    [C(x(2)), Od(L, 14, 8), Xd(R, 30, mv(1.3, 1.3))],
     H(n(150), M6(0.22, 0.14, 0.14, 0.08)),
     b([n(100), 'weapon', 1], [n(100), 'drone', 1]),
-    [p(a(-n(26), n(28)), dv(2, n(750))), U(L, 'rapid'), X(R)],
+    [p(a(-n(26), n(28)), dv(2, n(750))), U(L, 'rapid'), Xd(R, -10)],
     [H(n(230), M6(0.22, 0.14, 0.14, 0.09), R), K(L, 10)],
     p(x(2), a(n(26), n(42))),
     b([n(180), 'turret', 1], [n(180), 'troops', n(36)]),
     [H(n(320), M6(0.22, 0.14, 0.14, 0.1)), O(R, 16), K(L, 10, 'zigzag')],
-    [p(dv(3, n(700)), a(n(36), n(58), mv(1.4, 2.1))), X(L, mv(1.4, 1.6)), U(R, 'shield')],
+    [p(dv(3, n(700)), a(n(36), n(58), mv(1.4, 2.1))), Xd(L, -10, mv(1.4, 1.6)), U(R, 'shield')],
     [H(n(400), M6(0.22, 0.14, 0.15, 0.1), L), K(R, 10)],
     b([n(260), 'weapon', 1], [n(260), 'drone', 1]),
     p(a(-n(44), n(20)), x(2)),
-    [H(n(460), M6(0.2, 0.24, 0.15, 0.11)), O(L, 16), X(R)],
+    [H(n(460), M6(0.2, 0.24, 0.15, 0.11)), O(L, 16), Xd(R, 20)],
   ];
   for (let i = 0; i < 1 + extra; i++) {
     beats.push(p(x(2), dv(2, n(900))));
