@@ -5,6 +5,7 @@ import { GATE, LANES, COLORS, FORMATION } from '../config.js';
 import { buildGateVisual, shardGeometry } from '../models/gate.js';
 import { drawLabel, signed } from '../models/labels.js';
 import { hasHit } from './bullets.js';
+import { markInstances } from '../core/pool.js';
 
 const RED = new THREE.Color(COLORS.bad), BLUE = new THREE.Color(COLORS.good);
 const RED_GLOW = new THREE.Color('#ff6b7a'), BLUE_GLOW = new THREE.Color('#7fd0ff');
@@ -62,6 +63,14 @@ export class Gates {
     this.time = 0;
     this.shardData.length = 0;
     this.shards.count = 0;
+  }
+
+  /** Debug skip: drop every pending and spawned row without applying it (like horde/barrels skipAll). */
+  skipAll() {
+    this.cursor = this.events.length;
+    for (const g of this.live) this.releaseVisual(g);
+    this.live.length = 0;
+    this.rows.length = 0;
   }
 
   acquireVisual(width) {
@@ -222,7 +231,7 @@ export class Gates {
     g.dirty = true;
     const p = this.hitPos; p.x = b.x; p.y = b.y; p.z = g.z;
     this.game.events.emit('gate:hit', { id: g.id, op: g.op === 'add' ? 'add' : GATE.rungs[g.rung].op, value: g.op === 'add' ? g.value : GATE.rungs[g.rung].k, pos: p });
-    this.game.events.emit('bullet:hit', { kind: 'gate', pos: p });
+    if (this.game.events.wants('bullet:hit')) this.game.events.emit('bullet:hit', { kind: 'gate', pos: p });
     return true;
   }
 
@@ -282,7 +291,7 @@ export class Gates {
       n++;
     }
     this.shards.count = n;
-    if (n) { this.shards.instanceMatrix.needsUpdate = true; this.shards.instanceColor.needsUpdate = true; }
+    if (n) { markInstances(this.shards.instanceMatrix, n); markInstances(this.shards.instanceColor, n); }
   }
 
   drawGateLabel(g) {

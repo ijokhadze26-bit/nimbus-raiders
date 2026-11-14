@@ -1,11 +1,14 @@
 // Renderer, scene, camera, portrait-frame resize, quality switching and render stats.
 import * as THREE from 'three';
-import { CAMERA, QUALITY } from '../config.js';
+import { CAMERA, QUALITY, VIEW } from '../config.js';
 
 export class Engine {
   constructor(container) {
     this.container = container;
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', stencil: false });
+    // MSAA only below DPR 2: at 2x the extra resolution already hides most aliasing, and MSAA on a
+    // 2x/3x phone target costs a lot of fill + resolve bandwidth (it can't be toggled after creation).
+    const dpr = window.devicePixelRatio || 1;
+    this.renderer = new THREE.WebGLRenderer({ antialias: dpr < 2, powerPreference: 'high-performance', stencil: false });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.NoToneMapping;
     this.renderer.shadowMap.enabled = true;
@@ -56,6 +59,7 @@ export class Engine {
     this.width = w; this.height = h;
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
+    this.camera.fov = fovForAspect(this.camera.aspect);
     this.camera.updateProjectionMatrix();
     for (const fn of this.onResize) fn(w, h);
   }
@@ -66,4 +70,14 @@ export class Engine {
     this.stats.calls = r.calls;
     this.stats.tris = r.triangles;
   }
+}
+
+const HALF_H_TAN = Math.tan((CAMERA.fov * Math.PI) / 360) * VIEW.aspect;
+/**
+ * Vertical fov that keeps the horizontal view of the 9:16 frame on taller/narrower screens (19.5:9 phones),
+ * so the whole road width (Pip at the clamp, the blob's outer edge) stays in frame. Wider screens keep fov 52.
+ */
+export function fovForAspect(aspect) {
+  if (aspect >= VIEW.aspect) return CAMERA.fov;
+  return (Math.atan(HALF_H_TAN / aspect) * 360) / Math.PI;
 }

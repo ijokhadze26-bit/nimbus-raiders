@@ -6,7 +6,7 @@ varying vec3 vDir;
 void main() {
   vDir = normalize(position);
   vec4 p = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  gl_Position = p;
+  gl_Position = p.xyww; // pinned to the far plane: drawn last, only where nothing else covered the pixel
 }`;
 
 const SKY_FRAG = /* glsl */`
@@ -60,7 +60,8 @@ export function createSky() {
   };
   const mat = new THREE.ShaderMaterial({ uniforms, vertexShader: SKY_VERT, fragmentShader: SKY_FRAG, side: THREE.BackSide, depthWrite: false, fog: false });
   const mesh = new THREE.Mesh(new THREE.SphereGeometry(600, 32, 16), mat);
-  mesh.renderOrder = -10;
+  // Last among opaques (depth test on, LessEqual at the far plane) so early-z skips every covered pixel.
+  mesh.renderOrder = 1000;
   mesh.frustumCulled = false;
   return { mesh, uniforms };
 }
@@ -115,6 +116,7 @@ export function createSea() {
   const mesh = new THREE.Mesh(geo, mat);
   mesh.position.y = -16;
   mesh.frustumCulled = false;
-  mesh.renderOrder = -9;
+  // After the bridge/props (the road hides much of it) but before the sky: covered pixels skip the fbm shader.
+  mesh.renderOrder = 999;
   return { mesh, uniforms };
 }

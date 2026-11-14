@@ -314,7 +314,7 @@ export class Horde {
     const run = this.game.run;
     if (run) run.kills++;
     const p = this.diePos; p.x = e.x; p.y = 0.5; p.z = e.z;
-    this.game.events.emit('enemy:die', { type: e.def.id, pos: p, color: e.def.color });
+    if (this.game.events.wants('enemy:die')) this.game.events.emit('enemy:die', { type: e.def.id, pos: p, color: e.def.color });
     if (e.def.blastRadius && cause !== 'contact') this.queueBlast(e.x, e.z, e.def.blastRadius, cause === 'blast' ? CHAIN_DELAY : 0.02);
   }
 
@@ -344,7 +344,7 @@ export class Horde {
     const p = this.hitPos; p.x = b.x; p.y = b.y; p.z = e.z + e.def.r;
     if (e.shield > 0) {
       e.shield--; e.sflash = 1;
-      this.game.events.emit('bullet:hit', { kind: 'shield', pos: p });
+      if (this.game.events.wants('bullet:hit')) this.game.events.emit('bullet:hit', { kind: 'shield', pos: p });
       if (e.shield === 0) this.view.shatterShield(e);
       return true;
     }
@@ -352,7 +352,7 @@ export class Horde {
     const hpBefore = e.hp;
     e.hp -= b.dmg;
     if (e.flash < 0.35) e.flash = 1;
-    this.game.events.emit('bullet:hit', { kind: 'enemy', pos: p });
+    if (this.game.events.wants('bullet:hit')) this.game.events.emit('bullet:hit', { kind: 'enemy', pos: p });
     if (e.hp <= 0) {
       this.kill(e, 'bullet');
       // a bundled bullet stands for several real shots: the unused ones keep flying (DPS conserved)

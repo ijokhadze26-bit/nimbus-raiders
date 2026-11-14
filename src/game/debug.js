@@ -61,7 +61,7 @@ export function createDebug(game) {
       if (!run) return debug.state();
       game.squad.leader.z = -(run.length - 3);
       for (const m of game.squad.members) m.z = game.squad.leader.z + 1;
-      game.gates.cursor = game.gates.events.length;
+      game.gates.skipAll();
       game.horde.skipAll();
       game.barrels.skipAll();
       game.snapCamera();

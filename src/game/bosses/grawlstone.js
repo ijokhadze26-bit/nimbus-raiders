@@ -10,12 +10,28 @@ const RING_TIME = 0.42;
 const AMBER = new THREE.Color('#ffb43a'), HOT = new THREE.Color('#ff3b2b'), WHITE = new THREE.Color('#ffffff');
 const ringGeo = new THREE.RingGeometry(0.82, 1, 40).rotateX(-Math.PI / 2);
 
+let boulderMat = null;
+const buildCached = () => {
+  const m = buildGrawlstone();
+  m.boulders = [];   // pooled with the model: { mesh, active, x, y, z, vy, r, spin, mode }
+  m.rings = [];      // { mesh, t, r, active }
+  return m;
+};
+
 export class Grawlstone extends BaseBoss {
+  static preload(game) { game.bosses.model('grawlstone', buildCached); }
+
   buildModel() {
-    const m = buildGrawlstone();
-    this.boulderMat = toonMaterial();
-    this.boulders = [];   // { mesh, active, x, y, z, vy, r, spin, mode }
-    this.rings = [];      // { mesh, t, r, active }
+    const m = this.game.bosses.model('grawlstone', buildCached);
+    boulderMat = boulderMat || toonMaterial();
+    this.boulders = m.boulders;
+    this.rings = m.rings;
+    for (const b of this.boulders) b.active = false;
+    for (const g of this.rings) g.active = false;
+    // reset the pose left over from the previous fight (death crumble etc.)
+    m.body.position.set(0, 0, 0);
+    m.body.rotation.set(0, 0, 0);
+    m.root.position.set(0, 0, 0);
     this.pose = { raise: 0, slam: 0, lean: 0, roar: 0 };
     this.glowColor = AMBER.clone();
     return m;
@@ -110,7 +126,7 @@ export class Grawlstone extends BaseBoss {
   spawnBoulder(x, z, r, mode) {
     let b = this.boulders.find((o) => !o.active);
     if (!b) {
-      const mesh = new THREE.Mesh(boulderGeometry(), this.boulderMat);
+      const mesh = new THREE.Mesh(boulderGeometry(), boulderMat);
       mesh.castShadow = true;
       b = { mesh };
       this.boulders.push(b);
@@ -205,6 +221,7 @@ export class Grawlstone extends BaseBoss {
       if (this.game.horde && Math.random() < 0.12) this.game.horde.view.blast(this.x + (Math.random() - 0.5) * 5, this.z + 1.8, 1.4 + Math.random());
     } else {
       m.root.rotation.set(0, 0, 0);
+      m.body.position.x = 0;
     }
     // boulders + rings
     for (const b of this.boulders) {

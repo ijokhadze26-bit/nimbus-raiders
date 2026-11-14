@@ -49,7 +49,10 @@ export class Input {
     const w = this.surface.clientWidth || 1;
     this.lastPx = e.clientX;
     const dx = e.clientX - this.startPx;
-    this.setTarget(this.startTarget + (dx / w) * MOVE.dragWorld);
+    const raw = this.startTarget + (dx / w) * MOVE.dragWorld;
+    this.setTarget(raw);
+    // Pushed past the road edge: re-anchor so the overshoot is forgotten and reversing responds at once.
+    if (raw !== this.targetX) { this.startTarget = this.targetX; this.startPx = e.clientX; }
     this.lastActivity = performance.now();
   }
 

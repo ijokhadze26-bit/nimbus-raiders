@@ -9,34 +9,43 @@ export const RAIDER_COLORS = {
   packDark: '#3d4a66', glove: '#ffffff', belt: '#1c3a8c', scarf: '#ff8a2b',
 };
 
+// ~220 triangles: up to 320 are drawn every frame, so every part is as low-poly as the 1u-tall cadet allows.
 export function buildRaiderGeometry(colors = RAIDER_COLORS) {
   const c = colors;
   const parts = [
-    // legs + boots (open cylinders / low-poly)
-    part(G.cyl(0.058, 0.05, 0.17, 6, true), c.suitDark, { p: [-0.075, 0.09, 0] }),
-    part(G.cyl(0.058, 0.05, 0.17, 6, true), c.suitDark, { p: [0.075, 0.09, 0] }),
+    // legs + boots
+    part(G.cyl(0.058, 0.05, 0.17, 4, true), c.suitDark, { p: [-0.075, 0.09, 0], r: [0, Math.PI / 4, 0] }),
+    part(G.cyl(0.058, 0.05, 0.17, 4, true), c.suitDark, { p: [0.075, 0.09, 0], r: [0, Math.PI / 4, 0] }),
     part(G.box(0.1, 0.06, 0.15), c.glove, { p: [-0.075, 0.03, -0.02] }),
     part(G.box(0.1, 0.06, 0.15), c.glove, { p: [0.075, 0.03, -0.02] }),
     // body
-    part(G.capsule(0.165, 0.11, 2, 8), c.suit, { p: [0, 0.31, 0] }),
-    part(G.cyl(0.172, 0.172, 0.05, 8, true), c.belt, { p: [0, 0.24, 0] }),
-    // scarf ring + tail flap (pops from behind)
-    part(G.cyl(0.115, 0.13, 0.06, 8, true), c.scarf, { p: [0, 0.44, 0] }),
-    part(G.box(0.08, 0.16, 0.035), c.scarf, { p: [0.05, 0.39, 0.14], r: [0.35, 0, 0.15] }),
+    part(G.capsule(0.165, 0.11, 1, 7), c.suit, { p: [0, 0.31, 0] }),
+    // scarf ring
+    part(G.cyl(0.115, 0.13, 0.06, 7, true), c.scarf, { p: [0, 0.44, 0] }),
     // helmet + crest + visor band
-    part(G.sphere(0.165, 10, 7), c.helmet, { p: [0, 0.6, 0] }),
+    part(G.sphere(0.165, 8, 5), c.helmet, { p: [0, 0.6, 0] }),
     part(G.box(0.07, 0.06, 0.2), '#2f8cff', { p: [0, 0.755, 0.0] }),
-    part(G.cyl(0.155, 0.162, 0.07, 10, true), c.visor, { p: [0, 0.585, -0.012], s: [1.04, 1, 1] }),
+    part(G.cyl(0.158, 0.165, 0.07, 8, true), c.visor, { p: [0, 0.585, -0.012], s: [1.04, 1, 1] }),
     // backpack (blue, chunky)
     part(G.box(0.24, 0.22, 0.13), c.pack, { p: [0, 0.35, 0.17] }),
-    part(G.box(0.245, 0.045, 0.135), '#ffffff', { p: [0, 0.41, 0.17] }),
     // arms: left hangs, right holds gun forward
-    part(G.capsule(0.045, 0.1, 1, 5), c.suit, { p: [-0.17, 0.3, 0], r: [0, 0, -0.25] }),
-    part(G.sphere(0.05, 5, 3), c.glove, { p: [-0.2, 0.22, 0] }),
-    part(G.capsule(0.045, 0.12, 1, 5), c.suit, { p: [0.15, 0.32, -0.09], r: [1.35, 0, 0] }),
-    part(G.sphere(0.052, 5, 3), c.glove, { p: [0.15, 0.31, -0.18] }),
+    part(G.box(0.08, 0.2, 0.08), c.suit, { p: [-0.17, 0.3, 0], r: [0, 0, -0.25] }),
+    part(G.box(0.08, 0.08, 0.2), c.suit, { p: [0.15, 0.32, -0.09] }),
   ];
   return merge(parts).scale(RAIDER_SCALE, RAIDER_SCALE, RAIDER_SCALE);
+}
+
+/** ~110-triangle Raider for low quality (same proportions and colors). */
+export function buildRaiderLowGeometry(colors = RAIDER_COLORS) {
+  const c = colors;
+  return merge([
+    part(G.box(0.22, 0.17, 0.12), c.suitDark, { p: [0, 0.085, -0.01] }),
+    part(G.capsule(0.165, 0.11, 1, 6), c.suit, { p: [0, 0.31, 0] }),
+    part(G.sphere(0.165, 6, 4), c.helmet, { p: [0, 0.6, 0] }),
+    part(G.cyl(0.158, 0.165, 0.07, 6, true), c.visor, { p: [0, 0.585, -0.012], s: [1.06, 1, 1.06] }),
+    part(G.box(0.24, 0.22, 0.13), c.pack, { p: [0, 0.35, 0.17] }),
+    part(G.box(0.08, 0.08, 0.2), c.suit, { p: [0.15, 0.32, -0.09] }),
+  ]).scale(RAIDER_SCALE, RAIDER_SCALE, RAIDER_SCALE);
 }
 
 /** Cheap silhouette used only for the shadow pass (shares the raiders' instance matrices). */

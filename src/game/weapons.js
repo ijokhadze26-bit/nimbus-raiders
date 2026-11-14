@@ -76,7 +76,7 @@ export class Weapons {
       }
       if (!fired) { fired = true; this.firePos.x = p.x; this.firePos.y = p.y; this.firePos.z = p.z; }
     }
-    if (fired) game.events.emit('weapon:fire', { tier: this.tier, pos: this.firePos });
+    if (fired && game.events.wants('weapon:fire')) game.events.emit('weapon:fire', { tier: this.tier, pos: this.firePos });
   }
 
   /** Round-robin across shooters, biased toward the front of the blob (low slot indices). */

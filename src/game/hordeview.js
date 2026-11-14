@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { ENEMY_TYPES, ENEMIES } from '../data/enemies.js';
 import { buildMurklingGeometry, buildShieldGeometry, buildSparkGeometry } from '../models/murklings.js';
 import { fxToonMaterial, blobShadowTexture } from '../models/materials.js';
-import { writeYawRollMatrix, writeYawMatrix } from '../core/pool.js';
+import { writeYawRollMatrix, writeYawMatrix, markInstances } from '../core/pool.js';
 import { part, merge, G } from '../models/util.js';
 
 const DIE_TIME = 0.17;
@@ -127,12 +127,12 @@ export class HordeView {
     }
     for (const m of ms) {
       m.mesh.count = m.n;
-      if (m.n) { m.mesh.instanceMatrix.needsUpdate = true; m.fx.needsUpdate = true; }
+      if (m.n) { markInstances(m.mesh.instanceMatrix, m.n); markInstances(m.fx, m.n); }
     }
     this.shields.count = ns;
-    if (ns) { this.shields.instanceMatrix.needsUpdate = true; this.shields.instanceColor.needsUpdate = true; }
-    this.sparks.count = nk; if (nk) this.sparks.instanceMatrix.needsUpdate = true;
-    this.blobs.count = nb; if (nb) this.blobs.instanceMatrix.needsUpdate = true;
+    if (ns) { markInstances(this.shields.instanceMatrix, ns); markInstances(this.shields.instanceColor, ns); }
+    this.sparks.count = nk; if (nk) markInstances(this.sparks.instanceMatrix, nk);
+    this.blobs.count = nb; if (nb) markInstances(this.blobs.instanceMatrix, nb);
     // blasts
     const bd = this.blastData;
     let nx = 0;
@@ -146,7 +146,7 @@ export class HordeView {
       writeYawMatrix(xArr, nx++, b.x, 0.5, b.z, 0, s, s * 0.7, s);
     }
     this.blastMesh.count = nx;
-    if (nx) this.blastMesh.instanceMatrix.needsUpdate = true;
+    if (nx) markInstances(this.blastMesh.instanceMatrix, nx);
   }
 }
 

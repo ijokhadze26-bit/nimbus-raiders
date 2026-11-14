@@ -6,10 +6,10 @@ import * as THREE from 'three';
 import { BULLETS } from '../config.js';
 import { WEAPONS, HELPER_SHOTS } from '../data/weapons.js';
 import { part, merge, G } from '../models/util.js';
-import { writeYawMatrix } from '../core/pool.js';
+import { writeYawMatrix, markInstances } from '../core/pool.js';
 
 // tail cone pointing back (+Z) from the bullet center
-const tail = (r, len, color, a, z0 = 0) => part(G.cone(r, len, 6), color, { r: [Math.PI / 2, 0, 0], p: [0, 0, z0 + len / 2], a });
+const tail = (r, len, color, a, z0 = 0) => part(G.cone(r, len, 5), color, { r: [Math.PI / 2, 0, 0], p: [0, 0, z0 + len / 2], a });
 
 function styleGeometry(w) {
   const st = w.style, L = st.length, r = st.radius;
@@ -19,19 +19,21 @@ function styleGeometry(w) {
   const halo = new THREE.Color(w.color).offsetHSL(0, 0.05, 0.05);
   const trail = new THREE.Color(st.trail || w.color);
   const along = [Math.PI / 2, 0, 0];
+  // Low segment counts on purpose: ~200 bullets are alive at the visual budget, all alpha-blended,
+  // so each style stays near 80 triangles (Nova ~130); at bullet size the facets don't read.
   switch (st.shape) {
     case 'bolt': // short fat pistol bolt
       return merge([
-        part(G.capsule(r * 1.55, L * 1.05, 2, 7), halo, { r: along, a: 0.35 }),
-        part(G.capsule(r, L, 2, 6), body, { r: along, a: 1, bright: 1.1 }),
-        part(G.capsule(r * 0.45, L * 0.75, 1, 5), core, { r: along, a: 1, p: [0, r * 0.3, -L * 0.1] }),
+        part(G.capsule(r * 1.55, L * 1.05, 1, 5), halo, { r: along, a: 0.35 }),
+        part(G.capsule(r, L, 1, 5), body, { r: along, a: 1, bright: 1.1 }),
+        part(G.capsule(r * 0.45, L * 0.75, 1, 3), core, { r: along, a: 1, p: [0, r * 0.3, -L * 0.1] }),
       ]);
     case 'tracer': // rifle tracer with a long fading streak
       return merge([
         tail(r * 1.6, L * 1.6, trail, 0.3, L * 0.3),
-        part(G.capsule(r * 1.7, L, 1, 7), halo, { r: along, a: 0.3 }),
-        part(G.capsule(r, L * 0.95, 1, 6), body, { r: along, a: 1, bright: 1.1 }),
-        part(G.sphere(r * 1.6, 6, 4), core, { p: [0, 0, -L * 0.5], a: 1 }),
+        part(G.capsule(r * 1.7, L, 1, 5), halo, { r: along, a: 0.3 }),
+        part(G.capsule(r, L * 0.95, 1, 5), body, { r: along, a: 1, bright: 1.1 }),
+        part(G.sphere(r * 1.6, 4, 2), core, { p: [0, 0, -L * 0.5], a: 1 }),
       ]);
     case 'laser': // thin, very long rapid laser
       return merge([
@@ -42,31 +44,31 @@ function styleGeometry(w) {
     case 'beam': // thick glowing beam with a wide afterglow
       return merge([
         tail(r * 2.2, L * 1.3, trail, 0.22, L * 0.35),
-        part(G.capsule(r * 1.9, L, 2, 8), halo, { r: along, a: 0.35 }),
-        part(G.capsule(r, L, 2, 7), body, { r: along, a: 1 }),
-        part(G.capsule(r * 0.45, L, 1, 5), core, { r: along, a: 1 }),
+        part(G.capsule(r * 1.9, L, 1, 5), halo, { r: along, a: 0.35 }),
+        part(G.capsule(r, L, 1, 5), body, { r: along, a: 1 }),
+        part(G.capsule(r * 0.45, L, 1, 3), core, { r: along, a: 1 }),
       ]);
     case 'orb': // plasma orb with a short comet tail (fired as a 3-way fan)
       return merge([
         tail(r * 1.1, r * 5, trail, 0.35, r * 0.4),
-        part(G.sphere(r * 1.6, 9, 6), halo, { a: 0.35, s: [1, 1, 1.3] }),
-        part(G.sphere(r, 8, 6), body, { a: 1 }),
-        part(G.sphere(r * 0.5, 6, 4), core, { a: 1, p: [0, r * 0.3, 0] }),
+        part(G.sphere(r * 1.6, 6, 4), halo, { a: 0.35, s: [1, 1, 1.3] }),
+        part(G.sphere(r, 6, 4), body, { a: 1 }),
+        part(G.sphere(r * 0.5, 4, 3), core, { a: 1, p: [0, r * 0.3, 0] }),
       ]);
     case 'shell': // turret cannon shell
       return merge([
         tail(r * 1.3, 1.6, trail, 0.4, r * 0.6),
-        part(G.sphere(r * 1.5, 9, 6), halo, { a: 0.35 }),
-        part(G.capsule(r, r * 1.6, 2, 8), body, { r: along, a: 1 }),
-        part(G.sphere(r * 0.55, 6, 4), core, { a: 1, p: [0, 0, -r * 0.9] }),
+        part(G.sphere(r * 1.5, 6, 4), halo, { a: 0.35 }),
+        part(G.capsule(r, r * 1.6, 1, 6), body, { r: along, a: 1 }),
+        part(G.sphere(r * 0.55, 4, 3), core, { a: 1, p: [0, 0, -r * 0.9] }),
       ]);
     case 'nova':
     default: // big piercing nova orb with a long golden trail
       return merge([
-        part(G.cone(r * 1.2, 2.6, 10), trail, { r: [-Math.PI / 2, 0, 0], p: [0, 0, 1.3], a: 0.55 }),
-        part(G.sphere(r * 1.7, 12, 9), halo, { a: 0.4 }),
-        part(G.sphere(r, 12, 9), body, { a: 1 }),
-        part(G.sphere(r * 0.6, 10, 8), core, { a: 1 }),
+        part(G.cone(r * 1.2, 2.6, 6), trail, { r: [-Math.PI / 2, 0, 0], p: [0, 0, 1.3], a: 0.55 }),
+        part(G.sphere(r * 1.7, 6, 4), halo, { a: 0.4 }),
+        part(G.sphere(r, 8, 5), body, { a: 1 }),
+        part(G.sphere(r * 0.6, 5, 3), core, { a: 1 }),
       ]);
   }
 }
@@ -180,7 +182,7 @@ export class Bullets {
       const mesh = this.meshes[s];
       mesh.count = Math.min(counts[s], BULLETS.capacityPerStyle);
       mesh.visible = mesh.count > 0;
-      if (mesh.visible) mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.visible) markInstances(mesh.instanceMatrix, mesh.count);
     }
   }
 

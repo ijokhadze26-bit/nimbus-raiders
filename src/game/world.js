@@ -5,6 +5,7 @@ import { createSky, createSea } from './skybox.js';
 import { TILE_LEN, roadTexture, halfTileGeometry, trimGeometry, dividerGeometry, islandGeometry, puffGeometry } from '../models/props.js';
 import { toonGradient } from '../models/materials.js';
 import { QUALITY } from '../config.js';
+import { markInstances } from '../core/pool.js';
 
 const AHEAD = 196, BEHIND = 24;
 const ROWS = Math.ceil((AHEAD + BEHIND) / TILE_LEN) + 2;
@@ -203,9 +204,9 @@ export class World {
       this.divider.setMatrixAt(nd++, _m);
     }
     this.road.count = n; this.trim.count = n; this.divider.count = nd;
-    this.road.instanceMatrix.needsUpdate = true;
-    if (this.road.instanceColor) this.road.instanceColor.needsUpdate = true;
-    this.divider.instanceMatrix.needsUpdate = true;
+    markInstances(this.road.instanceMatrix, n);
+    if (this.road.instanceColor) markInstances(this.road.instanceColor, n);
+    markInstances(this.divider.instanceMatrix, nd);
   }
 
   updatePuffs(camZ) {

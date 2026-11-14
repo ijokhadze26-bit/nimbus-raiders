@@ -7,7 +7,24 @@ export const BOSS_CLASSES = {
 };
 
 export class Bosses {
-  init(game) { this.game = game; this.active = null; }
+  init(game) { this.game = game; this.active = null; this.models = new Map(); }
+
+  /**
+   * Boss models are built once per type and reused on every spawn (no per-fight geometry/material churn,
+   * no GPU leak, no build hitch at the boss drop after the first time). Each class resets its own pose.
+   */
+  model(type, build) {
+    let m = this.models.get(type);
+    if (!m) { m = build(); this.models.set(type, m); }
+    return m;
+  }
+
+  /** Builds the level's boss model ahead of time (called at run start, when frames are cheap). */
+  preload(cfg) {
+    if (!cfg) return;
+    const Cls = BOSS_CLASSES[cfg.type] || Grawlstone;
+    if (Cls.preload) Cls.preload(this.game);
+  }
 
   /** Spawns the level boss; unknown types fall back to Grawlstone until their class exists. */
   spawn(cfg) {

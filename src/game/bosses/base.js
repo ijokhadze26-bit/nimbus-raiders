@@ -30,6 +30,8 @@ export class BaseBoss {
     this.c = { x: 0, z: 0, r: 0 };
     this.model = this.buildModel();
     this.root = this.model.root;
+    this.root.visible = true;
+    this.root.rotation.set(0, 0, 0);
     game.scene.add(this.root);
     this.offTarget = game.bullets.addTargetSystem(this);
     const L = game.squad.leader;
@@ -115,16 +117,18 @@ export class BaseBoss {
 
   hit(t, b) {
     const p = this.hitPos; p.x = b.x; p.y = b.y + 1.2; p.z = t.z;
-    this.game.events.emit('bullet:hit', { kind: 'boss', pos: p });
+    if (this.game.events.wants('bullet:hit')) this.game.events.emit('bullet:hit', { kind: 'boss', pos: p });
     this.damage(b.dmg);
     return true;
   }
 
   damage(d) {
     if (!this.targetable || d <= 0) return;
+    const run = this.game.run;
+    if (!run || !run.active) return; // a lost run cannot be won by bullets still in the air
     this.hp = Math.max(0, this.hp - d);
     if (this.time - (this.lastFlash || -1) > 0.16) { this.flash = 1; this.lastFlash = this.time; }
-    this.game.events.emit('boss:hp', { hp: Math.ceil(this.hp), max: this.maxHp });
+    if (this.hp > 0) this.game.events.emit('boss:hp', { hp: Math.ceil(this.hp), max: this.maxHp });
     if (this.phase === 1 && this.hp <= this.maxHp * 0.5 && this.hp > 0) {
       this.phase = 2;
       this.game.events.emit('boss:phase', { phase: 2 });
@@ -144,7 +148,7 @@ export class BaseBoss {
     this.attack = null;
     game.telegraph.reset();
     const pos = { x: this.x, y: 3, z: this.z };
-    game.events.emit('boss:hp', { hp: 0, max: this.maxHp });
+    game.events.emit('boss:hp', { hp: 0, max: this.maxHp }, true);
     game.events.emit('boss:defeated', { type: this.type, pos });
     game.events.emit('fx:slowmo', { scale: 0.2, duration: 1.4 });
     game.events.emit('fx:shake', { amount: 1 });
@@ -184,6 +188,7 @@ export class BaseBoss {
 
   squadCenter() { return this.game.squad.center(this.c); }
 
+  /** Detaches the (cached, reused) model from the scene; geometry/materials stay alive for the next spawn. */
   dispose() {
     this.offTarget();
     this.game.scene.remove(this.root);

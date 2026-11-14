@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { Events } from '../core/events.js';
 import { Rng } from '../core/rng.js';
-import { CAMERA, QUALITY, START_SQUAD } from '../config.js';
+import { CAMERA, FORMATION, QUALITY, START_SQUAD } from '../config.js';
 import { World } from './world.js';
 import { Squad } from './squad.js';
 import { Weapons } from './weapons.js';
@@ -42,15 +42,19 @@ export class Game {
     this.lastResult = null;
     this.camLook = new THREE.Vector3(0, 0, -14);
     this.camPos = new THREE.Vector3(0, CAMERA.height, CAMERA.back);
-    this.quality = { setting: params.quality || (params.test ? 'high' : 'auto'), sampling: false, acc: 0, frames: 0, t: 0 };
+    // auto quality: rolling fps monitor for the whole run (see sampleQuality)
+    this.quality = { setting: params.quality || (params.test ? 'high' : 'auto'), ema: 60, low: 0, hold: 0 };
 
     const ev = this.events;
     ev.setRate('weapon:fire', 22); ev.setRate('bullet:hit', 30); ev.setRate('enemy:die', 60);
-    ev.setRate('squad:lost', 40); ev.setRate('run:progress', 10); ev.setRate('boss:hp', 20);
+    ev.setRate('squad:lost', 40); ev.setRate('run:progress', 10);
     this.shake = new Shake();
     this.slow = { scale: 1, left: 0 };
     ev.on('fx:shake', (p) => this.shake.add(p.amount || 0));
     ev.on('fx:slowmo', (p) => { this.slow.scale = p.scale ?? 0.2; this.slow.left = p.duration ?? 1; });
+    // one-off hitches (spawn bursts, the boss drop) must not count as a slow device
+    ev.on('horde:incoming', () => this.holdQuality(0.6));
+    ev.on('boss:spawn', () => this.holdQuality(1.5));
 
     this.world = new World();
     this.bullets = new Bullets();
@@ -66,7 +70,7 @@ export class Game {
     this.systems = [this.world, this.bullets, this.squad, this.weapons, this.gates, this.horde, this.barrels, this.helpers, this.telegraph, this.bosses, this.autopilot];
     for (const s of this.systems) s.init(this);
 
-    if (this.quality.setting === 'low') engine.applyQuality('low');
+    if (this.quality.setting === 'low') this.applyQuality('low');
     this.debug = createDebug(this);
   }
 
@@ -104,13 +108,14 @@ export class Game {
     this.weapons.enabled = true;
     this.gates.reset(this.run);
     this.resetCombat(this.run);
+    this.bosses.preload(def.boss);
     this.input.reset(0);
     this.autopilot.reset();
     this.snapCamera();
     this.setState('playing');
     this.events.emit('run:start', { levelId: def.id, mode, theme: def.theme });
     this.events.emit('run:phase', { phase: 'run' });
-    if (this.quality.setting === 'auto') Object.assign(this.quality, { sampling: true, acc: 0, frames: 0, t: 0 });
+    if (this.quality.setting === 'auto') Object.assign(this.quality, { ema: 60, low: 0, hold: 1.2 });
   }
 
   resetCombat(run) {
@@ -239,13 +244,21 @@ export class Game {
     }
   }
 
-  /** Called every animation frame by the loop. */
-  frame(dt) {
+  /** Called every animation frame by the loop (dt clamped, real = wall-clock frame time). */
+  frame(dt, real = dt) {
     if (this.state === 'playing' || this.state === 'title' || this.state === 'result') this.step(dt);
     this.sync(dt);
     this.engine.render();
-    this.sampleQuality(dt);
+    this.sampleQuality(real);
   }
+
+  /** 'high' | 'low': renderer settings + the geometry that dominates the frame (squad mesh LOD). */
+  applyQuality(q) {
+    this.engine.applyQuality(q);
+    this.squad.setLod(q);
+  }
+
+  holdQuality(s) { this.quality.hold = Math.max(this.quality.hold, s); }
 
   sync(dt) {
     const L = this.squad.leader;
@@ -270,7 +283,10 @@ export class Game {
       return;
     }
     const boss = this.run && this.run.phase === 'boss';
-    outPos.set(L.x * CAMERA.followX, boss ? CAMERA.bossHeight : CAMERA.height, L.z + (boss ? CAMERA.bossBack : CAMERA.back));
+    // blob radius from the rendered member count (same formula as squad.center) -> gentle zoom-out
+    const r = FORMATION.spacing * 0.525 * Math.sqrt(this.squad.members.length + 0.5);
+    const zoom = 1 + CAMERA.crowdZoom * Math.max(0, Math.min(1, (r - 1.2) / 2.5));
+    outPos.set(L.x * CAMERA.followX, (boss ? CAMERA.bossHeight : CAMERA.height) * zoom, L.z + (boss ? CAMERA.bossBack : CAMERA.back) * zoom);
     outLook.set(L.x * CAMERA.lookX, 0, L.z - (boss ? CAMERA.bossLook : CAMERA.lookAhead));
   }
 
@@ -295,15 +311,19 @@ export class Game {
     this.camera.lookAt(this.camLook);
   }
 
-  sampleQuality(dt) {
+  /**
+   * Auto quality: exponential moving average of the loop fps over the whole run (not just the cheap
+   * first seconds). Downgrades once to low when it stays under autoMinFps for autoLowSeconds.
+   */
+  sampleQuality(real) {
     const q = this.quality;
-    if (!q.sampling || this.state !== 'playing') return;
-    q.t += dt; q.acc += this.loopFps || 60; q.frames++;
-    if (q.t >= QUALITY.autoSampleSeconds) {
-      q.sampling = false;
-      const avg = q.acc / Math.max(1, q.frames);
-      if (avg < QUALITY.autoMinFps && this.engine.quality !== 'low') this.engine.applyQuality('low');
-    }
+    if (q.setting !== 'auto' || this.engine.quality === 'low' || this.state !== 'playing') return;
+    if (real > 0.25) this.holdQuality(1.5); // tab switch / stall: ignore the next windows
+    if (q.hold > 0) { q.hold -= real; q.low = 0; return; }
+    const fps = this.loopFps || 60;
+    q.ema += (fps - q.ema) * (1 - Math.exp(-real / QUALITY.autoTau));
+    q.low = q.ema < QUALITY.autoMinFps ? q.low + real : 0;
+    if (q.low >= QUALITY.autoLowSeconds) this.applyQuality('low');
   }
 }
 

@@ -20,11 +20,14 @@ export const CAMERA = {
   height: 10.5,
   back: 12.5,
   lookAhead: 14,
-  followX: 0.3,
-  lookX: 0.15,
+  // Spec start values were 0.3 / 0.15; at the road edge (x = ±4.4) that framed Pip and half a big squad
+  // out of the portrait frame, so the camera follows the leader further sideways.
+  followX: 0.68,
+  lookX: 0.36,
+  crowdZoom: 0.14,   // pull back up to +14% as the blob grows (big squads stay inside the frame)
   damping: 6,
-  bossHeight: 14.5,
-  bossBack: 18,
+  bossHeight: 13,
+  bossBack: 15,
   bossLook: 12,
   near: 0.3,
   far: 700,
@@ -76,8 +79,9 @@ export const COLORS = {
 };
 
 export const QUALITY = {
-  autoSampleSeconds: 4,
-  autoMinFps: 48,
+  autoMinFps: 48,      // auto quality: rolling fps EMA below this ...
+  autoLowSeconds: 2.5, // ... for this long (outside spawn/boss-drop hitches) -> switch to low
+  autoTau: 1.5,        // EMA time constant (s)
   shadowMapSize: 1024,
   shadowExtent: 16,
 };

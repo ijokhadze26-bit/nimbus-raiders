@@ -5,6 +5,9 @@
 import * as THREE from 'three';
 
 const FADE = 0.22;
+// Circle markers are repeated as a reticle hovering just above the Raiders' helmets: a big squad
+// stands on (and hides) the ground decal, but the camera looks down onto the overhead reticle.
+const OVERHEAD_Y = 1.3;
 let circleTex = null, stripeTex = null, wallTex = null;
 
 function makeWallTexture() {
@@ -96,8 +99,10 @@ export class Telegraph {
       const fill = new THREE.Mesh(circleGeo, mat({ opacity: 0.42 }));
       fill.position.y = 0.006;
       const wall = new THREE.Mesh(wallGeo, mat({ map: wallTex, side: THREE.DoubleSide, opacity: 0.8 }));
-      group.add(base, fill, wall);
-      v = { group, base, fill, wall };
+      const top = new THREE.Mesh(circleGeo, mat({ map: circleTex, opacity: 0.9, side: THREE.DoubleSide }));
+      const topFill = new THREE.Mesh(circleGeo, mat({ opacity: 0.2, side: THREE.DoubleSide }));
+      group.add(base, fill, wall, top, topFill);
+      v = { group, base, fill, wall, top, topFill };
     } else {
       const tex = stripeTex.clone();
       tex.needsUpdate = true;
@@ -110,6 +115,7 @@ export class Telegraph {
       v = { group, base, fill, edgeA, edgeB, tex };
     }
     for (const m of group.children) m.renderOrder = 2;
+    if (v.top) { v.top.renderOrder = 8; v.topFill.renderOrder = 8; }
     v.kind = kind;
     return v;
   }
@@ -184,9 +190,19 @@ export class Telegraph {
         v.base.material.opacity = (0.75 + 0.25 * pulse) * fade;
         v.fill.scale.setScalar(Math.max(0.01, h.r * 0.98 * ease));
         v.fill.material.opacity = (after > 0 ? 0.9 : 0.34 + 0.3 * p) * fade;
-        v.wall.scale.set(h.r * 0.99, 0.35 + 0.5 * ease, h.r * 0.99);
+        // the wall rises from the ground up to the overhead reticle as the warning fills
+        v.wall.scale.set(h.r * 0.99, 0.35 + (OVERHEAD_Y - 0.35) * ease, h.r * 0.99);
         v.wall.material.opacity = (0.45 + 0.4 * pulse) * fade;
-        if (after > 0) v.fill.material.color.setRGB(1, 0.85, 0.8); else v.fill.material.color.set(h.color || '#ff2a3a');
+        // overhead reticle: drops in from above, tightens, and fills as impact nears
+        const drop = (1 - pop) * 1.2;
+        v.top.position.y = OVERHEAD_Y + drop;
+        v.top.scale.setScalar(h.r * (1.25 - 0.25 * ease) * (1 + (1 - p) * 0.05 * pulse));
+        v.top.material.opacity = (0.55 + 0.35 * pulse) * fade * pop;
+        v.topFill.position.y = OVERHEAD_Y + drop + 0.004;
+        v.topFill.scale.setScalar(Math.max(0.01, h.r * 0.98 * ease));
+        v.topFill.material.opacity = (after > 0 ? 0.55 : 0.12 + 0.22 * p) * fade;
+        if (after > 0) { v.fill.material.color.setRGB(1, 0.85, 0.8); v.topFill.material.color.setRGB(1, 0.85, 0.8); }
+        else { v.fill.material.color.set(h.color || '#ff2a3a'); v.topFill.material.color.set(h.color || '#ff2a3a'); }
       } else {
         const w = h.x1 - h.x0, len = h.zNear - h.zFar;
         v.group.position.set(h.x, 0.045, h.z);

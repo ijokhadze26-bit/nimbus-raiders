@@ -65,3 +65,13 @@ export function writeYawRollMatrix(arr, index, x, y, z, yaw, roll, sx, sy, sz) {
   arr[o + 8] = syw * sz; arr[o + 9] = 0; arr[o + 10] = cy * sz; arr[o + 11] = 0;
   arr[o + 12] = x; arr[o + 13] = y; arr[o + 14] = z; arr[o + 15] = 1;
 }
+
+/**
+ * Flags only the first n instances of an instanced attribute for upload (three uploads the whole array
+ * when no update range is set, i.e. full capacity every frame). itemSize: 16 matrices, 3 colors/aFx.
+ */
+export function markInstances(attr, n) {
+  attr.clearUpdateRanges();
+  attr.addUpdateRange(0, n * attr.itemSize);
+  attr.needsUpdate = true;
+}

@@ -34,9 +34,9 @@ async function boot() {
     await Promise.race([document.fonts.load("100px 'Lilita One'"), new Promise((r) => setTimeout(r, 1500))]);
   } catch { /* ignore */ }
 
-  const loop = new Loop((dt) => {
+  const loop = new Loop((dt, real) => {
     game.loopFps = loop.fps;
-    game.frame(dt);
+    game.frame(dt, real);
     hud.update();
   });
   game.loop = loop;

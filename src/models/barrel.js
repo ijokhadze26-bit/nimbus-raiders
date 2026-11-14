@@ -75,8 +75,8 @@ export function buildRewardDisplay(kind, amount, tier) {
     mini.rotation.y = Math.PI;
     root.add(mini);
     const lab = createLabel(256, 128);
-    const lm = labelMesh(lab, 1.7, 0.85);
-    lm.position.set(0, 0.62, 0.05);
+    const lm = labelMesh(lab, 1.3, 0.65);
+    lm.position.set(0, 0.55, 0.05);
     root.add(lm);
     root.userData.label = lab;
     root.userData.labelMesh = lm;

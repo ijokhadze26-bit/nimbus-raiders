@@ -26,6 +26,8 @@ export class Hud {
     this.banner = el('div', 'tier-banner hidden');
     root.appendChild(this.banner);
     this.hpFrac = 1; this.lagFrac = 1;
+    this.bossShown = false; this.fillW = -1; this.lagW = -1;
+    this.pendingGain = false; this.pendingLoss = false; this.pulse = null; this.lossUntil = 0;
 
     this.overlay = el('div', 'overlay hidden');
     this.overlay.setAttribute('data-ui', '');
@@ -46,21 +48,30 @@ export class Hud {
     this.onState(game.state);
   }
 
+  /** squad:change can fire many times per frame (one per member lost): only record it; update() animates once. */
   onSquadChange(p) {
+    if (p.delta > 0) this.pendingGain = true;
+    else if (p.delta < 0) this.pendingLoss = true;
+  }
+
+  /** At most one bubble animation per frame (replacing the running one) + the red loss flash. */
+  flushSquadPulse(now) {
+    const gain = this.pendingGain, loss = this.pendingLoss;
+    if (!gain && !loss) return;
+    this.pendingGain = this.pendingLoss = false;
+    if (loss) { this.bubble.classList.add('loss'); this.lossUntil = now + 260; }
     if (!this.bubbleInner.animate) return;
-    if (p.delta > 0) this.bubbleInner.animate([{ transform: 'translate(-50%,-100%) scale(1.35)' }, { transform: 'translate(-50%,-100%) scale(1)' }], { duration: 260, easing: 'cubic-bezier(.2,1.6,.4,1)' });
-    else if (p.delta < 0) {
-      this.bubble.classList.add('loss');
-      clearTimeout(this.lossT);
-      this.lossT = setTimeout(() => this.bubble.classList.remove('loss'), 260);
-      this.bubbleInner.animate([{ transform: 'translate(-50%,-100%) scale(0.85)' }, { transform: 'translate(-50%,-100%) scale(1)' }], { duration: 200 });
-    }
+    if (this.pulse) this.pulse.cancel();
+    this.pulse = gain
+      ? this.bubbleInner.animate([{ transform: 'translate(-50%,-100%) scale(1.35)' }, { transform: 'translate(-50%,-100%) scale(1)' }], { duration: 260, easing: 'cubic-bezier(.2,1.6,.4,1)' })
+      : this.bubbleInner.animate([{ transform: 'translate(-50%,-100%) scale(0.85)' }, { transform: 'translate(-50%,-100%) scale(1)' }], { duration: 200 });
   }
 
   onBossSpawn(p) {
     this.bossName.textContent = p.name;
     this.hpFrac = 1; this.lagFrac = 1;
     this.bossBar.classList.remove('hidden', 'enraged');
+    this.bossShown = true;
     this.card.innerHTML = `<div class="warn">&#9888; BOSS &#9888;</div><div class="name">${p.name}</div>`;
     this.card.classList.remove('hidden');
     restartAnim(this.card);
@@ -70,6 +81,7 @@ export class Hud {
 
   hideBoss(now) {
     this.bossBar.classList.add('hidden');
+    this.bossShown = false;
     if (now) { this.card.classList.add('hidden'); clearTimeout(this.cardT); }
   }
 
@@ -132,10 +144,17 @@ export class Hud {
   update() {
     const g = this.game;
     const sq = g.squad;
-    this.lagFrac += (this.hpFrac - this.lagFrac) * 0.06;
-    if (this.lagFrac < this.hpFrac) this.lagFrac = this.hpFrac;
-    this.bossFill.style.transform = `scaleX(${this.hpFrac.toFixed(4)})`;
-    this.bossLag.style.transform = `scaleX(${this.lagFrac.toFixed(4)})`;
+    const now = performance.now();
+    this.flushSquadPulse(now);
+    if (this.lossUntil && now >= this.lossUntil) { this.lossUntil = 0; this.bubble.classList.remove('loss'); }
+    if (this.bossShown) {
+      this.lagFrac += (this.hpFrac - this.lagFrac) * 0.06;
+      if (this.lagFrac < this.hpFrac) this.lagFrac = this.hpFrac;
+      // style writes only when the rounded value moved
+      const fw = Math.round(this.hpFrac * 2000), lw = Math.round(this.lagFrac * 2000);
+      if (fw !== this.fillW) { this.fillW = fw; this.bossFill.style.transform = `scaleX(${fw / 2000})`; }
+      if (lw !== this.lagW) { this.lagW = lw; this.bossLag.style.transform = `scaleX(${lw / 2000})`; }
+    }
     const visible = (g.state === 'playing' || g.state === 'paused') && sq.count > 0;
     this.bubble.style.display = visible ? '' : 'none';
     if (!visible) return;

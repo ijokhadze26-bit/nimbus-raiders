@@ -3,9 +3,10 @@
 import * as THREE from 'three';
 import { FORMATION, MEMBER_CLAMP, MOVE } from '../config.js';
 import { buildPip } from '../models/pip.js';
-import { buildRaiderGeometry, buildRaiderGunGeometry, buildPipGunGeometry, buildRaiderShadowGeometry, RAIDER_MUZZLE } from '../models/raider.js';
+import { buildRaiderGeometry, buildRaiderLowGeometry, buildRaiderGunGeometry, buildPipGunGeometry, buildRaiderShadowGeometry, RAIDER_MUZZLE } from '../models/raider.js';
 import { toonMaterial, toonGradient } from '../models/materials.js';
 import { weaponForTier } from '../data/weapons.js';
+import { markInstances } from '../core/pool.js';
 
 const GA = Math.PI * (3 - Math.sqrt(5)); // golden angle
 const C = FORMATION.spacing * 0.525;     // phyllotaxis scale for ~spacing neighbor distance
@@ -40,7 +41,8 @@ export class Squad {
 
     const cap = FORMATION.maxRendered + MAX_DYING;
     this.raiderMat = toonMaterial();
-    this.raiders = new THREE.InstancedMesh(buildRaiderGeometry(), this.raiderMat, cap);
+    this.raiderGeo = { high: buildRaiderGeometry(), low: null };
+    this.raiders = new THREE.InstancedMesh(this.raiderGeo.high, this.raiderMat, cap);
     this.raiders.castShadow = false;
     this.raiders.frustumCulled = false;
     this.raiders.count = 0;
@@ -59,6 +61,12 @@ export class Squad {
     this.shadowProxy.layers.set(SHADOW_LAYER);
     game.scene.add(this.raiders, this.guns, this.shadowProxy);
     this.setGunColor(weaponForTier(1).color);
+  }
+
+  /** Low quality swaps every Raider to the ~110-triangle body (purely visual; formation unchanged). */
+  setLod(q) {
+    if (q === 'low' && !this.raiderGeo.low) this.raiderGeo.low = buildRaiderLowGeometry();
+    this.raiders.geometry = q === 'low' ? this.raiderGeo.low : this.raiderGeo.high;
   }
 
   setGunColor(hex) {
@@ -154,7 +162,7 @@ export class Squad {
   }
 
   startDeath(m, reason) {
-    this.game.events.emit('squad:lost', { pos: { x: m.x, y: 0.5, z: m.z }, reason });
+    if (this.game.events.wants('squad:lost')) this.game.events.emit('squad:lost', { pos: { x: m.x, y: 0.5, z: m.z }, reason });
     if (this.dying.length >= MAX_DYING) { this.free.push(m); return; }
     m.t = 0;
     m.y = 0;
@@ -251,7 +259,7 @@ export class Squad {
     this.raiders.count = n;
     this.guns.count = n;
     this.shadowProxy.count = n;
-    this.raiders.instanceMatrix.needsUpdate = true;
+    if (n) markInstances(this.raiders.instanceMatrix, n);
   }
 
   /** Shooter muzzle position: i=0 -> Pip, i>=1 -> members[i-1]. Writes into out {x,y,z}. */

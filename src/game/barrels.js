@@ -4,7 +4,7 @@
 import { LANES, MEMBER_CLAMP } from '../config.js';
 import { MAX_TIER } from '../data/weapons.js';
 import { buildBarrelVisual, buildRewardDisplay, BARREL_R } from '../models/barrel.js';
-import { drawLabel } from '../models/labels.js';
+import { drawLabel, drawBadge } from '../models/labels.js';
 import { hasHit } from './bullets.js';
 
 const SPAWN_AHEAD = 110;
@@ -53,7 +53,7 @@ export class Barrels {
     if (!d) {
       d = buildRewardDisplay(b.reward.kind, b.reward.amount, this.rewardTier(b));
       d.userData.key = key;
-      if (d.userData.label) drawLabel(d.userData.label, '+' + (b.reward.amount || 1), { fill: '#ffffff', stroke: '#0e3d9c', size: 96, strokeWidth: 18 });
+      if (d.userData.label) drawBadge(d.userData.label, '+' + (b.reward.amount || 1));
     }
     d.scale.setScalar(1.45);
     d.position.set(0, 0, 0);
@@ -138,7 +138,8 @@ export class Barrels {
     const game = this.game;
     b.state = 'broken'; b.t = 0;
     const pos = { x: b.x, y: 0.9, z: b.z };
-    const reward = rewarded ? { kind: b.reward.kind, amount: b.reward.amount } : { kind: 'none', amount: 0 };
+    // reward.kind is always the barrel's real reward kind; granted:false (amount 0) = smashed by running into it
+    const reward = { kind: b.reward.kind, amount: rewarded ? b.reward.amount : 0, granted: !!rewarded };
     game.events.emit('barrel:break', { id: b.id, reward, pos });
     game.events.emit('fx:shake', { amount: 0.3 });
     if (game.horde) game.horde.view.blast(b.x, b.z, 1.7);
@@ -149,6 +150,7 @@ export class Barrels {
 
   applyReward(r, pos) {
     const game = this.game;
+    if (!game.run || !game.run.active) return; // never grant anything once the run is decided
     const n = r.amount || 1;
     switch (r.kind) {
       case 'weapon':
@@ -182,8 +184,10 @@ export class Barrels {
   }
 
   hit(b, bl) {
-    b.hp -= bl.dmg;
     b.punch = 1; b.flash = 1;
+    const run = this.game.run;
+    if (!run || !run.active) return true; // run is over: stray bullets still clink but cannot break/reward
+    b.hp -= bl.dmg;
     const p = this.hitPos; p.x = bl.x; p.y = bl.y + 0.3; p.z = b.z + BARREL_R;
     this.game.events.emit('barrel:hit', { id: b.id, hp: Math.max(0, Math.ceil(b.hp)), pos: p });
     this.game.events.emit('bullet:hit', { kind: 'barrel', pos: p });

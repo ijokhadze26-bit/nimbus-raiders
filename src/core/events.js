@@ -32,9 +32,17 @@ export class Events {
     this.rates.set(name, { interval: 1 / perSecond, last: -1e9 });
   }
 
-  emit(name, payload) {
+  /** True if an emit of `name` right now would be delivered (lets hot paths skip building dropped payloads). */
+  wants(name) {
     const rate = this.rates.get(name);
-    if (rate) {
+    return !rate || this.now - rate.last >= rate.interval;
+  }
+
+  /** force = bypass the rate limit (e.g. a final value that must always arrive). */
+  emit(name, payload, force = false) {
+    const rate = this.rates.get(name);
+    if (rate && force) rate.last = this.now;
+    else if (rate) {
       if (this.now - rate.last < rate.interval) return false;
       rate.last = this.now;
     }
