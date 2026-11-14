@@ -1,0 +1,169 @@
+// Bullets: one InstancedMesh per weapon style, pooled objects, swept collision along z against a
+// target registry. Other systems register with addTargetSystem({ kind, priority, sweep, hit }):
+//   sweep(bullet, x, z0, z1) -> nearest target object (must expose .z) with z in [z1, z0] not yet hit, or null
+//   hit(target, bullet) -> true if the bullet is consumed (otherwise pierce is spent)
+import * as THREE from 'three';
+import { BULLETS } from '../config.js';
+import { WEAPONS } from '../data/weapons.js';
+import { part, merge, G } from '../models/util.js';
+import { writeYawMatrix } from '../core/pool.js';
+
+function styleGeometry(w) {
+  const st = w.style, L = st.length, r = st.radius;
+  // solid saturated body + soft halo + small white-hot core: reads on the bright road and on the sky
+  const body = new THREE.Color(w.color);
+  const core = new THREE.Color(st.core);
+  const halo = new THREE.Color(w.color).offsetHSL(0, 0.05, 0.05);
+  const along = [Math.PI / 2, 0, 0];
+  switch (st.shape) {
+    case 'bolt':
+      return merge([
+        part(G.capsule(r * 1.55, L * 1.05, 2, 7), halo, { r: along, a: 0.35 }),
+        part(G.capsule(r, L, 2, 6), body, { r: along, a: 1, bright: 1.1 }),
+        part(G.capsule(r * 0.45, L * 0.75, 1, 5), core, { r: along, a: 1, p: [0, r * 0.3, -L * 0.1] }),
+      ]);
+    case 'tracer':
+      return merge([
+        part(G.capsule(r * 1.7, L, 1, 7), halo, { r: along, a: 0.3 }),
+        part(G.capsule(r, L * 0.95, 1, 6), body, { r: along, a: 1, bright: 1.1 }),
+        part(G.sphere(r * 1.6, 6, 4), core, { p: [0, 0, -L * 0.5], a: 1 }),
+      ]);
+    case 'laser':
+      return merge([
+        part(G.cyl(r * 2.4, r * 2.4, L, 6), halo, { r: along, a: 0.35 }),
+        part(G.cyl(r * 1.2, r * 1.2, L * 1.02, 5), body, { r: along, a: 1, bright: 1.1 }),
+        part(G.cyl(r * 0.5, r * 0.5, L * 1.03, 4), core, { r: along, a: 1 }),
+      ]);
+    case 'beam':
+      return merge([
+        part(G.capsule(r * 1.8, L, 2, 8), halo, { r: along, a: 0.35 }),
+        part(G.capsule(r, L, 2, 7), body, { r: along, a: 1 }),
+        part(G.capsule(r * 0.45, L, 1, 5), core, { r: along, a: 1 }),
+      ]);
+    case 'orb':
+      return merge([
+        part(G.sphere(r * 1.6, 9, 6), halo, { a: 0.35, s: [1, 1, 1.3] }),
+        part(G.sphere(r, 8, 6), body, { a: 1 }),
+        part(G.sphere(r * 0.5, 6, 4), core, { a: 1, p: [0, r * 0.3, 0] }),
+      ]);
+    case 'nova':
+    default:
+      return merge([
+        part(G.cone(r * 1.2, 2.2, 10), new THREE.Color(st.trail || w.color), { r: [-Math.PI / 2, 0, 0], p: [0, 0, 1.1], a: 0.55 }),
+        part(G.sphere(r * 1.6, 12, 9), halo, { a: 0.4 }),
+        part(G.sphere(r, 12, 9), body, { a: 1 }),
+        part(G.sphere(r * 0.6, 10, 8), core, { a: 1 }),
+      ]);
+  }
+}
+
+export class Bullets {
+  init(game) {
+    this.game = game;
+    this.systems = [];
+    this.active = [];
+    this.free = [];
+    this.meshes = [];
+    this.counts = new Int32Array(WEAPONS.length);
+    const cap = BULLETS.capacityPerStyle;
+    for (const w of WEAPONS) {
+      const mat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, fog: false, toneMapped: false });
+      const mesh = new THREE.InstancedMesh(styleGeometry(w), mat, cap);
+      mesh.frustumCulled = false;
+      mesh.count = 0;
+      mesh.visible = false;
+      mesh.renderOrder = 6;
+      game.scene.add(mesh);
+      this.meshes.push(mesh);
+    }
+    this.hitPos = { x: 0, y: 0, z: 0 };
+  }
+
+  addTargetSystem(sys) {
+    this.systems.push(sys);
+    this.systems.sort((a, b) => (b.priority || 0) - (a.priority || 0));
+    return () => { const i = this.systems.indexOf(sys); if (i >= 0) this.systems.splice(i, 1); };
+  }
+
+  reset() {
+    for (const b of this.active) this.free.push(b);
+    this.active.length = 0;
+  }
+
+  get count() { return this.active.length; }
+
+  spawn(tier, x, y, z, vx, vz, dmg, pierce) {
+    if (this.active.length >= BULLETS.capacityPerStyle * 2) return null;
+    const b = this.free.length ? this.free.pop() : { x: 0, y: 0, z: 0, vx: 0, vz: 0, dmg: 1, pierce: 0, style: 0, dist: 0, nh: 0, hits: [null, null, null, null, null, null, null, null] };
+    b.x = x; b.y = y; b.z = z; b.vx = vx; b.vz = vz; b.dmg = dmg; b.pierce = pierce;
+    b.style = tier - 1; b.dist = 0; b.nh = 0; b.ang = Math.atan2(-vx, -vz);
+    this.active.push(b);
+    return b;
+  }
+
+  /** Helper for target systems: true if this bullet already hit `t` (pierce). */
+  static hasHit(b, t) {
+    for (let i = 0; i < b.nh; i++) if (b.hits[i] === t) return true;
+    return false;
+  }
+
+  update(dt) {
+    const list = this.active;
+    const sys = this.systems;
+    const range = BULLETS.range;
+    for (let i = list.length - 1; i >= 0; i--) {
+      const b = list[i];
+      let z0 = b.z;
+      b.x += b.vx * dt;
+      b.z += b.vz * dt;
+      const step = Math.abs(b.vz * dt);
+      b.dist += step;
+      const z1 = b.z;
+      let dead = b.dist > range;
+      // swept collision: repeatedly take the nearest hit along travel (largest z), pierce as allowed
+      for (let guard = 0; !dead && guard < 8; guard++) {
+        let best = null, bestSys = null, bestZ = -Infinity;
+        for (let s = 0; s < sys.length; s++) {
+          const t = sys[s].sweep(b, b.x, z0, z1);
+          if (t && t.z > bestZ) { best = t; bestSys = sys[s]; bestZ = t.z; }
+        }
+        if (!best) break;
+        const consumed = bestSys.hit(best, b);
+        if (consumed || b.pierce <= 0) { dead = true; break; }
+        b.pierce--;
+        if (b.nh < b.hits.length) b.hits[b.nh++] = best;
+        z0 = bestZ;
+      }
+      if (dead) {
+        list[i] = list[list.length - 1];
+        list.pop();
+        this.free.push(b);
+      }
+    }
+  }
+
+  sync() {
+    const counts = this.counts;
+    counts.fill(0);
+    const list = this.active;
+    for (let i = 0; i < list.length; i++) {
+      const b = list[i];
+      const mesh = this.meshes[b.style];
+      const n = counts[b.style]++;
+      if (n >= BULLETS.capacityPerStyle) continue;
+      // grow-in over the first 0.6u so bullets don't pop out of the guns
+      const g = b.dist < 0.6 ? 0.4 + b.dist : 1;
+      writeYawMatrix(mesh.instanceMatrix.array, n, b.x, b.y, b.z, b.ang, g, g, g);
+    }
+    for (let s = 0; s < this.meshes.length; s++) {
+      const mesh = this.meshes[s];
+      mesh.count = Math.min(counts[s], BULLETS.capacityPerStyle);
+      mesh.visible = mesh.count > 0;
+      if (mesh.visible) mesh.instanceMatrix.needsUpdate = true;
+    }
+  }
+
+  dispose() {}
+}
+
+export const hasHit = Bullets.hasHit;

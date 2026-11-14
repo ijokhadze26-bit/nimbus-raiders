@@ -1,0 +1,271 @@
+// Game: owns systems, state machine, run lifecycle, camera, frame/step split, public API.
+import * as THREE from 'three';
+import { Events } from '../core/events.js';
+import { Rng } from '../core/rng.js';
+import { CAMERA, QUALITY, START_SQUAD } from '../config.js';
+import { World } from './world.js';
+import { Squad } from './squad.js';
+import { Weapons } from './weapons.js';
+import { Bullets } from './bullets.js';
+import { Gates } from './gates.js';
+import { Autopilot } from './autopilot.js';
+import { Run } from './run.js';
+import { createDebug } from './debug.js';
+import { getLevel, LEVELS, LEVEL_COUNT } from '../data/levels.js';
+
+const ATTRACT_COUNT = 9;
+
+export class Game {
+  constructor({ engine, input, params = {} }) {
+    this.engine = engine;
+    this.scene = engine.scene;
+    this.camera = engine.camera;
+    this.input = input;
+    this.params = params;
+    this.events = new Events();
+    this.rng = new Rng(1);
+    this.state = 'boot';
+    this.timeScale = 1;
+    this.time = 0;
+    this.run = null;
+    this.save = null;
+    this.bank = { coins: 0 };
+    // later-stage systems (null until implemented)
+    this.barrels = null; this.horde = null; this.obstacles = null; this.pickups = null;
+    this.powers = null; this.helpers = null; this.telegraph = null; this.boss = null;
+    this.resultTimer = -1;
+    this.lastResult = null;
+    this.camLook = new THREE.Vector3(0, 0, -14);
+    this.camPos = new THREE.Vector3(0, CAMERA.height, CAMERA.back);
+    this.quality = { setting: params.quality || (params.test ? 'high' : 'auto'), sampling: false, acc: 0, frames: 0, t: 0 };
+
+    const ev = this.events;
+    ev.setRate('weapon:fire', 22); ev.setRate('bullet:hit', 30); ev.setRate('enemy:die', 60);
+    ev.setRate('squad:lost', 40); ev.setRate('run:progress', 10);
+
+    this.world = new World();
+    this.bullets = new Bullets();
+    this.squad = new Squad();
+    this.weapons = new Weapons();
+    this.gates = new Gates();
+    this.autopilot = new Autopilot();
+    this.systems = [this.world, this.bullets, this.squad, this.weapons, this.gates, this.autopilot];
+    for (const s of this.systems) s.init(this);
+
+    if (this.quality.setting === 'low') engine.applyQuality('low');
+    this.debug = createDebug(this);
+  }
+
+  setState(s) {
+    if (this.state === s) return;
+    this.state = s;
+    this.events.emit('game:state', { state: s });
+  }
+
+  // ---------------- public API ----------------
+  startLevel(levelId) {
+    const def = getLevel(levelId) || LEVELS[0];
+    this.beginRun(def, 'level');
+  }
+
+  startEndless() {
+    // Endless generator arrives in a later stage; until then it reuses level 1 in endless mode.
+    this.beginRun(LEVELS[0], 'endless');
+  }
+
+  beginRun(def, mode) {
+    this.rng.seed(def.id * 7919 + (mode === 'endless' ? 1 : 0));
+    this.run = new Run(def, mode, this.events);
+    this.timeScale = 1;
+    this.resultTimer = -1;
+    this.lastResult = null;
+    this.world.setTheme(def.theme);
+    this.world.setGaps([]);
+    this.world.reset();
+    this.bullets.reset();
+    this.squad.pip.root.visible = true;
+    const start = START_SQUAD + (this.save?.data?.upgrades?.squad || 0);
+    this.squad.reset(start, 0);
+    this.weapons.reset(this.run, 1 + (this.save?.data?.upgrades?.tier || 0));
+    this.weapons.enabled = true;
+    this.gates.reset(this.run);
+    this.input.reset(0);
+    this.autopilot.reset();
+    this.snapCamera();
+    this.setState('playing');
+    this.events.emit('run:start', { levelId: def.id, mode, theme: def.theme });
+    this.events.emit('run:phase', { phase: 'run' });
+    if (this.quality.setting === 'auto') Object.assign(this.quality, { sampling: true, acc: 0, frames: 0, t: 0 });
+  }
+
+  pause() {
+    if (this.state !== 'playing') return;
+    this.setState('paused');
+    this.events.emit('game:pause', {});
+  }
+
+  resume() {
+    if (this.state !== 'paused') return;
+    this.setState('playing');
+    this.events.emit('game:resume', {});
+  }
+
+  quitToMenu() { this.toTitle(); }
+  retry() { if (this.run) this.beginRun(this.run.def, this.run.mode); else this.startLevel(1); }
+  nextLevel() {
+    const id = this.run ? this.run.levelId + 1 : 1;
+    this.startLevel(getLevel(id) ? id : 1);
+  }
+  getProgress() {
+    const d = this.save?.data;
+    return d ? { coins: d.coins, unlockedLevel: d.unlockedLevel, stars: d.stars } : { coins: this.bank.coins, unlockedLevel: 1, stars: {}, levels: LEVEL_COUNT };
+  }
+
+  toTitle() {
+    this.run = null;
+    this.timeScale = 1;
+    this.bullets.reset();
+    this.gates.reset(null);
+    this.squad.pip.root.visible = true;
+    this.squad.reset(ATTRACT_COUNT, 0);
+    this.weapons.enabled = false;
+    this.world.setTheme('noon');
+    this.world.reset();
+    this.snapCamera();
+    this.setState('title');
+  }
+
+  // ---------------- run outcome ----------------
+  onSquadEmpty(reason) {
+    const run = this.run;
+    if (!run || !run.active || this.state !== 'playing') return;
+    this.squad.pip.root.visible = false;
+    this.squad.startDeath(this.squad.alloc(), reason);
+    const d = this.squad.dying[this.squad.dying.length - 1];
+    if (d) { d.x = this.squad.leader.x; d.z = this.squad.leader.z; }
+    run.setPhase('lost');
+    run.coinsEarned = run.coins;
+    this.bank.coins += run.coinsEarned;
+    this.lastResult = { win: false, levelId: run.levelId, mode: run.mode, dist: Math.round(run.dist), coins: run.coinsEarned, kills: run.kills };
+    this.events.emit('run:lose', { levelId: run.levelId, mode: run.mode, dist: Math.round(run.dist), coins: run.coinsEarned, kills: run.kills });
+    this.resultTimer = 1.4;
+  }
+
+  win() {
+    const run = this.run;
+    if (!run || !run.active) return;
+    const squad = this.squad.count;
+    run.stars = run.starsFor(squad);
+    run.coinsEarned = Math.round(run.coins + (run.def.reward || 0) + 15 * run.stars);
+    this.bank.coins += run.coinsEarned;
+    run.setPhase('won');
+    this.lastResult = { win: true, levelId: run.levelId, mode: run.mode, stars: run.stars, coins: run.coinsEarned, squad, kills: run.kills, time: run.time };
+    this.events.emit('run:win', { levelId: run.levelId, mode: run.mode, stars: run.stars, coins: run.coinsEarned, squad, kills: run.kills, time: Math.round(run.time * 10) / 10 });
+    this.resultTimer = 1.6;
+  }
+
+  // ---------------- simulation ----------------
+  forwardSpeed(dt) {
+    const run = this.run;
+    if (!run) return 0;
+    if (run.phase === 'run') return run.speed;
+    if (run.phase === 'won') return Math.max(0, this.squad.speed - 10 * dt);
+    return 0;
+  }
+
+  /** One logic step (no rendering). */
+  step(rawDt) {
+    const dt = rawDt * this.timeScale;
+    this.time += dt;
+    this.events.now = this.time;
+    if (this.state === 'playing') {
+      const run = this.run;
+      this.input.update(dt);
+      const target = this.autopilot.enabled ? this.autopilot.update(dt) : this.input.targetX;
+      this.squad.update(dt, target, this.forwardSpeed(dt));
+      run.update(dt, -this.squad.leader.z);
+      run.stats.maxSquad = Math.max(run.stats.maxSquad, this.squad.count);
+      this.gates.update(dt);
+      if (run.active) this.weapons.update(dt);
+      this.bullets.update(dt);
+      if (run.phase === 'run' && run.dist >= run.length - (run.boss ? 2 : 0)) {
+        if (run.boss && this.boss) run.setPhase('boss');
+        else this.win();
+      }
+      if (this.resultTimer > 0) {
+        this.resultTimer -= rawDt;
+        if (this.resultTimer <= 0) { this.resultTimer = -1; this.setState('result'); }
+      }
+    } else if (this.state === 'title' || this.state === 'result') {
+      const t = this.time;
+      const tx = this.state === 'title' ? Math.sin(t * 0.35) * 1.6 : this.squad.leader.x;
+      this.squad.update(dt, tx, this.state === 'title' ? 4.5 : 0);
+      this.bullets.update(dt);
+      if (this.state === 'title') this.gates.update(dt);
+    }
+  }
+
+  /** Called every animation frame by the loop. */
+  frame(dt) {
+    if (this.state === 'playing' || this.state === 'title' || this.state === 'result') this.step(dt);
+    this.sync(dt);
+    this.engine.render();
+    this.sampleQuality(dt);
+  }
+
+  sync(dt) {
+    const L = this.squad.leader;
+    this.squad.sync(dt, this.run ? this.run.phase : 'title');
+    this.gates.sync(dt);
+    this.bullets.sync();
+    this.updateCamera(dt);
+    this.world.sync(dt, L.x, L.z, this.camera.position.z);
+  }
+
+  cameraGoal(outPos, outLook) {
+    const L = this.squad.leader;
+    if (this.state === 'title') {
+      const t = this.time;
+      outPos.set(L.x * 0.3 + Math.sin(t * 0.2) * 1.5, 6.2, L.z + 9.5);
+      outLook.set(L.x * 0.2, 0.9, L.z - 9);
+      return;
+    }
+    const boss = this.run && this.run.phase === 'boss';
+    outPos.set(L.x * CAMERA.followX, boss ? CAMERA.bossHeight : CAMERA.height, L.z + (boss ? CAMERA.bossBack : CAMERA.back));
+    outLook.set(L.x * CAMERA.lookX, 0, L.z - CAMERA.lookAhead);
+  }
+
+  snapCamera() {
+    this.cameraGoal(this.camPos, this.camLook);
+    this.camera.position.copy(this.camPos);
+    this.camera.lookAt(this.camLook);
+  }
+
+  updateCamera(dt) {
+    const goalP = _gp, goalL = _gl;
+    this.cameraGoal(goalP, goalL);
+    const k = 1 - Math.exp(-CAMERA.damping * dt);
+    this.camPos.x += (goalP.x - this.camPos.x) * k;
+    this.camPos.y += (goalP.y - this.camPos.y) * k;
+    this.camPos.z += (goalP.z - this.camPos.z) * Math.max(k, 0.5);
+    this.camLook.x += (goalL.x - this.camLook.x) * k;
+    this.camLook.y += (goalL.y - this.camLook.y) * k;
+    this.camLook.z += (goalL.z - this.camLook.z) * Math.max(k, 0.5);
+    this.camera.position.copy(this.camPos);
+    if (this.shake) this.shake.apply(this.camera, dt);
+    this.camera.lookAt(this.camLook);
+  }
+
+  sampleQuality(dt) {
+    const q = this.quality;
+    if (!q.sampling || this.state !== 'playing') return;
+    q.t += dt; q.acc += this.loopFps || 60; q.frames++;
+    if (q.t >= QUALITY.autoSampleSeconds) {
+      q.sampling = false;
+      const avg = q.acc / Math.max(1, q.frames);
+      if (avg < QUALITY.autoMinFps && this.engine.quality !== 'low') this.engine.applyQuality('low');
+    }
+  }
+}
+
+const _gp = new THREE.Vector3(), _gl = new THREE.Vector3();
