@@ -6,6 +6,7 @@ import { TILE_LEN, roadTexture, halfTileGeometry, trimGeometry, dividerGeometry,
 import { toonGradient } from '../models/materials.js';
 import { QUALITY } from '../config.js';
 import { markInstances } from '../core/pool.js';
+import { buildGapView, disposeGapView } from '../models/obstacles.js';
 
 const AHEAD = 196, BEHIND = 24;
 const ROWS = Math.ceil((AHEAD + BEHIND) / TILE_LEN) + 2;
@@ -23,6 +24,7 @@ export class World {
     this.theme = getTheme('noon');
     this.time = 0;
     this.gaps = [];
+    this.gapViews = new Map(); // gap object -> dressing (lips, depth walls, pit shade, chevrons)
     this.baseRow = null;
     this.camZ = 0;
 
@@ -145,10 +147,48 @@ export class World {
     this.islands.frustumCulled = false;
     this.scene.add(this.islands);
     this.baseRow = null;
+    this.clearGapViews();
+    this.syncGapViews();
   }
 
   /** gaps: [{ lane:'L'|'R'|'C', from, to }] in distance units. */
-  setGaps(gaps) { this.gaps = gaps || []; this.baseRow = null; }
+  setGaps(gaps) { this.gaps = gaps || []; this.baseRow = null; this.syncGapViews(); }
+
+  /** Builds dressing for new gaps, drops it for gaps that are gone. */
+  syncGapViews() {
+    if (!this.gapViews) return;
+    for (const [g, v] of this.gapViews) {
+      if (this.gaps.includes(g)) continue;
+      this.scene.remove(v.group);
+      disposeGapView(v);
+      this.gapViews.delete(g);
+    }
+    for (const g of this.gaps) {
+      if (this.gapViews.has(g)) continue;
+      const v = buildGapView(this.theme, g.lane, g.from, g.to);
+      this.scene.add(v.group);
+      this.gapViews.set(g, v);
+    }
+  }
+
+  clearGapViews() {
+    if (!this.gapViews) return;
+    for (const v of this.gapViews.values()) { this.scene.remove(v.group); disposeGapView(v); }
+    this.gapViews.clear();
+  }
+
+  /** Chevrons flow toward the hole and pulse. */
+  animateGaps() {
+    if (!this.gapViews.size) return;
+    const t = this.time;
+    const pulse = 0.5 + 0.5 * Math.sin(t * 6);
+    for (const v of this.gapViews.values()) {
+      v.chev.material.map.offset.y = -t * 0.9;
+      v.glow.material.map.offset.y = -t * 0.9;
+      v.glow.material.opacity = 0.25 + pulse * 0.55;
+      v.chev.material.opacity = 0.8 + pulse * 0.2;
+    }
+  }
 
   reset() { this.baseRow = null; this.time = 0; }
 
@@ -165,6 +205,7 @@ export class World {
     this.time += dt;
     this.camZ = camZ;
     this.updateRoad(focusZ);
+    this.animateGaps();
     this.updatePuffs(camZ);
     this.updateIslands(camZ);
     // sky/sea follow camera

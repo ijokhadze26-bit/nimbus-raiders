@@ -14,6 +14,9 @@ import { Barrels } from './barrels.js';
 import { Helpers } from './helpers.js';
 import { Telegraph } from './telegraph.js';
 import { Bosses } from './bosses/index.js';
+import { Obstacles } from './obstacles.js';
+import { Pickups } from './pickups.js';
+import { Powers } from './powers.js';
 import { Shake } from '../fx/shake.js';
 import { Run } from './run.js';
 import { createDebug } from './debug.js';
@@ -75,7 +78,10 @@ export class Game {
     this.helpers = new Helpers();
     this.telegraph = new Telegraph();
     this.bosses = new Bosses();
-    this.systems = [this.world, this.bullets, this.squad, this.weapons, this.gates, this.horde, this.barrels, this.helpers, this.telegraph, this.bosses, this.autopilot];
+    this.obstacles = new Obstacles();
+    this.pickups = new Pickups();
+    this.powers = new Powers();
+    this.systems = [this.world, this.bullets, this.squad, this.weapons, this.gates, this.horde, this.barrels, this.helpers, this.telegraph, this.bosses, this.obstacles, this.pickups, this.powers, this.autopilot];
     for (const s of this.systems) s.init(this);
 
     if (this.quality.setting === 'low') this.applyQuality('low');
@@ -150,6 +156,9 @@ export class Game {
     this.horde.reset(run);
     this.barrels.reset(run);
     this.helpers.reset();
+    this.obstacles.reset(run);
+    this.pickups.reset(run);
+    this.powers.reset();
     this.telegraph.reset();
     this.bosses.reset();
     this.shake.reset();
@@ -202,9 +211,11 @@ export class Game {
     const run = this.run;
     if (!run || !run.active || this.state !== 'playing') return;
     this.squad.pip.root.visible = false;
-    this.squad.startDeath(this.squad.alloc(), reason);
-    const d = this.squad.dying[this.squad.dying.length - 1];
-    if (d) { d.x = this.squad.leader.x; d.z = this.squad.leader.z; }
+    if (!this.squad.pipFall.on) { // a gap fall already shows Pip tumbling into the hole
+      this.squad.startDeath(this.squad.alloc(), reason);
+      const d = this.squad.dying[this.squad.dying.length - 1];
+      if (d) { d.x = this.squad.leader.x; d.z = this.squad.leader.z; }
+    }
     run.setPhase('lost');
     run.coinsEarned = run.coins;
     this.bank.coins += run.coinsEarned;
@@ -250,6 +261,9 @@ export class Game {
       run.update(dt, -this.squad.leader.z);
       run.stats.maxSquad = Math.max(run.stats.maxSquad, this.squad.count);
       this.gates.update(dt);
+      this.obstacles.update(dt);
+      this.pickups.update(dt);
+      this.powers.update(dt);
       this.barrels.update(dt);
       this.horde.update(dt);
       this.helpers.update(dt);
@@ -299,6 +313,9 @@ export class Game {
     this.barrels.sync(dt);
     this.horde.sync(dt);
     this.helpers.sync(dt);
+    this.obstacles.sync(dt);
+    this.pickups.sync(dt);
+    this.powers.sync(dt);
     this.telegraph.sync(dt);
     this.bosses.sync(dt);
     this.bullets.sync();

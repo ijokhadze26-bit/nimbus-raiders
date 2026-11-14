@@ -6,6 +6,7 @@ import { createLabel, labelMesh } from './labels.js';
 import { buildGunGeometry, buildRaiderGeometry } from './raider.js';
 import { buildDroneGeometry, buildRotorGeometry, buildTurretGeometry, buildCannonGeometry } from './helpers.js';
 import { weaponForTier } from '../data/weapons.js';
+import { buildPowerToken, POWER_STYLE } from './pickups.js';
 
 export const BARREL_R = 0.82, BARREL_H = 1.8;
 
@@ -112,10 +113,12 @@ export function buildRewardDisplay(kind, amount, tier) {
     root.add(pile);
     glowColor = '#ffc531';
   } else {
-    // power-up orb placeholder (powers stage replaces with icons)
-    const orb = new THREE.Mesh(new THREE.IcosahedronGeometry(0.42, 1), new THREE.MeshToonMaterial({ gradientMap: toonMaterial().gradientMap, color: '#b56bff', emissive: '#7a3fe8', emissiveIntensity: 0.5 }));
-    root.add(orb);
-    glowColor = '#b56bff';
+    // power kinds: the same icon token as the road pickups (no ground pillar)
+    const tok = buildPowerToken(POWER_STYLE[kind] ? kind : 'shield', { ground: false });
+    tok.halo.visible = false; // the barrel's reward glow already sits behind it
+    tok.root.scale.setScalar(0.8);
+    root.add(tok.root);
+    glowColor = (POWER_STYLE[kind] || POWER_STYLE.shield).glow;
   }
   root.scale.setScalar(1.45);
   root.userData.glowColor = glowColor;
