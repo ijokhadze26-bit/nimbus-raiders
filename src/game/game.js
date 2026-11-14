@@ -18,6 +18,8 @@ import { Shake } from '../fx/shake.js';
 import { Run } from './run.js';
 import { createDebug } from './debug.js';
 import { getLevel, LEVEL_COUNT } from '../data/levels.js';
+import { endlessDef } from '../data/endless.js';
+import { Endless } from './endless.js';
 import { upgradeEffects } from '../data/shop.js';
 import { heroLook, tierLook, isPrism, prismColor } from './skins.js';
 
@@ -75,8 +77,10 @@ export class Game {
     this.helpers = new Helpers();
     this.telegraph = new Telegraph();
     this.bosses = new Bosses();
+    this.endless = new Endless();
     this.systems = [this.world, this.bullets, this.squad, this.weapons, this.gates, this.horde, this.barrels, this.helpers, this.telegraph, this.bosses, this.autopilot];
     for (const s of this.systems) s.init(this);
+    this.endless.init(this);
 
     if (this.quality.setting === 'low') this.applyQuality('low');
     this.debug = createDebug(this);
@@ -97,9 +101,10 @@ export class Game {
     return true;
   }
 
-  startEndless() {
-    // Endless generator arrives in a later stage; until then it reuses level 1 in endless mode.
-    this.beginRun(getLevel(1), 'endless');
+  /** Endless run on a fresh seeded bridge (fixed seed under ?test=1 or ?seed=N so runs are reproducible). */
+  startEndless(seed) {
+    const s = seed ?? (this.params.seed != null ? Number(this.params.seed) : this.params.test ? 4242 : Math.floor(Math.random() * 1e9));
+    this.beginRun(endlessDef(), 'endless', s >>> 0);
   }
 
   /** Applies the equipped hero / weapon skins from the save (no-op when unchanged). */
@@ -117,9 +122,10 @@ export class Game {
   /** Main color of a weapon tier under the equipped weapon skin (guns, muzzle flashes). */
   tierColor(tier) { return tierLook(this.skins.weapon, tier).color; }
 
-  beginRun(def, mode) {
-    this.rng.seed(def.id * 7919 + (mode === 'endless' ? 1 : 0));
+  beginRun(def, mode, seed = 1) {
+    this.rng.seed(def.id * 7919 + (mode === 'endless' ? seed : 0));
     this.run = new Run(def, mode, this.events);
+    if (mode === 'endless') this.endless.start(this.run, seed); else this.endless.stop();
     this.timeScale = 1;
     this.resultTimer = -1;
     this.lastResult = null;
@@ -136,7 +142,7 @@ export class Game {
     this.weapons.enabled = true;
     this.gates.reset(this.run);
     this.resetCombat(this.run);
-    this.bosses.preload(def.boss);
+    this.bosses.preload(this.run.boss);
     this.input.reset(0);
     this.autopilot.reset();
     this.snapCamera();
@@ -170,7 +176,11 @@ export class Game {
   }
 
   quitToMenu() { this.toTitle(); }
-  retry() { if (this.run) this.beginRun(this.run.def, this.run.mode); else this.startLevel(1); }
+  retry() {
+    if (this.run && this.run.mode === 'endless') this.startEndless();
+    else if (this.run) this.beginRun(this.run.def, this.run.mode);
+    else this.startLevel(1);
+  }
   /** Starts the level after the current one; false when it doesn't exist (yet). */
   nextLevel() {
     const id = this.run ? this.run.levelId + 1 : 1;
@@ -183,6 +193,7 @@ export class Game {
 
   toTitle() {
     this.run = null;
+    this.endless.stop();
     this.timeScale = 1;
     this.bullets.reset();
     this.gates.reset(null);
@@ -216,6 +227,7 @@ export class Game {
   win() {
     const run = this.run;
     if (!run || !run.active) return;
+    if (run.mode === 'endless' && this.endless.active) { this.endless.bossDown(); return; } // the run goes on
     const squad = this.squad.count;
     run.stars = run.starsFor(squad);
     run.coinsEarned = Math.round(run.coins + (run.def.reward || 0) + 15 * run.stars);

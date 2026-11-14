@@ -75,7 +75,11 @@ export class Hud {
     ev.on('squad:change', (p) => this.onSquadChange(p));
     ev.on('game:state', ({ state }) => this.onState(state));
     ev.on('run:start', (p) => this.onRunStart(p));
-    ev.on('run:progress', (p) => { this.progTarget = p.length ? Math.min(1, p.dist / p.length) : 0; });
+    ev.on('run:progress', (p) => {
+      this.progTarget = p.length ? Math.min(1, p.dist / p.length) : 0;
+      if (p.total != null && this.distEl && p.total !== this.distShown) { this.distShown = p.total; this.distEl.textContent = fmt(p.total) + 'm'; }
+    });
+    ev.on('endless:boss', (p) => this.onEndlessBoss(p));
     ev.on('run:phase', ({ phase }) => this.el.classList.toggle('boss-phase', phase === 'boss'));
     ev.on('boss:spawn', (p) => this.onBossSpawn(p));
     ev.on('boss:hp', (p) => {
@@ -109,7 +113,9 @@ export class Hud {
     const g = this.game;
     const run = g.run;
     const endless = p.mode === 'endless';
-    this.levelEl.innerHTML = endless ? `${icon('infinity')}<span>ENDLESS</span>` : `<span class="lv">LV ${p.levelId}</span><span>${run?.name || ''}</span>`;
+    this.levelEl.innerHTML = endless ? `${icon('infinity')}<span>ENDLESS</span><span class="lv dist">0m</span>` : `<span class="lv">LV ${p.levelId}</span><span>${run?.name || ''}</span>`;
+    this.distEl = endless ? this.levelEl.querySelector('.dist') : null;
+    this.distShown = 0;
     this.el.classList.toggle('endless', endless);
     this.el.classList.remove('boss-phase');
     this.prog = this.progTarget = 0; this.progW = -1;
@@ -226,6 +232,18 @@ export class Hud {
     this.bannerT = setTimeout(() => this.banner.classList.add('hidden'), 1500);
     this.setWeapon(p.tier, true);
     this.buzz(30, 0);
+  }
+
+  /** Endless: a boss fell, the run goes on - reward banner (reuses the WEAPON UP banner look). */
+  onEndlessBoss(p) {
+    const extra = p.drone ? ' · +1 DRONE' : '';
+    this.banner.innerHTML = `<div class="sub">BOSS ${p.n} DOWN!</div><div class="name">+${p.troops} RAIDERS</div><div class="sub">+${fmt(p.coins)} COINS${extra}</div>`;
+    this.banner.style.setProperty('--tc', '#ffd34d');
+    this.banner.classList.remove('hidden');
+    restartAnim(this.banner);
+    clearTimeout(this.bannerT);
+    this.bannerT = setTimeout(() => this.banner.classList.add('hidden'), 1500);
+    this.buzz(60, 0);
   }
 
   onState(state) {
