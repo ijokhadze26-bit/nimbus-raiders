@@ -1,0 +1,8 @@
+<!doctype html><html><body><canvas id=c></canvas><script type="module">
+import * as THREE from 'three';
+const r = new THREE.WebGLRenderer({canvas: document.getElementById('c')}); r.setSize(300,300);
+const s = new THREE.Scene(); s.background = new THREE.Color('skyblue');
+const cam = new THREE.PerspectiveCamera(60,1,.1,100); cam.position.z=3;
+s.add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshNormalMaterial()));
+r.render(s,cam); window.__game={debug:{state:()=>({ok:true, gl: r.capabilities.isWebGL2})}};
+</script></body></html>
