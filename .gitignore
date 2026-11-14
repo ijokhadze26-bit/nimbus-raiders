@@ -1,4 +1,32 @@
-node_modules
-dist
+# Dependencies (reinstalled with `npm install`)
+node_modules/
+
+# Build output and caches
+dist/
+dist-ssr/
+.vite/
+*.tsbuildinfo
+coverage/
+
+# Local test screenshots
+shots/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Secrets and local settings — never upload
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+
+# Local tool and editor files
+.claude/
+.claude-flow/
+.vscode/
+.idea/
 .DS_Store
-shots
+Thumbs.db
