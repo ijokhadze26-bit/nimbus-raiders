@@ -10,6 +10,7 @@
   --safe-l: env(safe-area-inset-left, 0px); --safe-r: env(safe-area-inset-right, 0px);
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+[hidden] { display: none !important; }
 html, body {
   margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none;
   background: radial-gradient(120% 90% at 50% 10%, #9fdcff 0%, #5fb4ff 45%, #3a7fe0 100%);
@@ -152,6 +153,9 @@ body::before {
   -webkit-text-stroke-width: 4px; text-shadow: 0 2px 0 var(--outline);
 }
 .plaque .ico { font-size: 24px; filter: drop-shadow(0 2px 0 var(--outline)); }
+.plaque { white-space: nowrap; }
+.topbar .plaque { min-width: 0; flex: 0 1 auto; font-size: clamp(17px, 5.6cqw, 24px); padding-inline: clamp(10px, 3cqw, 18px); }
+.topbar .coin-pill, .topbar .ibtn { flex-shrink: 0; }
 .plaque-purple { background: linear-gradient(180deg, #b07dff, #7036e0); border-color: #3b1a80; box-shadow: 0 5px 0 #3b1a80, 0 9px 14px rgba(8, 26, 80, 0.3); -webkit-text-stroke-color: #3b1a80; }
 
 /* ---------- panels + ribbons ---------- */

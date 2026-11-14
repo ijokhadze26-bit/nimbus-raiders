@@ -7,6 +7,7 @@ import { BULLETS } from '../config.js';
 import { WEAPONS, HELPER_SHOTS } from '../data/weapons.js';
 import { part, merge, G } from '../models/util.js';
 import { writeYawMatrix, markInstances } from '../core/pool.js';
+import { tierLook, isPrism, prismColor } from './skins.js';
 
 // tail cone pointing back (+Z) from the bullet center
 const tail = (r, len, color, a, z0 = 0) => part(G.cone(r, len, 5), color, { r: [Math.PI / 2, 0, 0], p: [0, 0, z0 + len / 2], a });
@@ -94,6 +95,25 @@ export class Bullets {
       this.meshes.push(mesh);
     }
     this.hitPos = { x: 0, y: 0, z: 0 };
+    this.skin = 'factory';
+    this.prism = false;
+  }
+
+  /** Weapon skin: rebuilds the six weapon-tier bullet geometries in the skin colors (helpers keep theirs). */
+  setSkin(skinId = 'factory') {
+    if (skinId === this.skin) return;
+    this.skin = skinId;
+    this.prism = isPrism(skinId);
+    for (let i = 0; i < WEAPONS.length; i++) {
+      const w = WEAPONS[i];
+      // prism: white geometry, tinted per frame by the material color (see sync)
+      const look = this.prism ? { color: '#ffffff', core: '#ffffff', trail: '#ffffff' } : tierLook(skinId, w.tier);
+      const mesh = this.meshes[i];
+      const old = mesh.geometry;
+      mesh.geometry = styleGeometry({ ...w, color: look.color, style: { ...w.style, core: look.core, trail: look.trail } });
+      old.dispose();
+      if (!this.prism) mesh.material.color.setRGB(1, 1, 1);
+    }
   }
 
   addTargetSystem(sys) {
@@ -184,6 +204,7 @@ export class Bullets {
       mesh.visible = mesh.count > 0;
       if (mesh.visible) markInstances(mesh.instanceMatrix, mesh.count);
     }
+    if (this.prism) for (let s = 0; s < WEAPONS.length; s++) prismColor(this.meshes[s].material.color, this.game.time, s + 1);
   }
 
   dispose() {}

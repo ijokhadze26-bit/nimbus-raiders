@@ -17,7 +17,9 @@ import { Bosses } from './bosses/index.js';
 import { Shake } from '../fx/shake.js';
 import { Run } from './run.js';
 import { createDebug } from './debug.js';
-import { getLevel, LEVELS, LEVEL_COUNT } from '../data/levels.js';
+import { getLevel, LEVEL_COUNT } from '../data/levels.js';
+import { upgradeEffects } from '../data/shop.js';
+import { heroLook, tierLook, isPrism, prismColor } from './skins.js';
 
 const ATTRACT_COUNT = 9;
 // stage3-ui hook: menu screens keep the live attract scene running behind them
@@ -57,6 +59,10 @@ export class Game {
     // one-off hitches (spawn bursts, the boss drop) must not count as a slow device
     ev.on('horde:incoming', () => this.holdQuality(0.6));
     ev.on('boss:spawn', () => this.holdQuality(1.5));
+    // the death sequence belongs to the explosions: cease fire (beginRun re-enables)
+    ev.on('boss:defeated', () => { this.weapons.enabled = false; });
+    ev.on('save:changed', () => this.applySkins());
+    this.skins = { hero: 'classic', weapon: 'factory' };
 
     this.world = new World();
     this.bullets = new Bullets();
@@ -83,15 +89,33 @@ export class Game {
   }
 
   // ---------------- public API ----------------
+  /** Starts a defined level; returns false (and does nothing) for an id that has no level data yet. */
   startLevel(levelId) {
-    const def = getLevel(levelId) || LEVELS[0];
+    const def = getLevel(Number(levelId));
+    if (!def) return false;
     this.beginRun(def, 'level');
+    return true;
   }
 
   startEndless() {
     // Endless generator arrives in a later stage; until then it reuses level 1 in endless mode.
-    this.beginRun(LEVELS[0], 'endless');
+    this.beginRun(getLevel(1), 'endless');
   }
+
+  /** Applies the equipped hero / weapon skins from the save (no-op when unchanged). */
+  applySkins() {
+    const sk = this.save?.data?.skins;
+    const hero = sk?.hero || 'classic', weapon = sk?.weapon || 'factory';
+    if (hero === this.skins.hero && weapon === this.skins.weapon && this.skinsApplied) return;
+    this.skinsApplied = true;
+    this.skins.hero = hero; this.skins.weapon = weapon;
+    this.squad.setHeroSkin(heroLook(hero));
+    this.bullets.setSkin(weapon);
+    this.squad.setGunColor(this.tierColor(this.weapons.tier));
+  }
+
+  /** Main color of a weapon tier under the equipped weapon skin (guns, muzzle flashes). */
+  tierColor(tier) { return tierLook(this.skins.weapon, tier).color; }
 
   beginRun(def, mode) {
     this.rng.seed(def.id * 7919 + (mode === 'endless' ? 1 : 0));
@@ -106,7 +130,9 @@ export class Game {
     this.squad.pip.root.visible = true;
     const start = START_SQUAD + (this.save?.data?.upgrades?.squad || 0);
     this.squad.reset(start, 0);
-    this.weapons.reset(this.run, 1 + (this.save?.data?.upgrades?.tier || 0));
+    const up = upgradeEffects(this.save?.data?.upgrades);
+    this.applySkins();
+    this.weapons.reset(this.run, up.startTier, { dmgMul: up.damageMul, rateMul: up.rateMul });
     this.weapons.enabled = true;
     this.gates.reset(this.run);
     this.resetCombat(this.run);
@@ -132,6 +158,7 @@ export class Game {
 
   pause() {
     if (this.state !== 'playing') return;
+    this.input.cancel(); // a drag in progress must not keep steering while paused
     this.setState('paused');
     this.events.emit('game:pause', {});
   }
@@ -144,9 +171,10 @@ export class Game {
 
   quitToMenu() { this.toTitle(); }
   retry() { if (this.run) this.beginRun(this.run.def, this.run.mode); else this.startLevel(1); }
+  /** Starts the level after the current one; false when it doesn't exist (yet). */
   nextLevel() {
     const id = this.run ? this.run.levelId + 1 : 1;
-    this.startLevel(getLevel(id) ? id : 1);
+    return this.startLevel(id);
   }
   getProgress() {
     const d = this.save?.data;
@@ -161,6 +189,7 @@ export class Game {
     this.resetCombat(null);
     this.squad.pip.root.visible = true;
     this.squad.reset(ATTRACT_COUNT, 0);
+    this.applySkins();
     this.weapons.enabled = false;
     this.world.setTheme('noon');
     this.world.reset();
@@ -273,6 +302,7 @@ export class Game {
     this.telegraph.sync(dt);
     this.bosses.sync(dt);
     this.bullets.sync();
+    if (isPrism(this.skins.weapon)) this.squad.setGunColor(prismColor(_pc, this.time, this.weapons.tier));
     this.updateCamera(dt);
     this.world.sync(dt, L.x, L.z, this.camera.position.z);
     if (this.fx) this.fx.update(); // stage3-fx
@@ -290,11 +320,21 @@ export class Game {
       return;
     }
     const boss = this.run && this.run.phase === 'boss';
-    // blob radius from the rendered member count (same formula as squad.center) -> gentle zoom-out
+    // blob radius from the rendered member count (same formula as squad.center) -> zoom-out that keeps
+    // growing up to the 320 rendered members (r ~ 4.9), so big squads stay inside the frame
     const r = FORMATION.spacing * 0.525 * Math.sqrt(this.squad.members.length + 0.5);
-    const zoom = 1 + CAMERA.crowdZoom * Math.max(0, Math.min(1, (r - 1.2) / 2.5));
-    outPos.set(L.x * CAMERA.followX, (boss ? CAMERA.bossHeight : CAMERA.height) * zoom, L.z + (boss ? CAMERA.bossBack : CAMERA.back) * zoom);
-    outLook.set(L.x * CAMERA.lookX, 0, L.z - (boss ? CAMERA.bossLook : CAMERA.lookAhead));
+    const crowd = Math.max(0, Math.min(1, (r - 0.6) / 4.3));
+    // 9:16 frames (desktop portrait frame, 16:9 phones) have a narrower fov than tall phones
+    const wide = Math.max(0, Math.min(1, (this.camera.aspect - 0.47) / 0.1));
+    if (boss) {
+      // pull back and look further ahead so the boss clears the HUD and the squad clears the badge
+      const zoom = 1 + CAMERA.crowdZoom * crowd;
+      outPos.set(L.x * CAMERA.followX, CAMERA.bossHeight * zoom * (1 + 0.15 * wide), L.z + CAMERA.bossBack * zoom * (1 + 0.18 * wide));
+      outLook.set(L.x * CAMERA.lookX, 0, L.z - (CAMERA.bossLook - 2 * wide));
+      return;
+    }
+    outPos.set(L.x * CAMERA.followX, CAMERA.height * (1 + CAMERA.crowdLift * crowd + 0.12 * wide), L.z + CAMERA.back * (1 + CAMERA.crowdBack * crowd + 0.1 * wide));
+    outLook.set(L.x * CAMERA.lookX, 0, L.z - (CAMERA.lookAhead - CAMERA.crowdLook * crowd - 2.5 * wide));
   }
 
   snapCamera() {
@@ -334,4 +374,4 @@ export class Game {
   }
 }
 
-const _gp = new THREE.Vector3(), _gl = new THREE.Vector3();
+const _gp = new THREE.Vector3(), _gl = new THREE.Vector3(), _pc = new THREE.Color();

@@ -3,7 +3,7 @@
 // Tap a node to start it; the big footer button plays the current level.
 import { screenEl, coinPill, el } from '../ui.js';
 import { icon } from '../icons.js';
-import { getLevel, LEVEL_COUNT } from '../../data/levels.js';
+import { getLevel, LEVEL_COUNT, LAST_LEVEL } from '../../data/levels.js';
 
 const STEP = 124;        // px between nodes
 const TOP_PAD = 150;
@@ -55,7 +55,8 @@ export function createMap(ui) {
       <span class="stars">${icon('star', 's1')}${icon('star', 's2')}${icon('star', 's3')}</span>
       <span class="pip">${PIP}</span>`;
     if (id % 5 === 0) n.classList.add('major');
-    const label = el('div', 'map-label', `<span class="n">LEVEL ${id}</span>${def?.name ? `<span class="t">${def.name}</span>` : ''}`);
+    const label = el('div', 'map-label', `<span class="n">LEVEL ${id}</span>${def?.name ? `<span class="t">${def.name}</span>` : '<span class="t soon">COMING SOON</span>'}`);
+    if (!def) { n.classList.add('soon'); label.classList.add('soon'); }
     inner.appendChild(n);
     inner.appendChild(label);
     nodes.push({ id, n, label, y: 0, x: 0 });
@@ -88,7 +89,7 @@ export function createMap(ui) {
 
   function sync() {
     const d = ui.save.data;
-    const cur = d.unlockedLevel;
+    const cur = current();
     curLbl.textContent = `LEVEL ${cur}`;
     for (const o of nodes) {
       const locked = o.id > cur;
@@ -104,15 +105,18 @@ export function createMap(ui) {
     if (done && pathPts) done.setAttribute('d', cur > 1 ? smoothPath(pathPts, cur - 1) : '');
   }
 
+  /** The node to play next: the highest unlocked level that has data. */
+  function current() { return Math.max(1, Math.min(LAST_LEVEL, ui.save.data.unlockedLevel)); }
+
   function scrollToCurrent(smooth) {
-    const o = nodes[Math.min(LEVEL_COUNT, ui.save.data.unlockedLevel) - 1];
+    const o = nodes[current() - 1];
     const top = Math.max(0, o.y - scroll.clientHeight * 0.55);
     if (smooth && scroll.scrollTo) scroll.scrollTo({ top, behavior: 'smooth' });
     else scroll.scrollTop = top;
   }
 
   function start(id) {
-    if (id > ui.save.data.unlockedLevel) return;
+    if (id > current()) return;
     ui.game.startLevel(id);
   }
 
@@ -127,10 +131,10 @@ export function createMap(ui) {
     },
     onAct(act, btn) {
       if (act === 'back') ui.nav('title');
-      else if (act === 'play-current') start(ui.save.data.unlockedLevel);
+      else if (act === 'play-current') start(current());
       else if (act === 'node') {
         const id = Number(btn.dataset.id);
-        if (id > ui.save.data.unlockedLevel) {
+        if (id > current()) {
           btn.classList.remove('nope'); void btn.offsetWidth; btn.classList.add('nope');
           ui.vibrate(30);
           return;

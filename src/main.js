@@ -52,8 +52,7 @@ async function boot() {
   game.loop = loop;
 
   if (params.autopilot) game.debug.setAutopilot(true);
-  if (params.level) game.startLevel(params.level);
-  else game.toTitle();
+  if (!(params.level && game.startLevel(params.level))) game.toTitle();
 
   document.addEventListener('visibilitychange', () => { if (document.hidden) game.pause(); });
   loop.start();

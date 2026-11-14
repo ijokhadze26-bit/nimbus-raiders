@@ -3,6 +3,7 @@
 import { screenEl, coinPill } from '../ui.js';
 import { icon } from '../icons.js';
 import { createLogo, replayLogo } from '../logo.js';
+import { LAST_LEVEL } from '../../data/levels.js';
 
 export function createTitle(ui) {
   const el = screenEl('title');
@@ -61,7 +62,7 @@ export function createTitle(ui) {
     el,
     show() {
       const d = ui.save.data;
-      lvl.textContent = `LEVEL ${d.unlockedLevel}`;
+      lvl.textContent = `LEVEL ${Math.min(LAST_LEVEL, d.unlockedLevel)}`;
       daily.classList.toggle('ready', ui.screens.daily.available());
       syncToggles();
       ui.refreshCoins(true);

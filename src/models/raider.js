@@ -6,12 +6,12 @@ export const RAIDER_SCALE = 1.22;
 
 export const RAIDER_COLORS = {
   suit: '#2f7bff', suitDark: '#2353c4', helmet: '#f2f7ff', visor: '#22d3c5', pack: '#2a6ff0',
-  packDark: '#3d4a66', glove: '#ffffff', belt: '#1c3a8c', scarf: '#ff8a2b',
+  packDark: '#3d4a66', glove: '#ffffff', belt: '#1c3a8c', scarf: '#ff8a2b', crest: '#2f8cff',
 };
 
 // ~220 triangles: up to 320 are drawn every frame, so every part is as low-poly as the 1u-tall cadet allows.
 export function buildRaiderGeometry(colors = RAIDER_COLORS) {
-  const c = colors;
+  const c = { ...RAIDER_COLORS, ...colors };
   const parts = [
     // legs + boots
     part(G.cyl(0.058, 0.05, 0.17, 4, true), c.suitDark, { p: [-0.075, 0.09, 0], r: [0, Math.PI / 4, 0] }),
@@ -24,7 +24,7 @@ export function buildRaiderGeometry(colors = RAIDER_COLORS) {
     part(G.cyl(0.115, 0.13, 0.06, 7, true), c.scarf, { p: [0, 0.44, 0] }),
     // helmet + crest + visor band
     part(G.sphere(0.165, 8, 5), c.helmet, { p: [0, 0.6, 0] }),
-    part(G.box(0.07, 0.06, 0.2), '#2f8cff', { p: [0, 0.755, 0.0] }),
+    part(G.box(0.07, 0.06, 0.2), c.crest, { p: [0, 0.755, 0.0] }),
     part(G.cyl(0.158, 0.165, 0.07, 8, true), c.visor, { p: [0, 0.585, -0.012], s: [1.04, 1, 1] }),
     // backpack (blue, chunky)
     part(G.box(0.24, 0.22, 0.13), c.pack, { p: [0, 0.35, 0.17] }),
@@ -37,7 +37,7 @@ export function buildRaiderGeometry(colors = RAIDER_COLORS) {
 
 /** ~110-triangle Raider for low quality (same proportions and colors). */
 export function buildRaiderLowGeometry(colors = RAIDER_COLORS) {
-  const c = colors;
+  const c = { ...RAIDER_COLORS, ...colors };
   return merge([
     part(G.box(0.22, 0.17, 0.12), c.suitDark, { p: [0, 0.085, -0.01] }),
     part(G.capsule(0.165, 0.11, 1, 6), c.suit, { p: [0, 0.31, 0] }),

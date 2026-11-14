@@ -29,6 +29,7 @@ export function createSettings(ui) {
       <div class="set-foot">NIMBUS RAIDERS &middot; v1.0</div>
     </div>`;
   let modal = false;
+  const resetBtn = root.querySelector('.reset-btn');
 
   function sync() {
     const st = ui.save.data.settings;
@@ -51,6 +52,8 @@ export function createSettings(ui) {
     el: root,
     show(opts) {
       modal = !!opts?.modal;
+      // over the pause menu a run is live: a reset there would be partly undone by the run's payout
+      resetBtn.hidden = modal || ui.game.state === 'paused' || ui.game.state === 'playing';
       sync();
     },
     onAct(act, btn) {
@@ -70,7 +73,7 @@ export function createSettings(ui) {
         save.setSetting('quality', btn.dataset.q);
         ui.setQuality(btn.dataset.q);
         sync();
-      } else if (act === 'reset') {
+      } else if (act === 'reset' && !resetBtn.hidden) {
         ui.confirm({
           title: 'RESET PROGRESS?',
           text: 'All coins, stars, upgrades and skins will be lost. This cannot be undone.',

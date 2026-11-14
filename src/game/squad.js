@@ -77,8 +77,34 @@ export class Squad {
 
   /** Swaps the gun silhouette of all raiders + Pip to the weapon tier's model. */
   setGunTier(tier) {
+    this.gunTier = tier;
     this.guns.geometry = buildRaiderGunGeometry(tier);
     this.pip.gun.geometry = buildPipGunGeometry(tier);
+  }
+
+  /** Hero skin (see game/skins.js heroLook): rebuilds Pip and the Raider bodies in the skin colors. */
+  setHeroSkin(look) {
+    if (this.heroId === look.id) return;
+    const first = this.heroId === undefined;
+    this.heroId = look.id;
+    if (first && !look.pip) return; // constructor already built the classic look
+    const old = this.pip;
+    const pip = buildPip({ ...(look.pip || {}), glow: look.glow });
+    pip.root.position.copy(old.root.position);
+    pip.root.visible = old.root.visible;
+    pip.gun.geometry = old.gun.geometry; // cached per tier
+    pip.gunMat.color.copy(old.gunMat.color);
+    this.game.scene.remove(old.root);
+    for (const m of old.meshes) m.geometry.dispose();
+    old.meshes[0].material.dispose(); old.gunMat.dispose();
+    old.flames[0].geometry.dispose(); old.flames[0].material.dispose(); old.glow.material.dispose();
+    this.game.scene.add(pip.root);
+    this.pip = pip;
+    const geo = this.raiderGeo, useLow = this.raiders.geometry === geo.low;
+    geo.high.dispose(); if (geo.low) geo.low.dispose();
+    geo.high = buildRaiderGeometry(look.raider || undefined);
+    geo.low = geo.low ? buildRaiderLowGeometry(look.raider || undefined) : null;
+    this.raiders.geometry = useLow && geo.low ? geo.low : geo.high;
   }
 
   reset(count = 1, x = 0) {

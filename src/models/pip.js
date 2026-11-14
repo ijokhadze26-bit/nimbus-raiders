@@ -9,7 +9,7 @@ export const PIP_SCALE = 1.25;
 const C = {
   suit: '#2f6ff2', suitDark: '#2148b8', helmet: '#f8fbff', visor: '#1fd0c4', visorDeep: '#119a9a',
   scarf: '#ff8a2b', scarfDark: '#e8641a', pack: '#e3eaf5', packDark: '#4f5d78', glove: '#ffffff',
-  belt: '#1c3a8c', gold: '#ffc531', stripe: '#2f8cff',
+  belt: '#1c3a8c', gold: '#ffc531', stripe: '#2f8cff', glow: '#7ff3ff',
 };
 
 export function buildPip(skin = {}) {
@@ -95,7 +95,7 @@ export function buildPip(skin = {}) {
   mk(merge([part(G.box(0.11, 0.03, 0.22), c.scarfDark, { p: [0, 0, 0.11] })]), tailB);
 
   // Jet flames (additive glow) under the nozzles
-  const flameMat = new THREE.MeshBasicMaterial({ color: '#7ff3ff', transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
+  const flameMat = new THREE.MeshBasicMaterial({ color: c.glow, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
   const flameGeo = new THREE.ConeGeometry(0.055, 0.22, 8);
   flameGeo.rotateX(Math.PI);
   const flames = [-0.09, 0.09].map((x) => {
@@ -104,7 +104,7 @@ export function buildPip(skin = {}) {
     body.add(f);
     return f;
   });
-  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: '#7ff3ff', transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: c.glow, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
   glow.scale.set(0.55, 0.55, 1);
   glow.position.set(0, 0.24, 0.3);
   body.add(glow);

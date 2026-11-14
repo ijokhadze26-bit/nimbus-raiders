@@ -32,7 +32,7 @@ export class Weapons {
     const changed = nt !== this.tier;
     this.tier = nt;
     const w = this.weapon;
-    this.game.squad.setGunColor(w.color);
+    this.game.squad.setGunColor(this.game.tierColor ? this.game.tierColor(nt) : w.color);
     this.game.squad.setGunTier(nt);
     if (changed && !silent) {
       const L = this.game.squad.leader;

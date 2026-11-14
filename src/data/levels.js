@@ -75,3 +75,5 @@ export function getLevel(id) {
 }
 
 export const LEVEL_COUNT = 15;
+/** Highest level id with data. Map nodes past it show "coming soon"; progression never unlocks past it. */
+export const LAST_LEVEL = LEVELS.reduce((m, l) => Math.max(m, l.id), 0);

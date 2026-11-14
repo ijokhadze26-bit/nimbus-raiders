@@ -7,7 +7,6 @@ import { WEAPONS, weaponForTier } from '../data/weapons.js';
 import { fmt } from './ui.js';
 
 const _v = new THREE.Vector3();
-const ENDLESS_BOSS_EVERY = 700;
 
 export class Hud {
   constructor(game, root, ui = null) {
@@ -121,12 +120,14 @@ export class Hud {
     this.count = -1;
     this.hintOn = !endless && p.levelId <= 2 && !g.autopilot?.enabled;
     this.hintEl.classList.toggle('hidden', !this.hintOn);
+    this.el.classList.toggle('hinting', this.hintOn);
+    this.compact = null; this.faded = null;
     this.banner.classList.add('hidden');
   }
 
   setWeapon(tier, pop) {
     const w = weaponForTier(tier);
-    this.weaponEl.style.setProperty('--tc', w.color);
+    this.weaponEl.style.setProperty('--tc', this.game.tierColor ? this.game.tierColor(tier) : w.color);
     this.weaponEl.querySelector('.w-tier').textContent = `TIER ${w.tier}`;
     this.weaponEl.querySelector('.w-name').textContent = w.name.toUpperCase();
     this.weaponEl.querySelectorAll('.w-pips i').forEach((p, i) => p.classList.toggle('on', i < w.tier));
@@ -199,6 +200,7 @@ export class Hud {
     clearTimeout(this.bossT);
     this.bossBar.classList.remove('hidden', 'enraged');
     this.bossShown = true;
+    this.card.style.setProperty('--n', Math.max(6, String(p.name).length));
     this.card.innerHTML = `<div class="warn">${icon('skull')}<span>BOSS</span>${icon('skull')}</div><div class="name">${p.name}</div>`;
     this.card.classList.remove('hidden');
     restartAnim(this.card);
@@ -217,7 +219,7 @@ export class Hud {
     const w = weaponForTier(p.tier);
     this.banner.innerHTML = `<div class="sub">WEAPON UP!</div><div class="name">${p.name.toUpperCase()}!</div>`;
     this.banner.dataset.tier = p.tier;
-    this.banner.style.setProperty('--tc', w.color);
+    this.banner.style.setProperty('--tc', this.game.tierColor ? this.game.tierColor(p.tier) : w.color);
     this.banner.classList.remove('hidden');
     restartAnim(this.banner);
     clearTimeout(this.bannerT);
@@ -231,7 +233,7 @@ export class Hud {
     this.el.classList.toggle('hidden', !inRun);
     this.el.classList.toggle('paused', state === 'paused');
     if (!inRun) {
-      this.hintEl.classList.add('hidden'); this.hintOn = false;
+      this.hintEl.classList.add('hidden'); this.hintOn = false; this.el.classList.remove('hinting');
       if (state !== 'result') this.hideBoss(true);
       else this.bossBar.classList.add('hidden');
       this.banner.classList.add('hidden');
@@ -246,8 +248,8 @@ export class Hud {
     const run = g.run;
     const inRun = (g.state === 'playing' || g.state === 'paused') && run;
     if (inRun) {
-      // progress (endless: toward the next boss arena)
-      const target = run.mode === 'endless' ? (run.dist % ENDLESS_BOSS_EVERY) / ENDLESS_BOSS_EVERY : this.progTarget;
+      // progress toward the boss (endless reuses a level's length until its segment generator lands)
+      const target = this.progTarget;
       this.prog += (target - this.prog) * 0.2;
       if (target < this.prog - 0.2) this.prog = target;
       const pw = Math.round(this.prog * 1000);
@@ -260,7 +262,11 @@ export class Hud {
       if (this.hintOn && (run.dist > 46 || g.input?.dragging || g.input?.axis)) {
         this.hintOn = false;
         this.hintEl.classList.add('hidden');
+        this.el.classList.remove('hinting');
       }
+      // big squads reach the bottom of the frame: badge shrinks to icon + pips
+      const compact = sq.members.length > 60;
+      if (compact !== this.compact) { this.compact = compact; this.weaponEl.classList.toggle('compact', compact); }
       this.updatePowers();
     }
     this.flushSquadPulse(now);
@@ -277,6 +283,12 @@ export class Hud {
     if (!visible) return;
     if (sq.count !== this.count) { this.count = sq.count; this.bubbleInner.textContent = String(sq.count); }
     const L = sq.leader;
+    // fade the bubble while the gate the leader runs into is close: its number must stay readable
+    let near = false;
+    for (const gt of g.gates.live) {
+      if (gt.state === 'live' && gt.z < L.z && L.z - gt.z < 5 && Math.abs(gt.x - L.x) < gt.halfW + 0.8) { near = true; break; }
+    }
+    if (near !== this.faded) { this.faded = near; this.bubble.classList.toggle('faded', near); }
     _v.set(L.x, 2.25 + sq.pip.body.position.y, L.z).project(g.camera);
     const w = g.engine.width, h = g.engine.height;
     const x = Math.max(34, Math.min(w - 34, (_v.x * 0.5 + 0.5) * w)), y = Math.max(120, Math.min(h - 20, (-_v.y * 0.5 + 0.5) * h));

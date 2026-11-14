@@ -24,7 +24,7 @@ export class Input {
     window.addEventListener('pointercancel', (e) => this.up(e));
     window.addEventListener('keydown', (e) => this.key(e, true));
     window.addEventListener('keyup', (e) => this.key(e, false));
-    window.addEventListener('blur', () => { this.keys.left = this.keys.right = false; this.dragging = false; this.pointerId = null; });
+    window.addEventListener('blur', () => this.cancel());
     surface.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
@@ -69,6 +69,14 @@ export class Input {
     else if (k === 'ArrowRight' || k === 'd' || k === 'D') this.keys.right = isDown;
     else return;
     e.preventDefault();
+  }
+
+  /** Ends any drag / held keys (pause, blur): the next press starts a fresh, re-anchored drag. */
+  cancel() {
+    this.keys.left = this.keys.right = false;
+    this.dragging = false;
+    this.pointerId = null;
+    this.axis = 0;
   }
 
   setTarget(x) { this.targetX = Math.max(-TARGET_CLAMP, Math.min(TARGET_CLAMP, x)); }

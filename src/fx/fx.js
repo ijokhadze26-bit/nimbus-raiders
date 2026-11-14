@@ -306,6 +306,7 @@ export class Fx {
 }
 
 function weaponColor(g, tier) {
+  if (g.tierColor) return g.tierColor(tier);
   const w = g.weapons && g.weapons.weapon;
   return w && w.tier === tier ? w.color : '#ffd34d';
 }

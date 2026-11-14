@@ -2,7 +2,7 @@
 // Lose: 'SQUAD DOWN', distance reached (% of the level or metres in endless), coins, RETRY / HOME.
 import { screenEl, countTo, bump, wait, fmt } from '../ui.js';
 import { icon } from '../icons.js';
-import { LEVEL_COUNT, getLevel } from '../../data/levels.js';
+import { getLevel } from '../../data/levels.js';
 import { coinMul } from '../../save/progress.js';
 
 const TIPS = [
@@ -21,18 +21,19 @@ export function createResult(ui) {
   let token = 0;
 
   function winHtml(a) {
-    const next = a.levelId < LEVEL_COUNT && a.mode === 'level';
+    const endless = a.mode === 'endless';
+    const next = !endless && !!getLevel(a.levelId + 1);
     const bonus = coinMul(ui.save) > 1 ? `<span class="bonus">+${Math.round((coinMul(ui.save) - 1) * 100)}% BONUS</span>` : '';
     const tag = a.galaxy ? '<div class="unlock-tag legendary">GALAXY SKIN UNLOCKED!</div>'
       : a.unlocked ? `<div class="unlock-tag">LEVEL ${a.unlocked} UNLOCKED!</div>` : '';
     return `
       <div class="rays"></div>
       <div class="panel panel-result win pop">
-        <div class="ribbon ribbon-gold"><span>${a.mode === 'endless' ? 'BOSS DOWN!' : 'LEVEL CLEAR!'}</span></div>
-        <div class="res-level">${a.mode === 'endless' ? 'ENDLESS' : `LEVEL ${a.levelId}${getLevel(a.levelId)?.name ? ' · ' + getLevel(a.levelId).name : ''}`}</div>
-        <div class="big-stars">
+        <div class="ribbon ribbon-gold"><span>${endless ? 'BOSS DOWN!' : 'LEVEL CLEAR!'}</span></div>
+        <div class="res-level">${endless ? 'ENDLESS' : `LEVEL ${a.levelId}${getLevel(a.levelId)?.name ? ' · ' + getLevel(a.levelId).name : ''}`}</div>
+        ${endless ? '' : `<div class="big-stars">
           <span class="bs bs1">${icon('star')}</span><span class="bs bs2">${icon('star')}</span><span class="bs bs3">${icon('star')}</span>
-        </div>
+        </div>`}
         <div class="res-stats">
           <div class="stat">${icon('squad')}<span class="num">${a.squad ?? 0}</span><small>SQUAD</small></div>
           <div class="stat">${icon('damage')}<span class="num">${fmt(a.kills ?? 0)}</span><small>KILLS</small></div>
@@ -40,10 +41,12 @@ export function createResult(ui) {
         <div class="res-coins"><span class="coin-ico">${icon('coin')}</span><span class="num amt">+0</span>${bonus}</div>
         ${tag}
         <div class="res-btns">
-          ${next ? `<button type="button" class="btn btn-gold btn-lg" data-act="next"><span>NEXT</span><span class="play-ico">${icon('play')}</span></button>`
-    : `<button type="button" class="btn btn-gold btn-lg" data-act="map">${icon('map')}<span>MAP</span></button>`}
+          ${endless ? `<button type="button" class="btn btn-gold btn-lg" data-act="retry">${icon('retry')}<span>PLAY AGAIN</span></button>`
+    : next ? `<button type="button" class="btn btn-gold btn-lg" data-act="next"><span>NEXT</span><span class="play-ico">${icon('play')}</span></button>`
+      : `<button type="button" class="btn btn-gold btn-lg" data-act="map">${icon('map')}<span>MAP</span></button>`}
           <div class="btn-row">
-            <button type="button" class="sq-btn btn-blue" data-act="retry" aria-label="Retry">${icon('retry')}<span>RETRY</span></button>
+            ${endless ? `<button type="button" class="sq-btn btn-blue" data-act="map" aria-label="Map">${icon('map')}<span>MAP</span></button>`
+    : `<button type="button" class="sq-btn btn-blue" data-act="retry" aria-label="Retry">${icon('retry')}<span>RETRY</span></button>`}
             <button type="button" class="sq-btn btn-blue" data-act="home" aria-label="Home">${icon('home')}<span>HOME</span></button>
           </div>
         </div>
@@ -81,7 +84,7 @@ export function createResult(ui) {
     if (a.win) {
       const stars = wrap.querySelectorAll('.bs');
       await wait(420);
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < stars.length; i++) {
         if (my !== token) return;
         if (i < a.stars) {
           stars[i].classList.add('on');
@@ -119,7 +122,7 @@ export function createResult(ui) {
       const g = ui.game;
       if (act === 'next') {
         const id = (g.run?.levelId || 0) + 1;
-        if (id > LEVEL_COUNT || id > ui.save.data.unlockedLevel) ui.nav('map'); else g.startLevel(id);
+        if (!getLevel(id) || id > ui.save.data.unlockedLevel || !g.startLevel(id)) ui.nav('map');
       } else if (act === 'retry') g.retry();
       else if (act === 'home') ui.nav('title');
       else if (act === 'map') ui.nav('map');

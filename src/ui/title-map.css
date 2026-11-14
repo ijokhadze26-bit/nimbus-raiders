@@ -144,6 +144,9 @@
 .map-label .n { font-size: 12px; letter-spacing: 1px; color: var(--blue); }
 .map-label .t { font-size: 16px; color: var(--outline); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .map-label.locked { opacity: 0.6; filter: grayscale(0.6); }
+.map-label .t.soon { font-size: 13px; letter-spacing: 1px; color: #5d6a89; }
+.map-node.soon .disc { opacity: 0.8; }
+.map-node.soon .stars { display: none; }
 .screen-map .topbar { padding-bottom: 12px; }
 .map-fade {
   content: ''; position: absolute; left: 0; right: 0; top: 0; height: calc(var(--safe-t) + 90px); z-index: 2; pointer-events: none;

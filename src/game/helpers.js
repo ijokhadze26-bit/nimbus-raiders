@@ -93,7 +93,7 @@ export class Helpers {
     const game = this.game;
     this.time += dt;
     const run = game.run;
-    const firing = !!(run && run.active);
+    const firing = !!(run && run.active && game.weapons.enabled); // weapons cease fire on boss:defeated
     const c = game.squad.center(this.c);
     const L = game.squad.leader;
     const dmgMul = game.weapons.dmgMul;

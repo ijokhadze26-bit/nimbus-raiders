@@ -2,8 +2,7 @@
 // shop purchases / equips and the daily reward streak. UI calls these; game events drive the run rewards.
 import { DAILY, UPGRADE_BY_ID, upgradeCost, upgradeEffects } from '../data/shop.js';
 import { HERO_BY_ID, PAID_SKIN_IDS, WEAPON_SKIN_BY_ID } from '../data/skins.js';
-
-const LEVELS = 15;
+import { LAST_LEVEL } from '../data/levels.js';
 
 /** Subscribes the save to run:win / run:lose. Stores the payout of the last run in game.lastAward. */
 export function installProgress(game) {
@@ -31,7 +30,7 @@ export function awardWin(save, p, run = null) {
     if (!level && dist > s.endlessBest) s.endlessBest = dist;
     if (level) {
       s.stars[p.levelId] = Math.max(prevStars, Math.min(3, p.stars || 1));
-      const next = Math.min(LEVELS, p.levelId + 1);
+      const next = Math.min(LAST_LEVEL, p.levelId + 1); // never unlock a level that has no data yet
       if (next > s.unlockedLevel) { s.unlockedLevel = next; unlocked = next; }
       const threes = Object.values(s.stars).filter((n) => n >= 3).length;
       if (threes >= (HERO_BY_ID.galaxy.unlock?.threeStars || 10) && !s.skins.owned.includes('galaxy')) {

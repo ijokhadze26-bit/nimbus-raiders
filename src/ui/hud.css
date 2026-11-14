@@ -52,6 +52,13 @@
 .hud-weapon .w-pips { display: flex; gap: 3px; margin-top: 2px; }
 .hud-weapon .w-pips i { width: 12px; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.25); }
 .hud-weapon .w-pips i.on { background: var(--tc); box-shadow: 0 0 6px var(--tc); }
+/* big squads fill the bottom of the frame: shrink the badge to the icon + pips (and hide it under the drag hint) */
+.hud-weapon { transition: padding 0.25s ease, opacity 0.3s ease; }
+.hud-weapon.compact { padding: 4px; gap: 0; flex-direction: column; border-radius: 30px; }
+.hud-weapon.compact .w-tier, .hud-weapon.compact .w-name { display: none; }
+.hud-weapon.compact .w-pips { margin: 3px 0 2px; justify-content: center; }
+.hud-weapon.compact .w-pips i { width: 5px; }
+.hud.hinting .hud-weapon { opacity: 0; }
 .hud-weapon.pop { animation: badge-pop 0.55s cubic-bezier(.2, 1.6, .4, 1); }
 @keyframes badge-pop { 0% { scale: 1; } 30% { scale: 1.25; filter: brightness(1.6); } 100% { scale: 1; } }
 
@@ -75,22 +82,23 @@
 @keyframes blink { 50% { opacity: 0.25; } }
 
 /* drag hint */
-.hud-hint { position: absolute; left: 0; right: 0; bottom: calc(var(--safe-b) + 92px); display: flex; flex-direction: column; align-items: center; gap: 6px; transition: opacity 0.4s ease; }
+.hud-hint { position: absolute; left: 0; right: 0; bottom: calc(var(--safe-b) + 6px); display: flex; flex-direction: column; align-items: center; gap: 6px; transition: opacity 0.4s ease; }
 .hud-hint.hidden { opacity: 0; }
 .hint-track { position: relative; width: 210px; height: 70px; }
 .hint-track::before {
   content: ''; position: absolute; left: 20px; right: 20px; top: 26px; height: 10px; border-radius: 6px;
-  background: rgba(255, 255, 255, 0.55); box-shadow: 0 0 0 3px rgba(27, 58, 138, 0.35);
+  background: rgba(255, 255, 255, 0.35); box-shadow: 0 0 0 2px rgba(27, 58, 138, 0.25);
 }
 .hint-track .arrow { position: absolute; top: 18px; font-size: 26px; color: #fff; filter: drop-shadow(0 2px 0 var(--outline)); }
 .hint-track .arrow.l { left: 0; }
 .hint-track .arrow.r { right: 0; transform: scaleX(-1); }
 .hint-track .hand { position: absolute; left: 50%; top: 14px; font-size: 58px; margin-left: -22px; animation: hand-sway 1.6s ease-in-out infinite; filter: drop-shadow(0 4px 4px rgba(10, 28, 80, 0.35)); }
-.hint-text { font-size: 26px; letter-spacing: 2px; -webkit-text-stroke: 5px var(--outline); paint-order: stroke fill; text-shadow: 0 3px 0 var(--outline); animation: breathe 1.6s ease-in-out infinite; }
+.hint-text { font-size: 22px; letter-spacing: 2px; -webkit-text-stroke: 5px var(--outline); paint-order: stroke fill; text-shadow: 0 3px 0 var(--outline); animation: breathe 1.6s ease-in-out infinite; }
 @keyframes hand-sway { 0%, 100% { translate: -62px 0; rotate: -8deg; } 50% { translate: 62px 0; rotate: 8deg; } }
 
 /* squad count bubble */
-.squad-bubble { position: absolute; left: 0; top: 0; will-change: transform; pointer-events: none; z-index: 3; }
+.squad-bubble { position: absolute; left: 0; top: 0; will-change: transform; pointer-events: none; z-index: 3; transition: opacity 0.15s ease; }
+.squad-bubble.faded { opacity: 0.3; }
 .squad-bubble .inner {
   position: relative; transform: translate(-50%, -100%);
   min-width: 46px; height: 38px; padding: 0 12px; border-radius: 19px;
@@ -133,7 +141,8 @@
 
 /* boss title card */
 .boss-card {
-  position: absolute; left: 0; right: 0; top: 30%; z-index: 4; text-align: center; pointer-events: none;
+  --n: 10;
+  position: absolute; left: 0; right: 0; top: 30%; padding: 0 16px; z-index: 4; text-align: center; pointer-events: none;
   color: #fff; animation: card-in 1.4s cubic-bezier(.2, 1.2, .4, 1) both;
 }
 .boss-card.hidden { display: none; }
@@ -143,7 +152,7 @@
 }
 .boss-card .warn .ico { font-size: 20px; }
 .boss-card .name {
-  margin-top: 6px; font-size: min(62px, 15cqw); letter-spacing: 2px; line-height: 1;
+  margin-top: 6px; font-size: min(56px, 13cqw, calc(130cqw / var(--n))); letter-spacing: 2px; line-height: 1;
   -webkit-text-stroke: 8px #5a1020; paint-order: stroke fill; text-shadow: 0 6px 0 #5a1020, 0 12px 24px rgba(40, 10, 30, 0.45);
 }
 @keyframes card-in {

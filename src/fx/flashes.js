@@ -17,9 +17,11 @@ export class Flashes {
   }
 
   colors(tier) {
-    if (tier === this.tier) return;
-    this.tier = tier;
-    const c = hexInt(weaponForTier(tier).color);
+    const g = this.game;
+    const key = tier + (g.skins ? g.skins.weapon : '');
+    if (key === this.tier) return;
+    this.tier = key;
+    const c = hexInt(g.tierColor ? g.tierColor(tier) : weaponForTier(tier).color);
     this.tierColor = c;
     this.sparkColor = shade(c, 0.35);
   }

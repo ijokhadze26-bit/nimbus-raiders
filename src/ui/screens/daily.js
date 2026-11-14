@@ -26,6 +26,7 @@ export function createDaily(ui) {
   const claimBtn = root.querySelector('.claim-btn');
   const tiles = [...root.querySelectorAll('.dtile')];
   let busy = false;
+  let closeToken = 0; // bumped on show/close so a pending auto-close never closes a reopened panel
 
   function sync() {
     const st = dailyStatus(ui.save);
@@ -60,7 +61,9 @@ export function createDaily(ui) {
     claimBtn.classList.remove('btn-gold');
     claimBtn.querySelector('span').textContent = 'COLLECTED!';
     ui.screens.title.refreshDaily?.();
+    const my = ++closeToken;
     await wait(1300);
+    if (my !== closeToken) return;
     busy = false;
     ui.closeModal('daily');
   }
@@ -68,11 +71,11 @@ export function createDaily(ui) {
   return {
     el: root,
     available: () => dailyStatus(ui.save).available,
-    show() { busy = false; sync(); },
+    show() { closeToken++; busy = false; sync(); },
     onAct(act) {
-      if (act === 'close') ui.closeModal('daily');
+      if (act === 'close') { closeToken++; ui.closeModal('daily'); }
       else if (act === 'claim') claim();
     },
-    onBack() { ui.closeModal('daily'); },
+    onBack() { closeToken++; ui.closeModal('daily'); },
   };
 }

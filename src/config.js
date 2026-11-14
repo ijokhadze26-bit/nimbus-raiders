@@ -24,7 +24,13 @@ export const CAMERA = {
   // out of the portrait frame, so the camera follows the leader further sideways.
   followX: 0.68,
   lookX: 0.36,
-  crowdZoom: 0.14,   // pull back up to +14% as the blob grows (big squads stay inside the frame)
+  // Big squads trail far behind Pip (a 320-member blob is ~10u deep): as the blob grows (crowd 0..1 over
+  // blob radius 0.6..4.9) the camera rises (+80%), backs off (+40%) and looks closer (-7u) so the back rows
+  // stay above the bottom edge while the road ahead stays visible.
+  crowdLift: 0.8,
+  crowdBack: 0.4,
+  crowdLook: 7,
+  crowdZoom: 0.4,    // boss arena: uniform pull-back with the crowd
   damping: 6,
   bossHeight: 13,
   bossBack: 15,

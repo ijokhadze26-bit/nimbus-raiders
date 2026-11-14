@@ -20,25 +20,25 @@ export const SFX = {
     return tone(c, d, t, { type: 'triangle', f: 200 * p, f2: 62, glide: 0.08, peak: 0.34, decay: 0.1 });
   }, 0.09, 0.7),
   fire3: fire((c, d, t, p) => { // Rapid Laser: classic falling "pew"
-    tone(c, d, t, { type: 'square', f: 1650 * p, f2: 360 * p, glide: 0.1, lp: 4200, lp2: 1300, lpT: 0.1, peak: 0.09, decay: 0.11 });
-    return tone(c, d, t, { type: 'sine', f: 2300 * p, f2: 520 * p, glide: 0.09, peak: 0.1, decay: 0.1, detune: 8 });
-  }, 0.06, 0.75),
+    tone(c, d, t, { type: 'square', f: 1650 * p, f2: 360 * p, glide: 0.1, lp: 4200, lp2: 1300, lpT: 0.1, peak: 0.13, decay: 0.11 });
+    return tone(c, d, t, { type: 'sine', f: 2300 * p, f2: 520 * p, glide: 0.09, peak: 0.14, decay: 0.1, detune: 8 });
+  }, 0.06, 1.0),
   fire4: fire((c, d, t, p) => { // Beam Cannon: resonant "whum"
     tone(c, d, t, { type: 'sawtooth', f: 150 * p, f2: 72 * p, glide: 0.24, lp: 2400, lp2: 220, lpT: 0.24, q: 5, peak: 0.2, decay: 0.26 });
     tone(c, d, t, { type: 'sawtooth', f: 151.5 * p, f2: 73 * p, glide: 0.24, lp: 2000, lp2: 220, lpT: 0.24, q: 5, peak: 0.14, decay: 0.26, detune: 14 });
     return tone(c, d, t, { type: 'sine', f: 80 * p, f2: 46, glide: 0.28, peak: 0.34, decay: 0.3 });
-  }, 0.14, 0.7),
+  }, 0.14, 0.62),
   fire5: fire((c, d, t, p) => { // Plasma Scatter: bubbly rising "blip"
     tone(c, d, t, { type: 'sine', f: 520 * p, f2: 1250 * p, glide: 0.07, peak: 0.24, decay: 0.12 });
     tone(c, d, t, { type: 'triangle', f: 780 * p, f2: 1870 * p, glide: 0.07, peak: 0.08, decay: 0.09, pan: 0.2 });
     return noise(c, d, t, { type: 'bandpass', f: 4200, q: 2, peak: 0.05, decay: 0.03 });
-  }, 0.1, 0.65),
+  }, 0.1, 0.95),
   fire6: fire((c, d, t, p) => { // Nova Lance: deep "boom" with a shimmering ring
     tone(c, d, t, { type: 'sine', f: 170 * p, f2: 40, glide: 0.32, peak: 0.5, decay: 0.38 });
     noise(c, d, t, { pink: true, type: 'lowpass', f: 1900, f2: 160, fT: 0.35, peak: 0.3, decay: 0.38 });
     tone(c, d, t, { type: 'square', f: 330 * p, f2: 85, glide: 0.12, lp: 1300, peak: 0.08, decay: 0.14 });
     return bell(c, d, t + 0.01, { f: 1560 * p, ratio: 1.5, index: 1.1, peak: 0.06, decay: 0.45 });
-  }, 0.2, 0.7),
+  }, 0.2, 0.5),
 
   // ---------------- horde ----------------
   pop: { fn(c, d, t, p) { // squishy goo pop
@@ -67,17 +67,17 @@ export const SFX = {
     const notes = o.big ? [72, 76, 79, 84, 88] : [72, 76, 79, 84];
     const s = 0.05;
     notes.forEach((m, i) => {
-      tone(c, d, t + i * s, { type: 'square', f: mtof(m), lp: 3400, peak: 0.08, decay: 0.16 });
-      tone(c, d, t + i * s, { type: 'triangle', f: mtof(m + 12), peak: 0.07, decay: 0.12 });
+      tone(c, d, t + i * s, { type: 'square', f: mtof(m), lp: 3400, peak: 0.15, decay: 0.16 });
+      tone(c, d, t + i * s, { type: 'triangle', f: mtof(m + 12), peak: 0.12, decay: 0.12 });
     });
     noise(c, d, t, { type: 'bandpass', f: 2500, f2: 8000, fT: 0.25, q: 1.5, peak: 0.05, a: 0.1, decay: 0.12 });
-    return bell(c, d, t + notes.length * s, { f: mtof(notes[notes.length - 1] + 12), ratio: 2, index: 1, peak: 0.08, decay: 0.5 });
-  }, gap: 0.15, max: 2, pri: 2, vol: 0.85, vary: 0 },
+    return bell(c, d, t + notes.length * s, { f: mtof(notes[notes.length - 1] + 12), ratio: 2, index: 1, peak: 0.16, decay: 0.5 });
+  }, gap: 0.15, max: 2, pri: 2, vol: 1.0, vary: 0 },
   gateBad: { fn(c, d, t) { // descending wobbly buzz
     tone(c, d, t, { type: 'sawtooth', f: 330, f2: 105, glide: 0.42, lp: 1500, lp2: 500, lpT: 0.4, peak: 0.16, decay: 0.15, sus: 0.7, dur: 0.38, rel: 0.08, vib: { rate: 12, depth: 50, delay: 0.02 } });
     tone(c, d, t, { type: 'sawtooth', f: 326, f2: 103, glide: 0.42, lp: 1500, lp2: 500, lpT: 0.4, peak: 0.12, decay: 0.15, sus: 0.7, dur: 0.38, rel: 0.08, detune: -22 });
     return tone(c, d, t, { type: 'square', f: 150, f2: 70, glide: 0.2, lp: 700, peak: 0.12, decay: 0.2 });
-  }, gap: 0.15, max: 2, pri: 2, vol: 0.85, vary: 0 },
+  }, gap: 0.15, max: 2, pri: 2, vol: 0.7, vary: 0 },
 
   // ---------------- barrels ----------------
   clank: { fn(c, d, t, p) { // metal barrel hit
@@ -104,9 +104,9 @@ export const SFX = {
     return noise(c, d, t, { type: 'bandpass', f: 720 * p, f2: 420, fT: 0.08, q: 5, peak: 0.08, decay: 0.08 });
   }, gap: 0.05, max: 3, pri: 0, vol: 0.7, vary: 2.5 },
   troops: { fn(c, d, t) { // "+N" troops reward: cheerful double chirp
-    tone(c, d, t, { type: 'square', f: mtof(79), lp: 3500, peak: 0.08, decay: 0.08 });
-    tone(c, d, t + 0.07, { type: 'square', f: mtof(84), lp: 3500, peak: 0.08, decay: 0.14 });
-    return bell(c, d, t + 0.07, { f: mtof(91), ratio: 2, index: 0.7, peak: 0.06, decay: 0.4 });
+    tone(c, d, t, { type: 'square', f: mtof(79), lp: 3500, peak: 0.16, decay: 0.08 });
+    tone(c, d, t + 0.07, { type: 'square', f: mtof(84), lp: 3500, peak: 0.16, decay: 0.14 });
+    return bell(c, d, t + 0.07, { f: mtof(91), ratio: 2, index: 0.7, peak: 0.12, decay: 0.4 });
   }, gap: 0.12, max: 2, pri: 1, vol: 0.8, vary: 0 },
   slice: { fn(c, d, t, p) { // blade swish
     noise(c, d, t, { type: 'bandpass', f: 1500 * p, f2: 5200, fT: 0.12, q: 2, a: 0.03, peak: 0.45, decay: 0.12 });
@@ -124,7 +124,7 @@ export const SFX = {
     tone(c, d, t, { type: 'sine', f: f1, peak: 0.1, decay: 0.06 });
     tone(c, d, t + 0.055, { type: 'square', f: f2, lp: 6000, peak: 0.055, decay: 0.22 });
     return tone(c, d, t + 0.055, { type: 'sine', f: f2, peak: 0.12, decay: 0.28 });
-  }, gap: 0.045, max: 4, pri: 0, vol: 0.65, vary: 0 },
+  }, gap: 0.045, max: 4, pri: 0, vol: 0.85, vary: 0 },
   coins: { fn(c, d, t, p, o) { // a little cascade for a pile
     const n = Math.max(3, Math.min(7, Math.round((o.amount || 10) / 6)));
     let end = t;
@@ -180,10 +180,10 @@ export const SFX = {
   tierUp: { fn(c, d, t, p, o) { // weapon upgrade: power chord swell + rising run
     const root = 60 + Math.min(6, o.tier || 2) * 2;
     noise(c, d, t, { type: 'bandpass', f: 800, f2: 9000, fT: 0.35, q: 1.2, a: 0.3, peak: 0.1, decay: 0.1 });
-    [0, 7, 12].forEach((iv) => tone(c, d, t + 0.05, { type: 'sawtooth', f: mtof(root + iv - 12), lp: 900, lp2: 3200, lpT: 0.3, a: 0.02, peak: 0.07, decay: 0.2, sus: 0.6, dur: 0.45, rel: 0.2 }));
-    [0, 4, 7, 12, 16].forEach((iv, i) => tone(c, d, t + 0.05 + i * 0.045, { type: 'square', f: mtof(root + iv + 12), lp: 4500, peak: 0.06, decay: 0.12 }));
+    [0, 7, 12].forEach((iv) => tone(c, d, t + 0.05, { type: 'sawtooth', f: mtof(root + iv - 12), lp: 900, lp2: 3200, lpT: 0.3, a: 0.02, peak: 0.112, decay: 0.2, sus: 0.6, dur: 0.45, rel: 0.2 }));
+    [0, 4, 7, 12, 16].forEach((iv, i) => tone(c, d, t + 0.05 + i * 0.045, { type: 'square', f: mtof(root + iv + 12), lp: 4500, peak: 0.096, decay: 0.12 }));
     return bell(c, d, t + 0.3, { f: mtof(root + 24), ratio: 2, index: 1, peak: 0.08, decay: 0.6 });
-  }, gap: 0.2, max: 1, pri: 2, vol: 0.85, vary: 0 },
+  }, gap: 0.2, max: 1, pri: 2, vol: 1.0, vary: 0 },
 
   // ---------------- UI ----------------
   click: { fn(c, d, t) {

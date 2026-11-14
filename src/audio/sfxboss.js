@@ -60,11 +60,11 @@ export const BOSS_SFX = {
     let end = t;
     fr.forEach((k, i) => {
       const f = 880 * Math.pow(2, i * 2 / 12);
-      tone(c, d, t + k * dur, { type: 'square', f, lp: 2600, peak: 0.07, decay: 0.07 });
-      end = tone(c, d, t + k * dur, { type: 'sine', f: f * 2, peak: 0.05, decay: 0.05 });
+      tone(c, d, t + k * dur, { type: 'square', f, lp: 2600, peak: 0.25, decay: 0.07 });
+      end = tone(c, d, t + k * dur, { type: 'sine', f: f * 2, peak: 0.15, decay: 0.05 });
     });
     return end;
-  }, gap: 0.25, max: 2, pri: 1, vol: 0.75, vary: 0 },
+  }, gap: 0.25, max: 2, pri: 1, vol: 1.0, vary: 0 },
   slam: { fn(c, d, t, p) { // rock impact + ground rumble
     noise(c, d, t, { type: 'lowpass', f: 3500, f2: 300, fT: 0.12, peak: 0.3, decay: 0.15 });
     noise(c, d, t + 0.03, { type: 'bandpass', f: 900, q: 3, peak: 0.1, decay: 0.35 });

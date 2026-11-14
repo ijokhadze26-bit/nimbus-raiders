@@ -78,7 +78,7 @@ export function bindAudio(audio, game) {
   let lastTier = 1;
   on('weapon:fire', (p) => fx('fire' + Math.max(1, Math.min(6, p.tier | 0 || 1))));
   on('weapon:tier', (p) => {
-    if ((p.tier | 0) > lastTier) fx('tierUp', { tier: p.tier });
+    if ((p.tier | 0) > lastTier) { fx('tierUp', { tier: p.tier }); dip(0.3, 0.4); }
     lastTier = p.tier | 0;
   });
   on('bullet:hit', (p) => {
@@ -94,7 +94,7 @@ export function bindAudio(audio, game) {
   on('gate:hit', (p) => fx('gateTick', { op: p.op, value: p.value }));
   on('gate:pass', (p) => {
     const b = p.before | 0, a = p.after | 0;
-    if (a > b) fx('gateGood', { big: a - b >= 10 && a >= b * 2 });
+    if (a > b) { fx('gateGood', { big: a - b >= 10 && a >= b * 2 }); dip(0.25, 0.2); }
     else if (a < b) fx('gateBad');
     else fx('gateTick', { op: 'add', value: 0 });
   });
@@ -131,7 +131,7 @@ export function bindAudio(audio, game) {
   // ---------------- boss ----------------
   on('boss:spawn', () => { fx('bossLand'); dip(0.45, 1.4); });
   on('boss:phase', () => { fx('roar', { len: 1.1, f0: 92 }); dip(0.35, 0.8); });
-  on('boss:telegraph', (p) => fx('warn', { duration: p.duration }));
+  on('boss:telegraph', (p) => { fx('warn', { duration: p.duration }); dip(0.3, 0.25); });
   on('boss:attack', (p) => { fx(BOSS_ATTACK[p.attack] || 'slam'); if (p.attack === 'slam') dip(0.3, 0.3); });
   on('boss:defeated', () => {
     if (audio.music) audio.music.stop(1.0);
