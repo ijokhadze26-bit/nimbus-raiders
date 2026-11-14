@@ -3,7 +3,7 @@
 // the distance, and ends in a boss arena. Uses its own seeded Rng, so the same seed builds the same bridge.
 import { Rng } from '../core/rng.js';
 import { THEME_ORDER } from './themes.js';
-import { gate, barrel, horde, blade, gap, powerup, coins } from './levels.js';
+import { gate, barrel, horde, blade, gap, powerup, coins, toughFor } from './levels.js';
 
 export const ENDLESS = {
   bossEvery: 700,     // a boss guards every 700 u
@@ -11,19 +11,38 @@ export const ENDLESS = {
   preBoss: 55,        // empty road before an arena
   postBoss: 34,       // empty road after a boss kill
   speed0: 9.2, speedPerZone: 0.45, speedMax: 11.6,
+  // horde toughness: hp multiplier = toughFor(1 + toughK * (d / 700)^toughExp, tier the squad has probably
+  // reached by d) - the same scale as the levels (data/levels.js), so later zones feel like L10-15 and beyond
+  toughK: 90, toughExp: 1.5, tierEvery: 220,
+  // expected squad of a good run at d: E = min(eMax, 1 + eScale * (d / 700)^eExp) (gates, hordes, barrels)
+  eScale: 160, eExp: 1.6, eMax: 600,
+  gunUntil: 1400, gunWeight: 2.2,  // guaranteed gun every third barrel row before gunUntil; gun weight early
+  ladderLate: 1,                   // weight of x2 ladder rows past 600 u (doubling is what fills the cap)
+  hordeFrac: 0.4,                  // horde headcount = hordeFrac * E (fewer, tougher Murklings = less to draw)
+  hordeLate: 0.1,                  // horde headcount growth per 700 u past 1400 u (toughness does the rest)
+  // boss hp per arena, then x bossGrowth each. The first arena is the skill check (a squad that arrives
+  // small cannot outlast it); the Tempest King (5th) hits a capped squad hardest, so it needs less hp.
+  bossHp: [120000, 450000, 500000, 500000, 300000], bossGrowth: 1.35, bossMax: 4000000,
 };
 
 export const ENDLESS_BOSSES = ['grawlstone', 'oculon', 'mothermurk', 'ironhorn', 'tempestking'];
 
 /**
- * Boss config of arena n (1-based): rotates through the roster. HP grows gently (the capped squad's fire
- * is flat, so steep HP growth turns into one hard wall); later arenas get meaner through tier = faster
- * cadence, shorter warnings and bigger broods instead.
+ * Boss config of arena n (1-based): rotates through the roster. HP grows with the arena; later arenas also
+ * get meaner through tier = faster cadence, shorter warnings and bigger broods.
  */
 export function endlessBoss(n) {
   const type = ENDLESS_BOSSES[(n - 1) % ENDLESS_BOSSES.length];
-  const hp = Math.min(240000, Math.round(30000 * Math.pow(1.32, n - 1) / 500) * 500) + 15000 * Math.max(0, n - 9);
+  const T = ENDLESS.bossHp, last = T[T.length - 1];
+  const raw = n <= T.length ? T[n - 1] : last * Math.pow(ENDLESS.bossGrowth, n - T.length);
+  const hp = Math.min(ENDLESS.bossMax, Math.round(raw / 500) * 500);
   return { type, hp, tier: Math.min(7, n) };
+}
+
+/** Horde hp multiplier at distance d. */
+export function endlessTough(d) {
+  const tier = Math.min(6, 1 + Math.floor(d / ENDLESS.tierEvery));
+  return toughFor(1 + ENDLESS.toughK * Math.pow(d / ENDLESS.bossEvery, ENDLESS.toughExp), tier);
 }
 
 /** Reward after beating arena n. */
@@ -49,17 +68,18 @@ export class EndlessGen {
   }
 
   /**
-   * Difficulty knobs at distance d (u), from the squad a good run has there (E: ~28 at 200 u, ~330 at the
-   * first boss, ~950 by 1200 u) and the weapon tier it has probably reached.
+   * Difficulty knobs at distance d (u), from the squad a good run has there (E: ~23 at 200 u, ~160 at the
+   * first boss, the 600 ceiling by ~2400 u; x2 rows still let a sharp run reach the 999 cap) and the weapon
+   * tier it has probably reached.
    */
   knobs(d) {
-    const E = Math.min(950, 1 + 330 * Math.pow(d / 700, 2));
+    const E = Math.min(ENDLESS.eMax, 1 + ENDLESS.eScale * Math.pow(d / 700, ENDLESS.eExp));
     const dpm = d < 150 ? 2.2 : d < 350 ? 4.5 : d < 700 ? 7 : d < 1200 ? 13.5 : 20;
     const late = Math.max(0, (d - 1400) / 700);          // past the cap: numbers keep climbing slowly
     return {
       E,
       add: Math.max(4, Math.round(0.45 * E)),            // good add gate max
-      horde: Math.min(900, Math.round(Math.max(10, 0.55 * E) * (1 + 0.4 * late))),
+      horde: Math.min(900, Math.round(Math.max(10, ENDLESS.hordeFrac * E) * (1 + ENDLESS.hordeLate * late))),
       barrel: Math.max(8, Math.round(E * dpm * 0.6 * (1 + 0.3 * late))),
       troops: Math.max(4, Math.round(0.25 * E)),
       hits: Math.round(450 + 0.12 * d),                  // ladder hits per rung
@@ -74,7 +94,7 @@ export class EndlessGen {
     const m = { grunt: 1 };
     if (d > 150) m.runner = r.range(0.15, 0.3);
     if (d > 400) m.shield = r.range(0.6, 1.2) * K.shields;
-    if (d > 600) m.bomber = r.range(0.08, 0.18);
+    if (d > 600) m.bomber = r.range(0.03, 0.07);  // more and one pop chains through the whole horde
     if (d > 900) m.tank = r.range(0.6, 1.2) * K.tanks;
     return m;
   }
@@ -96,7 +116,7 @@ export class EndlessGen {
     const slot = i % 3;
     if (i === 0) return 'intro';
     let kind;
-    if (slot === 0) kind = weighted(r, [['gates', 3], ['shootRed', d > 60 ? 2 : 0], ['ladder', d > 90 ? (d < 600 ? 3.5 : 2) : 0], ['ladderC', d > 120 ? (d < 600 ? 1.4 : 0.6) : 0], ['movingGates', d > 400 ? 1.4 : 0], ['toll', d > 1100 ? 1 + d / 1400 : 0]]);
+    if (slot === 0) kind = weighted(r, [['gates', 3], ['shootRed', d > 60 ? 2 : 0], ['ladder', d > 90 ? (d < 600 ? 3.5 : ENDLESS.ladderLate) : 0], ['ladderC', d > 120 ? (d < 600 ? 1.4 : ENDLESS.ladderLate * 0.3) : 0], ['movingGates', d > 400 ? 1.4 : 0], ['toll', d > 1100 ? 1 + d / 1400 : 0]]);
     else if (slot === 1) kind = weighted(r, [['barrels', 4], ['bonus', d > 100 ? 1 : 0]]);
     // past ~900 u the squad sits near the cap: threats that cost troops whatever the count (hazards, and
     // gauntlets = a horde with a blade or gap in the same stretch) take a growing share
@@ -161,10 +181,10 @@ export class EndlessGen {
         return step;
       case 'barrels': {
         const early = at < 900, capped = at > 1400; // troops are worth nothing at the cap: helpers / powers
-        const rewards = [['weapon', early ? 2.2 : 1.2], ['troops', capped ? 0 : 3], ['drone', capped ? 2.4 : 1.3], ['turret', at > 300 ? (capped ? 2 : 1) : 0], ['coins', 1], ['shield', capped ? 1.2 : 0.5], ['rapid', capped ? 1.2 : 0.5], ['freeze', capped ? 0.8 : 0]];
-        // every third barrel row before 1400 u offers a gun, so the weapon curve can't stall on bad luck
+        const rewards = [['weapon', early ? ENDLESS.gunWeight : ENDLESS.gunWeight * 0.5], ['troops', capped ? 0 : 3], ['drone', capped ? 2.4 : 1.3], ['turret', at > 300 ? (capped ? 2 : 1) : 0], ['coins', 1], ['shield', capped ? 1.2 : 0.5], ['rapid', capped ? 1.2 : 0.5], ['freeze', capped ? 0.8 : 0]];
+        // every third barrel row before gunUntil offers a gun, so the weapon curve can't stall on bad luck
         // (without racing to the top tier before the first arena either)
-        const a = this.barrelRows++ % 3 === 0 && at < 1400 ? 'weapon' : weighted(r, rewards);
+        const a = this.barrelRows++ % 3 === 0 && at < ENDLESS.gunUntil ? 'weapon' : weighted(r, rewards);
         let b = weighted(r, rewards);
         if (b === a) b = a === 'troops' || capped ? 'coins' : 'troops';
         const amt = (kd) => (kd === 'troops' ? j(K.troops) : kd === 'coins' ? 15 + Math.round(at / 40) : 1);
@@ -174,18 +194,18 @@ export class EndlessGen {
         return step;
       }
       case 'horde':
-        out.push(horde(at + 18, j(K.horde), this.mix(at, K)));
+        out.push(horde(at + 18, j(K.horde), this.mix(at, K), 'both', { hpMul: endlessTough(at) }));
         if (r.chance(0.35)) out.push(coins(at, r.pick(['L', 'R']), 6, r.chance(0.5) ? 'line' : 'zigzag'));
         return step + 4;
       case 'hordeSide':
         // a thicker horde guards one lane's barrel; the clear lane has coins
-        out.push(horde(at + 18, j(K.horde * 0.9), this.mix(at, K), side));
+        out.push(horde(at + 18, j(K.horde * 0.9), this.mix(at, K), side, { hpMul: endlessTough(at) }));
         out.push(barrel(at + 4, side, j(K.barrel * 0.4), r.chance(0.5) ? 'weapon' : 'troops', j(K.troops * 1.4)));
         out.push(coins(at, o, 8, 'line'));
         return step + 4;
       case 'gauntlet': {
         // a horde charges while a blade sweeps / a gap opens in one lane: dodging and fighting at once
-        out.push(horde(at + 18, j(K.horde * 0.8), this.mix(at, K)));
+        out.push(horde(at + 18, j(K.horde * 0.8), this.mix(at, K), 'both', { hpMul: endlessTough(at) }));
         if (r.chance(0.5)) out.push(blade(at + 6, side, { moving: { range: 1.2, speed: r.range(1.0, 1.4) } }));
         else out.push(gap(at + 2, side, 10));
         return step + 8;

@@ -40,7 +40,17 @@ export function createDebug(game) {
     startLevel(id) { game.startLevel(id); return debug.state(); },
     startEndless() { game.startEndless(); return debug.state(); },
     toTitle() { game.toTitle(); return debug.state(); },
-    setAutopilot(on = true) { game.autopilot.enabled = !!on; if (on) game.autopilot.reset(); return game.autopilot.enabled; },
+    /** on: true | 'pro' | 'casual' | 'novice' (bot skill profile) | false. seed varies the bot's own dice. */
+    setAutopilot(on = true, seed) {
+      const ap = game.autopilot;
+      ap.enabled = !!on;
+      if (on) {
+        ap.setProfile(typeof on === 'string' ? on : 'pro');
+        if (seed != null) { ap.seedBase = seed | 0; ap.runs = 0; }
+        ap.reset();
+      }
+      return ap.enabled ? ap.profileName : false;
+    },
     simulate(seconds = 10, dt = 1 / 60) {
       Loop.simulate((d) => game.step(d), seconds, dt, () => game.state !== 'playing' && game.state !== 'title');
       game.sync(0);
