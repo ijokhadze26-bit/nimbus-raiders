@@ -69,7 +69,10 @@ class HeroFx {
     this.bubble = new THREE.Mesh(L.bubble, L.bubbleMat);
     this.rim = new THREE.Mesh(L.rim, L.rimMat);
     this.bubble.renderOrder = 9; this.rim.renderOrder = 9;
-    for (const m of [this.rock, this.ring, this.ringIn, this.bubble, this.rim]) { m.visible = false; m.frustumCulled = false; scene.add(m); }
+    this.root = new THREE.Group();
+    for (const m of [this.rock, this.ring, this.ringIn, this.bubble, this.rim]) { m.visible = false; m.frustumCulled = false; this.root.add(m); }
+    scene.add(this.root);
+    this.compiledQ = null;
     this.trailAcc = 0; this.snowAcc = 0; this.bubbleT = 0;
     this.rally = { left: 0, n: 0 };
     this.c = { x: 0, z: 0, r: 0 };
@@ -92,13 +95,33 @@ class HeroFx {
     });
     ev.on('hero:guard', (p) => this.guardPop(p.pos));
     ev.on('turret:drop', (p) => { if (p.kind === 'fortress') this.fortressDrop(p.pos); });
-    ev.on('run:start', () => this.clear());
+    ev.on('run:start', () => { this.clear(); this.precompile(); });
   }
 
   clear() {
     this.rock.visible = false; this.ring.visible = false; this.ringIn.visible = false;
     this.bubble.visible = false; this.rim.visible = false;
     this.rally.left = 0; this.bubbleT = 0;
+  }
+
+  /**
+   * A quality switch recompiles lit materials lazily (engine.flushQuality); hidden effect meshes and pooled
+   * Fortress turrets would then compile on their first show, mid-fight. Re-warm them once per quality, at
+   * run start (under the screen transition).
+   */
+  precompile() {
+    const g = this.game, e = g.engine;
+    if (!e || e.quality === this.compiledQ) return;
+    this.compiledQ = e.quality;
+    try {
+      e.precompile(this.root);
+      const H = g.helpers;
+      if (H && H.builders.has('fortress')) {
+        const v = H.visual('fortress');
+        g.scene.add(v.root); e.precompile(v.root); g.scene.remove(v.root);
+        H.pool.fortress.push(v);
+      }
+    } catch (err) { console.warn('[heroFx] precompile', err); }
   }
 
   onUse(p) {
