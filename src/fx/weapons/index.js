@@ -22,7 +22,7 @@ const PER_FRAME = { splash: 8, puddle: 3, freeze: 6, shatter: 6, frost: 4, ignit
 export function installWeaponFx(fx) {
   const g = fx.game, ev = g.events;
   const st = {
-    lastFire: -10, weapon: '', mk: 1, arcBudget: 0, ringT: 0,
+    lastFire: -10, weapon: '', mk: 1, arcBudget: 0, ringT: 0, now: 0, low: false, arcs: 0,
     acc: { ember: 0, flame: 0, smoke: 0, hole: 0, bubble: 0, speck: 0, gear: 0, sugar: 0, motes: 0 },
     frame: {}, stats: { recipes: {}, particles: {} },
   };
@@ -36,29 +36,30 @@ export function installWeaponFx(fx) {
   };
   const low = () => fx.quality === 'low';
 
+  // one callback for the whole session (no per-frame closure): reads the frame's numbers from `st`
+  const onEntry = (e) => {
+    if (e.t < st.now - STALE) return;
+    const n0 = fx.P.n;
+    if (e.kind === 'arc') {
+      const segs = st.low ? 3 : 3 + ((Math.random() * 3) | 0);
+      if (st.arcBudget < segs && st.arcs > 0) return;
+      st.arcBudget -= segs; st.arcs++;
+      arc(fx, e, segs);
+      count('arc', n0);
+      return;
+    }
+    const f = st.frame, cap = PER_FRAME[e.kind] ?? 4;
+    if ((f[e.kind] = (f[e.kind] || 0) + 1) > (st.low ? Math.ceil(cap / 2) : cap)) return;
+    play(fx, e);
+    count(e.kind, n0);
+  };
+
   function drain(dt) {
-    const now = g.time;
-    const f = st.frame;
-    for (const k in f) f[k] = 0;
-    const segRate = low() ? 30 : 60;
+    st.now = g.time; st.low = low(); st.arcs = 0;
+    for (const k in st.frame) st.frame[k] = 0;
+    const segRate = st.low ? 30 : 60;
     st.arcBudget = Math.min(segRate * 0.1, st.arcBudget + segRate * dt);
-    let arcsThisFrame = 0;
-    g.weapons.fxq.drain((e) => {
-      if (e.t < now - STALE) return;
-      const n0 = fx.P.n;
-      if (e.kind === 'arc') {
-        const segs = low() ? 3 : 3 + ((Math.random() * 3) | 0);
-        if (st.arcBudget < segs && arcsThisFrame > 0) return;
-        st.arcBudget -= segs; arcsThisFrame++;
-        arc(fx, e, segs);
-        count('arc', n0);
-        return;
-      }
-      const cap = PER_FRAME[e.kind] ?? 4;
-      if ((f[e.kind] = (f[e.kind] || 0) + 1) > (low() ? Math.ceil(cap / 2) : cap)) return;
-      play(fx, e);
-      count(e.kind, n0);
-    });
+    g.weapons.fxq.drain(onEntry);
   }
 
   function emitters(dt) {
@@ -66,26 +67,17 @@ export function installWeaponFx(fx) {
     const firing = fx.now - st.lastFire < 0.2 && st.weapon === id;
     const L = w.def.look.mk[mk - 1];
     const B = g.bullets, active = B.active, beh = w.beh;
-    // sample a random live bullet of a style (bounded scan, no allocation)
-    const sample = (style) => {
-      const n = active.length;
-      if (!n) return null;
-      let i = (Math.random() * n) | 0;
-      for (let k = 0; k < 14; k++, i = (i + 1) % n) if (active[i].style === style) return active[i];
-      return null;
-    };
-    const tick = (key, rate) => { A[key] = Math.min(Math.max(1.5, rate * 0.25), A[key] + rate * dt); const n = A[key] | 0; A[key] -= n; return n; };
     // ---- Emberstorm: ember streaks off the flames, Mk V ember ring ----
     if (id === 'emberstorm' && firing) {
       const core = hexInt(L.core), c = hexInt(L.color);
-      for (let i = 0, n = tick('ember', lo ? 40 : 90); i < n; i++) {
-        const b = sample(beh.style);
+      for (let i = 0, n = tickAcc(A, 'ember', lo ? 40 : 90, dt); i < n; i++) {
+        const b = sampleStyle(active, beh.style);
         if (!b) break;
         P.spawn(STREAK, b.x + rnd(-0.2, 0.2), b.y + 0.1, b.z, rnd(-1.5, 1.5), rnd(1.5, 3.5), b.vz * 0.4, rnd(0.25, 0.45), 0.06, 0.02, i & 1 ? core : c, 1, 0.85, -2, 1, 0.05);
       }
       // licking fire puffs ride the flames (yellow core -> red tips)
-      for (let i = 0, n = tick('flame', lo ? 50 : 120); i < n; i++) {
-        const b = sample(beh.style);
+      for (let i = 0, n = tickAcc(A, 'flame', lo ? 50 : 120, dt); i < n; i++) {
+        const b = sampleStyle(active, beh.style);
         if (!b || b.dist > (b.data || 15)) continue;
         const s = 0.35 + 0.5 * Math.min(1, b.dist / (b.data || 15));
         const k = P.spawn(PUFF, b.x + rnd(-0.15, 0.15), b.y + 0.05, b.z, b.vx * 0.6, rnd(0.6, 1.4), b.vz * 0.6, rnd(0.26, 0.38), s * 0.9, s * 1.9, i % 3 ? core : 0xffffff, 0.95, 0.75, 0, 2.5, 0.03, i & 1 ? 0xff3b1f : c);
@@ -105,7 +97,7 @@ export function installWeaponFx(fx) {
     // ---- burning enemies: smoke puffs ----
     const list = g.horde.list;
     if (list.length) {
-      for (let i = 0, n = tick('smoke', lo ? 10 : 20); i < n; i++) {
+      for (let i = 0, n = tickAcc(A, 'smoke', lo ? 10 : 20, dt); i < n; i++) {
         let j = (Math.random() * list.length) | 0;
         for (let k = 0; k < 16; k++, j = (j + 1) % list.length) {
           const e = list[j];
@@ -121,7 +113,7 @@ export function installWeaponFx(fx) {
     // ---- black holes: inward streaks, Mk V accretion stars ----
     const Z = g.zones, holes = Z.holes;
     if (holes.length) {
-      const n = tick('hole', lo ? 16 : 40);
+      const n = tickAcc(A, 'hole', lo ? 16 : 40, dt);
       for (let i = 0; i < n; i++) {
         const h = holes[i % holes.length], r = Z.holeR(h), a = Math.random() * TAU;
         const x = h.x + Math.cos(a) * r, z = h.z + Math.sin(a) * r;
@@ -135,12 +127,12 @@ export function installWeaponFx(fx) {
     // ---- caramel puddles: bubble pops + amber specks on stuck enemies ----
     const pud = Z.puddles;
     if (pud.length) {
-      for (let i = 0, n = tick('bubble', (lo ? 1.5 : 3) * pud.length); i < n; i++) {
+      for (let i = 0, n = tickAcc(A, 'bubble', (lo ? 1.5 : 3) * pud.length, dt); i < n; i++) {
         const p = pud[(Math.random() * pud.length) | 0], a = Math.random() * TAU, rr = Math.sqrt(Math.random()) * p.r * 0.8;
         P.spawn(RING, p.x + Math.cos(a) * rr, 0.12, p.z + Math.sin(a) * rr, 0, 0.3, 0, 0.3, 0.05, 0.35, 0xf6c46a, 0.9, 0.2);
       }
       if (list.length) {
-        for (let i = 0, n = tick('speck', lo ? 5 : 10); i < n; i++) {
+        for (let i = 0, n = tickAcc(A, 'speck', lo ? 5 : 10, dt); i < n; i++) {
           let j = (Math.random() * list.length) | 0;
           for (let k = 0; k < 12; k++, j = (j + 1) % list.length) {
             const e = list[j];
@@ -154,21 +146,21 @@ export function installWeaponFx(fx) {
     }
     // ---- trails ----
     if (id === 'gearworks' && mk >= 5) {
-      for (let i = 0, n = tick('gear', lo ? 15 : 30); i < n; i++) {
-        const b = sample(beh.style);
+      for (let i = 0, n = tickAcc(A, 'gear', lo ? 15 : 30, dt); i < n; i++) {
+        const b = sampleStyle(active, beh.style);
         if (!b) break;
         P.spawn(STREAK, b.x, b.y, b.z, -b.vx * 0.1 + rnd(-1, 1), rnd(0.5, 2), -b.vz * 0.1, 0.22, 0.05, 0.02, i & 1 ? 0xffd34d : 0xff8a3c, 1, 0.9, 8, 0, 0.04);
       }
     } else if (id === 'sugarrush' && mk >= 5) {
       const cs = w.def.look.candy;
-      for (let i = 0, n = tick('sugar', lo ? 15 : 30); i < n; i++) {
-        const b = sample(beh.style);
+      for (let i = 0, n = tickAcc(A, 'sugar', lo ? 15 : 30, dt); i < n; i++) {
+        const b = sampleStyle(active, beh.style);
         if (!b) break;
         P.spawn(STAR, b.x, b.y, b.z, rnd(-0.4, 0.4), rnd(-0.3, 0.4), rnd(-0.4, 0.4), 0.35, 0.18, 0.04, hexInt(cs[i & 3]), 1, 0.7);
       }
     } else if (id === 'voidsiphon') {
-      for (let i = 0, n = tick('motes', lo ? 10 : 20); i < n; i++) {
-        const b = sample(beh.style);
+      for (let i = 0, n = tickAcc(A, 'motes', lo ? 10 : 20, dt); i < n; i++) {
+        const b = sampleStyle(active, beh.style);
         if (!b) break;
         P.spawn(SOFT, b.x + rnd(-0.15, 0.15), b.y + rnd(-0.1, 0.15), b.z + 0.25, 0, rnd(0, 0.3), 0, 0.35, 0.18, 0.04, i & 1 ? 0xff4bd8 : 0x8a4dff, 0.8, 0.8);
       }
@@ -182,6 +174,23 @@ export function installWeaponFx(fx) {
       if (g.run && g.weapons) emitters(dt);
     },
   };
+}
+
+/** A random live bullet of a style (bounded scan from a random start, no allocation). */
+function sampleStyle(active, style) {
+  const n = active.length;
+  if (!n) return null;
+  let i = (Math.random() * n) | 0;
+  for (let k = 0; k < 14; k++, i = (i + 1) % n) if (active[i].style === style) return active[i];
+  return null;
+}
+
+/** Emitter accumulator: whole particles due this frame at `rate`/s (capped so a hitch never floods). */
+function tickAcc(A, key, rate, dt) {
+  A[key] = Math.min(Math.max(1.5, rate * 0.25), A[key] + rate * dt);
+  const n = A[key] | 0;
+  A[key] -= n;
+  return n;
 }
 
 /** crate:take: a burst in the crate weapon's colours (the new weapon is the identity flash). */
