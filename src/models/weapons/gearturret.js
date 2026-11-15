@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { part, merge, G } from '../util.js';
 import { toonMaterial } from '../materials.js';
+import { registerWarm } from '../../game/warmup.js';
 
 let geo = null, mat = null;
 export function buildGearTurret() {
@@ -20,3 +21,5 @@ export function buildGearTurret() {
   root.add(mesh);
   return { root, head: mesh, dispose() {} };
 }
+
+registerWarm(() => buildGearTurret().root);

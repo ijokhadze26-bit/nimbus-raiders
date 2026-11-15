@@ -81,6 +81,18 @@ export class WeaponBehaviour {
     }
   }
 
+  /**
+   * Real shots one bundled bullet just spent on the enemy it hit (SPEC2 §1.3): min(shots, ceil(hpBefore /
+   * (unit * m))) = horde.last.used / unit. Call inside onHit for an enemy hit.
+   */
+  spentShots(b) { const u = b.unit || b.dmg || 1; return Math.max(1, Math.round((this.game.horde.last.used || u) / u)); }
+
+  /** Chance proc for n real shots: 1 - (1 - p)^n, capped at 0.35, rolled on game.procRng (never game.rng). */
+  proc(p, n = 1) {
+    const pe = Math.min(0.35, 1 - Math.pow(1 - p, Math.max(1, n)));
+    return this.game.procRng.next() < pe;
+  }
+
   onHit(b, kind, target, res) { return res; }
   onLand() {}
   onExpire() {}

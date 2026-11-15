@@ -116,8 +116,9 @@ export class BaseBoss {
       if (this.attack) {
         if (this.attack.update(dt)) { this.attack = null; this.cooldown = this.nextCooldown(); }
       } else if (game.squad.count > 0 && game.run && game.run.active) {
-        if (!(this.frozenT > 0)) this.cooldown -= dt; // Whiteout: a running attack finishes, no new one starts
-        if (this.cooldown <= 0) {
+        const frozen = this.frozenT > 0; // Whiteout: a running attack finishes, no new one starts
+        if (!frozen) this.cooldown -= dt;
+        if (this.cooldown <= 0 && !frozen) {
           const spec = this.pickAttack();
           this.attack = this.startAttack(spec.id, spec);
           if (!this.attack) this.cooldown = this.nextCooldown();

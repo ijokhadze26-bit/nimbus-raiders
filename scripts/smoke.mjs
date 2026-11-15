@@ -6,6 +6,7 @@
 //        [--profile] (CPU profile + sampled allocations between in-page console.debug('[perf:begin NAME]') and
 //        '[perf:end NAME]' markers; top self-time / allocation sites per NAME land in the output as `profiles`)
 //        [--preview] (serve the production build from dist/ via `vite preview` instead of the dev server)
+//        [--no-hmr] (dev server without hot reload: editing src/ never reloads the page under test)
 // A scenario file is plain JS evaluated in the page *after* load: it may be async and return any JSON value.
 import { createServer, preview } from 'vite';
 import { chromium } from 'playwright-core';
@@ -28,7 +29,7 @@ fs.mkdirSync(outDir, { recursive: true });
 
 const server = flag('preview')
   ? await preview({ preview: { port: 0, host: '127.0.0.1' }, logLevel: 'error' })
-  : await createServer({ server: { port: 0, host: '127.0.0.1' }, logLevel: 'error' });
+  : await createServer({ server: { port: 0, host: '127.0.0.1', ...(flag('no-hmr') ? { hmr: false, watch: null } : {}) }, logLevel: 'error' });
 if (!flag('preview')) await server.listen();
 const port = server.httpServer.address().port;
 const url = `http://127.0.0.1:${port}/?${query}`;

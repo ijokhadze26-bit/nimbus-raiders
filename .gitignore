@@ -30,3 +30,6 @@ npm-debug.log*
 .idea/
 .DS_Store
 Thumbs.db
+
+# update-2 test runner scratch
+tests/u2/.tmp/

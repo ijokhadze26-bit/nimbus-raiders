@@ -17,7 +17,7 @@ export function createDebug(game) {
         phase: run ? run.phase : null,
         levelId: run ? run.levelId : null,
         mode: run ? run.mode : null,
-        dist: run ? Math.round(run.dist * 10) / 10 : 0,
+        dist: run ? Math.round(run.dist * 10) / 10 : Math.round(-game.squad.leader.z * 10) / 10, // menus: the attract run
         length: run ? run.length : 0,
         squad: game.squad.count,
         tier: game.weapons.mk,

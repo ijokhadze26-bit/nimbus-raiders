@@ -101,7 +101,7 @@ export class Game {
     this.zones = new Zones();
     this.heroes = new HeroSystem();
     this.crates = new Crates();
-    this.systems = [this.world, this.bullets, this.squad, this.status, this.zones, this.heroes, this.weapons, this.gates, this.horde, this.barrels, this.helpers, this.telegraph, this.bosses, this.obstacles, this.pickups, this.powers, this.crates, this.autopilot];
+    this.systems = [this.world, this.bullets, this.squad, this.status, this.zones, this.heroes, this.helpers, this.weapons, this.gates, this.horde, this.barrels, this.telegraph, this.bosses, this.obstacles, this.pickups, this.powers, this.crates, this.autopilot];
     for (const s of this.systems) s.init(this);
     this.endless.init(this);
     this.zoneViews = createZoneViews(this);
