@@ -83,7 +83,7 @@ function glacier(L, mk) {
 function sugar(L, mk, def) {
   const R = 0.2 + (mk - 1) * 0.025;
   const candy = def.look.candy.map(C), white = C('#ffffff');
-  const ball = paint(part(G.sphere(R, 8, 6), white, { a: 1 }), (x, y, z, o) => {
+  const ball = paint(part(G.sphere(R, 8, 5), white, { a: 1 }), (x, y, z, o) => {
     const t = Math.atan2(x, z) / (Math.PI * 2) + y / R * 0.22 + 1;
     const band = (t * 4) % 4, i = Math.floor(band), f = band - i;
     o.copy(f > 0.82 ? white : candy[i]);
@@ -113,8 +113,8 @@ function gear(L, mk, small = false) {
   const k = small ? 0.55 : 1, R = (0.24 + (mk - 1) * 0.012) * k, r = R * 0.74;
   const teeth = small ? 6 : 8;
   const parts = [
-    gearGeometry(R, r, teeth, C(L.color), { a: 1, bright: 1.05 }),
-    part(cyl(R * 0.36, R * 0.36, 0.08, 6), C(L.core), { r: ALONG, a: 1 }),
+    gearGeometry(R, r, teeth, C(L.color), { a: 1, bright: 1.05, back: !(mk >= 5 && !small) }),
+    part(cyl(R * 0.36, R * 0.36, 0.08, 5, 1, true), C(L.core), { r: ALONG, a: 1 }),
   ];
   if (mk >= 3 && !small) { // red-hot teeth: a glowing rim ring behind the teeth
     parts.push(gearGeometry(R * 1.04, R * 0.9, teeth, C('#ff6a3a'), { a: 0.85, bright: 1.25, z: -0.012, back: false }));

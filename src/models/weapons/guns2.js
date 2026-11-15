@@ -73,50 +73,54 @@ export function gunParts(id, mk, detail) {
       break;
     case 'sugarrush':
       L.push([1, true, () => oct(0.06, '#8affc8', { p: [0, -0.01, 0.02], s: [1, 0.9, 1.4] })],             // mount
-        [1, true, () => tube(0.06, 0.05, 0.17, detail ? 6 : 5, W, { p: [0, 0.03, -0.12], r: ALONG })],     // fat mortar tube
-        [1, true, () => sph(0.045, 4 * s, 3 * s, mk >= 3 ? '#fff08a' : '#ff8ad8', { p: [0, 0.03, -0.215], bright: mk >= 3 ? 1.6 : 1 })], // ball
+        [1, true, () => tube(0.06, 0.05, 0.17, detail ? 6 : 4, W, { p: [0, 0.03, -0.12], r: ALONG })],     // fat mortar tube
+        [1, true, () => (detail ? sph(0.045, 4 * s, 3 * s, mk >= 3 ? '#fff08a' : '#ff8ad8', { p: [0, 0.03, -0.215], bright: mk >= 3 ? 1.6 : 1 })
+          : oct(0.05, mk >= 3 ? '#fff08a' : '#ff8ad8', { p: [0, 0.03, -0.215], bright: mk >= 3 ? 1.6 : 1 }))],                // candy ball
         [2, detail > 0 || mk <= 3, () => oct(0.066, '#8affc8', { p: [0, 0.03, -0.12], s: [1, 1, 0.22] })], // swirl stripe band
-        [4, true, () => tube(0.032, 0.028, 0.12, 4, '#ff8ad8', { p: [0.055, -0.01, -0.08], r: ALONG })],  // second tube
-        [5, true, () => ring(0.07, 0.022, detail ? 6 : 4, GOLD, { p: [0, 0.03, -0.2], r: ALONG, bright: 1.2 })]);
+        [4, true, () => tube(0.032, 0.028, 0.12, detail ? 4 : 3, '#ff8ad8', { p: [0.055, -0.01, -0.08], r: ALONG })], // second tube
+        [5, true, () => ring(0.07, 0.022, detail ? 4 : 3, GOLD, { p: [0, 0.03, -0.2], r: ALONG, bright: 1.2 })]);
       if (hi) L.push([1, false, () => oct(0.064, '#b48aff', { p: [0, 0.03, -0.06], s: [1, 1, 0.22] })]);
       break;
     case 'spectra':
       L.push([1, true, () => prism(0.06, 0.22, RAINBOW, { p: [0, 0.01, -0.1], r: ALONG })],                // glass prism
-        [1, true, () => ring(0.052, 0.025, detail ? 6 : 4, W, { p: [0, 0.01, -0.225], r: ALONG, bright: 1.15 })], // lens ring
+        [1, true, () => ring(0.052, 0.025, detail ? 6 : 3, W, { p: [0, 0.01, -0.225], r: ALONG, bright: 1.15 })], // lens ring
         [2, detail > 0 || mk === 2, () => oct(0.06, '#e8f0ff', { p: [0, 0.07, -0.06], s: [0.18, 1, 1.4] })], // lens fin
         [3, detail > 0 || mk === 3, () => oct(0.03, '#ffffff', { p: [0, 0.01, -0.225], bright: 1.9 })],
         [4, true, () => prism(0.03, 0.12, RAINBOW, { p: [0, -0.05, -0.08], r: ALONG })],
-        [5, true, () => ring(0.07, 0.02, 4, GOLD, { p: [0, 0.01, -0.17], r: ALONG, bright: 1.25 })]);
+        [5, true, () => ring(0.07, 0.02, detail ? 4 : 3, GOLD, { p: [0, 0.01, -0.17], r: ALONG, bright: 1.25 })]);
       if (hi) L.push([1, false, () => box(0.03, 0.06, 0.06, '#c8d0dc', { p: [0, -0.05, 0.02] })]);
       break;
     case 'gearworks':
       L.push([1, true, () => box(0.09, 0.085, 0.24, '#d9a441', { p: [0, 0, -0.07] })],                    // brass launcher
-        [1, true, () => gearDisc(0.07, 0.05, detail ? 5 : 4, '#c8d0dc', { p: [0, 0.06, 0.06] })],          // exposed gear
+        [1, true, () => gearDisc(0.07, 0.05, detail ? 5 : 3, '#c8d0dc', { p: [0, 0.06, 0.06] })],          // exposed gear
         [2, detail > 0 || mk === 2, () => oct(0.06, '#c8d0dc', { p: [0, 0.06, -0.08], s: [0.15, 0.6, 1.6] })], // steel fin
         [3, detail > 0 || mk === 3, () => oct(0.03, '#ff6a3a', { p: [0, 0, -0.195], bright: 1.8 })],        // red-hot core
         [4, true, () => coneO(0.03, 0.12, 4, '#c8d0dc', { p: [0.06, -0.02, -0.12], r: [-Math.PI / 2, 0, 0] })],
-        [5, true, () => ring(0.07, 0.022, 4, GOLD, { p: [0, 0, -0.17], r: ALONG, bright: 1.2 })]);
+        [5, true, () => ring(0.07, 0.022, detail ? 4 : 3, GOLD, { p: [0, 0, -0.17], r: ALONG, bright: 1.2 })]);
       if (hi) L.push([1, false, () => ring(0.03, 0.04, 6, '#5b6474', { p: [0, 0.06, 0.06], r: ALONG })]);
       break;
-    case 'thunderclap':
-      L.push([1, true, () => oct(0.055, '#c87a3a', { p: [0, -0.005, 0.02], s: [0.9, 1, 1.6] })],           // handle
-        [1, true, () => oct(0.03, W, { p: [-0.034, 0.012, -0.18], s: [0.6, 0.8, 6], r: [0, -0.12, 0], bright: 1.15 })], // prongs
-        [1, true, () => oct(0.03, W, { p: [0.034, 0.012, -0.18], s: [0.6, 0.8, 6], r: [0, 0.12, 0], bright: 1.15 })],
+    case 'thunderclap': {
+      const P = detail ? oct : tet; // Low: tetrahedron prongs keep the fork under 36 triangles
+      L.push([1, true, () => P(0.055, '#c87a3a', { p: [0, -0.005, 0.02], s: [0.9, 1, 1.6] })],             // handle
+        [1, true, () => P(0.03, W, { p: [-0.034, 0.012, -0.18], s: [0.6, 0.8, 6], r: [0, -0.12, 0], bright: 1.15 })], // prongs
+        [1, true, () => P(0.03, W, { p: [0.034, 0.012, -0.18], s: [0.6, 0.8, 6], r: [0, 0.12, 0], bright: 1.15 })],
         [1, true, () => ring(0.05, 0.03, 3, '#d9893e', { p: [0, 0.01, -0.06], r: ALONG })],                // copper coil
         [2, detail > 0 || mk === 2, () => ring(0.055, 0.025, 3, '#d9893e', { p: [0, 0.01, -0.11], r: ALONG })],
         [3, detail > 0 || mk === 3, () => oct(0.026, '#fff7b0', { p: [0, 0.012, -0.2], bright: 1.9 })],
-        [4, true, () => oct(0.024, W, { p: [0, 0.045, -0.17], s: [0.6, 0.8, 5], bright: 1.15 })],          // third prong
-        [5, true, () => ring(0.075, 0.02, 4, GOLD, { p: [0, 0.01, -0.03], r: ALONG, bright: 1.2 })]);
+        [4, true, () => P(0.024, W, { p: [0, 0.045, -0.17], s: [0.6, 0.8, 5], bright: 1.15 })],            // third prong
+        [5, true, () => ring(0.075, 0.02, detail ? 4 : 3, GOLD, { p: [0, 0.01, -0.03], r: ALONG, bright: 1.2 })]);
       if (hi) L.push([1, false, () => ring(0.045, 0.02, 6, '#6f6bff', { p: [0, 0.01, -0.15], r: ALONG, bright: 1.4 })]);
       break;
+    }
     case 'voidsiphon':
       L.push([1, true, () => oct(0.05, '#3a2a55', { p: [0, -0.02, 0.02], s: [1, 0.9, 1.5] })],            // base
-        [1, true, () => sph(0.05, 4 * s, 3 * s, '#ff4bd8', { p: [0, 0.02, -0.15], bright: mk >= 3 ? 1.8 : 1.2 })], // orb
+        [1, true, () => (detail ? sph(0.05, 4 * s, 3 * s, '#ff4bd8', { p: [0, 0.02, -0.15], bright: mk >= 3 ? 1.8 : 1.2 })
+          : oct(0.055, '#ff4bd8', { p: [0, 0.02, -0.15], bright: mk >= 3 ? 1.8 : 1.2 }))],                   // orb
         ...[0, 1, 2].map((i) => [1, true, () => tet(0.04, W, { p: [Math.sin(i * 2.094) * 0.05, 0.02 + Math.cos(i * 2.094) * 0.05, -0.12], s: [0.5, 0.5, 2.2] })]),
         [2, detail > 0 || mk <= 3, () => oct(0.05, '#8a4dff', { p: [0, 0.02, -0.05], s: [1.6, 0.14, 0.8] })], // violet fins
-        [4, true, () => oct(0.025, '#ff7ae6', { p: [0, 0.075, -0.06], bright: 1.6 })],                      // second orb
-        [5, true, () => ring(0.075, 0.02, 4, GOLD, { p: [0, 0.02, -0.15], r: ALONG, bright: 1.25 })]);
-      if (hi) L.push([1, false, () => sph(0.075, 6, 4, '#b44bff', { p: [0, 0.02, -0.15], bright: 1.1 })]);
+        [4, detail > 0 || mk === 4, () => oct(0.025, '#ff7ae6', { p: [0, 0.075, -0.06], bright: 1.6 })],    // second orb
+        [5, true, () => ring(0.075, 0.02, detail ? 4 : 3, GOLD, { p: [0, 0.02, -0.15], r: ALONG, bright: 1.25 })]);
+      if (hi) L.push([1, false, () => sph(0.075, 5, 3, '#b44bff', { p: [0, 0.02, -0.15], bright: 1.1 })]);
       break;
     default: // 'ref' and unknown ids: the shipped pistol shape
       L.push([1, true, () => box(0.07, 0.08, 0.2, W, { p: [0, 0, -0.05] })],

@@ -1,6 +1,6 @@
 // Weapon crate (SPEC2 §2.10): a toon-framed glass crate in the weapon's colour with the weapon's Mk I gun
 // spinning inside, a weapon-coloured ground ring and a floating label with the short name. Three draw calls:
-//   frame  toon (navy bars; material tinted toward the weapon colour)
+//   frame  toon (bars in the weapon colour, a dark bottom rim; the glow pulses)
 //   gun    toon, the weapon's Mk I gun x3 (cached per weapon), spinning + bobbing
 //   shell  one MeshBasic with the label canvas as its map: glass box + ground ring sample a white texel
 //          block in the canvas corner, the label quad samples the text (material colour = weapon colour)
@@ -14,7 +14,7 @@ import { weaponDef } from '../data/weapons.js';
 import { buildGunGeometry } from './weapons/guns.js';
 import { registerWarm } from '../game/warmup.js';
 
-const S = 1.3, NAVY = '#1b3a8a';
+const S = 1.3, NAVY = '#2a3550';
 const WU = 0.985, WV = 0.04; // white texel block (canvas bottom-right corner) in uv space
 let frameGeo = null, shellGeo = null;
 const gunGeos = new Map();
@@ -25,16 +25,18 @@ function setUv(g, u, v) { const a = g.attributes.uv; for (let i = 0; i < a.count
 function geos() {
   if (frameGeo) return;
   const h = S / 2, t = 0.1, bars = [];
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) bars.push(part(G.box(t, S, t), NAVY, { p: [sx * h, 0.95, sz * h] }));
+  // white bars take the weapon colour from the material; the bottom rim stays dark (a heavy base)
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) bars.push(part(G.box(t, S, t), '#ffffff', { p: [sx * h, 0.95, sz * h] }));
   for (const y of [0.95 - h, 0.95 + h]) {
+    const c = y < 0.95 ? NAVY : '#ffffff';
     for (const s of [-1, 1]) {
-      bars.push(part(G.box(S + t, t, t), NAVY, { p: [0, y, s * h] }));
-      bars.push(part(G.box(t, t, S + t), NAVY, { p: [s * h, y, 0] }));
+      bars.push(part(G.box(S + t, t * 1.2, t * 1.2), c, { p: [0, y, s * h] }));
+      bars.push(part(G.box(t * 1.2, t * 1.2, S + t), c, { p: [s * h, y, 0] }));
     }
   }
   frameGeo = merge(bars);
   const glass = setUv(new THREE.BoxGeometry(S - 0.04, S - 0.04, S - 0.04), WU, WV);
-  part(glass, '#ffffff', { p: [0, 0.95, 0], a: 0.26, keepUv: true });
+  part(glass, '#ffffff', { p: [0, 0.95, 0], a: 0.3, keepUv: true });
   const ring = setUv(new THREE.RingGeometry(1.05, 1.42, 18), WU, WV);
   part(ring, '#ffffff', { p: [0, 0.04, 0], r: [-Math.PI / 2, 0, 0], a: 0.75, keepUv: true });
   const label = new THREE.PlaneGeometry(1.9, 0.62);
@@ -64,15 +66,15 @@ function drawName(label, id) {
 export function buildCrate(weaponId) {
   geos();
   const root = new THREE.Group();
-  const frameMat = toonMaterial({ emissive: '#ffffff', emissiveIntensity: 0.12 });
-  const gunMat = toonMaterial({ emissive: '#ffffff', emissiveIntensity: 0.35 });
+  const frameMat = toonMaterial({ emissive: '#ffffff', emissiveIntensity: 0.18 });
+  const gunMat = toonMaterial({ emissive: '#ffffff', emissiveIntensity: 0.55 });
   const label = createLabel(256, 128);
   const shellMat = new THREE.MeshBasicMaterial({ map: label.texture, vertexColors: true, transparent: true, depthWrite: false, toneMapped: false, side: THREE.DoubleSide });
   const frame = new THREE.Mesh(frameGeo, frameMat);
   frame.castShadow = true;
   const gun = new THREE.Mesh(gunGeo(weaponId), gunMat);
   gun.position.y = 0.95;
-  gun.scale.setScalar(3);
+  gun.scale.setScalar(4.2);
   const shell = new THREE.Mesh(shellGeo, shellMat);
   shell.renderOrder = 5;
   root.add(frame, gun, shell);
@@ -83,7 +85,7 @@ export function buildCrate(weaponId) {
       crate.weapon = id;
       const def = weaponDef(id);
       const c = def.look.mk[0].color, tint = (def.gunTint && def.gunTint[0]) || c;
-      frameMat.color.set('#ffffff').lerp(_c.set(c), 0.45); frameMat.emissive.set(c);
+      frameMat.color.set(c).lerp(_c.set('#ffffff'), 0.15); frameMat.emissive.set(c);
       gunMat.color.set(tint); gunMat.emissive.set(tint);
       shellMat.color.set(c);
       gun.geometry = gunGeo(id);
@@ -93,7 +95,7 @@ export function buildCrate(weaponId) {
       const k = c && c.state === 'taken' ? 4 : 1;
       gun.rotation.y = t * 1.8 * k;
       gun.position.y = 0.95 + Math.sin(t * 2.6) * 0.1;
-      frameMat.emissiveIntensity = 0.12 + 0.1 * (0.5 + 0.5 * Math.sin(t * 4));
+      frameMat.emissiveIntensity = 0.18 + 0.14 * (0.5 + 0.5 * Math.sin(t * 4));
     },
   };
   crate.setWeapon(weaponId);
