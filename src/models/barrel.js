@@ -3,9 +3,10 @@ import * as THREE from 'three';
 import { part, merge, G } from './util.js';
 import { toonMaterial, glowTexture } from './materials.js';
 import { createLabel, labelMesh } from './labels.js';
-import { buildGunGeometry, buildRaiderGeometry } from './raider.js';
+import { buildRaiderGeometry } from './raider.js';
+import { buildGunGeometry } from './weapons/guns.js';
 import { buildDroneGeometry, buildRotorGeometry, buildTurretGeometry, buildCannonGeometry } from './helpers.js';
-import { weaponForTier } from '../data/weapons.js';
+import { weaponDef } from '../data/weapons.js';
 import { buildPowerToken, POWER_STYLE } from './pickups.js';
 
 export const BARREL_R = 0.82, BARREL_H = 1.8;
@@ -56,18 +57,25 @@ export function buildBarrelVisual() {
 const shared = {};
 function sharedMat(key, make) { return shared[key] || (shared[key] = make()); }
 
-/** Builds a floating reward display. kind: weapon|troops|drone|turret|coins|<power>. */
-export function buildRewardDisplay(kind, amount, tier) {
+/**
+ * Builds a floating reward display. kind: weapon|troops|drone|turret|coins|<power>. For 'weapon', gun =
+ * { weapon, mk }: the current weapon's gun at the Mk the barrel grants (a number = Mk of the default weapon).
+ */
+export function buildRewardDisplay(kind, amount, gun = {}) {
   const root = new THREE.Group();
   let glowColor = '#ffffff';
   if (kind === 'weapon') {
-    const w = weaponForTier(tier);
+    const wid = (gun && gun.weapon) || 'thunderclap', mk = typeof gun === 'number' ? gun : (gun && gun.mk) || 2;
+    const color = weaponDef(wid).look.mk[Math.max(1, Math.min(5, mk)) - 1].color;
+    const w = { color };
     const m = new THREE.MeshToonMaterial({ gradientMap: toonMaterial().gradientMap, vertexColors: true, color: w.color, emissive: w.color, emissiveIntensity: 0.35 });
-    const gun = new THREE.Mesh(buildGunGeometry(tier).center(), m);
-    gun.scale.setScalar(3.2);
-    gun.rotation.y = Math.PI / 2;
-    root.add(gun);
-    // 'GUN UP' badge (drawn by barrels.js): a rifle model alone read as a thin stick next to the drone reward
+    const geo = buildGunGeometry(wid, mk).clone();
+    geo.center();
+    const gun3 = new THREE.Mesh(geo, m);
+    gun3.scale.setScalar(3.2);
+    gun3.rotation.y = Math.PI / 2;
+    root.add(gun3);
+    // 'MK UP' badge (drawn by barrels.js): a gun model alone read as a thin stick next to the drone reward
     const lab = createLabel(256, 128);
     const lm = labelMesh(lab, 1.25, 0.62);
     lm.position.set(0, 0.78, 0.05);

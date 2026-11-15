@@ -1,13 +1,18 @@
 // Horde: all Murklings. Spawns blobs from level 'horde' events, idles until the squad is near, charges +Z,
 // steers toward the squad, resolves bullet hits (z-grid), contact kills (tank multi-kill, bomber blasts),
 // chain explosions. Rendering lives in hordeview.js (one InstancedMesh per type).
+// Update 2: status (burn / slow / freeze / pull) ticks first (game.status.tickHorde); every hp change goes
+// through hordeops.applyDamage (matchups, shields, carry); the spatial queries live in hordeops.js too.
 import { HORDE, LANES, MEMBER_CLAMP } from '../config.js';
 import { ENEMIES, ENEMY_TYPES, ENEMY_INDEX } from '../data/enemies.js';
 import { ZGrid } from '../core/grid.js';
 import { HordeView } from './hordeview.js';
 import { hasHit } from './bullets.js';
+import { HIT } from '../config.js';
+import * as ops from './hordeops.js';
 
 export const ALIVE = 0, DYING = 1;
+const KILL_CAT = { bullet: 'weapon', weapon: 'weapon', burn: 'weapon', shatter: 'weapon', ability: 'ability', helper: 'helper' };
 const CONTACT = 0.55;       // + type radius (SPEC §5)
 const AGGRO = 52;           // idle blobs start charging when the squad is this close
 const MAX_ENEMIES = 900;
@@ -29,7 +34,9 @@ export class Horde {
     this.time = 0;
     this.stamp = 0;
     this.kind = 'enemy';
+    this.bit = HIT.ENEMY;
     this.priority = 5;
+    this.last = { killed: false, used: 0, blocked: false };
     this.leaderRef = { leader: true, x: 0, z: 0, hitStamp: -1 };
     this.diePos = { x: 0, y: 0.5, z: 0 };
     this.hitPos = { x: 0, y: 0.5, z: 0 };
@@ -54,7 +61,8 @@ export class Horde {
   skipAll() { this.cursor = this.events.length; for (const e of this.list) if (e.state === ALIVE) { e.state = DYING; e.t = DIE_TIME; this.alive--; } }
 
   alloc() {
-    return this.free.length ? this.free.pop() : { type: 0, def: null, x: 0, z: 0, vx: 0, hp: 1, shield: 0, state: 0, t: 0, ph: 0, ox: 0, charging: false, flash: 0, sflash: 0, cd: 0, ckills: 0, slow: 1 };
+    return this.free.length ? this.free.pop() : { type: 0, def: null, x: 0, z: 0, vx: 0, hp: 1, maxHp: 1, shield: 0, state: 0, t: 0, ph: 0, ox: 0, charging: false, flash: 0, sflash: 0, cd: 0, ckills: 0, slow: 1,
+      burnPool: 0, burnT: 0, slowPct: 0, slowT: 0, freezeT: 0, shatter: 0, stickyT: 0, stickyPct: 0, px: 0, pz: 0, pud: 0, spd: 1, ice: 0, burn: 0 };
   }
 
   // ---------------- spawning ----------------
@@ -122,9 +130,12 @@ export class Horde {
     const e = this.alloc();
     e.type = type; e.def = d;
     e.x = Math.max(-MEMBER_CLAMP, Math.min(MEMBER_CLAMP, x)); e.z = z; e.vx = 0; e.ox = ox;
-    e.hp = d.hp * hpMul; e.shield = d.shieldHits || 0;
+    e.hp = d.hp * hpMul; e.maxHp = e.hp; e.shield = d.shieldHits || 0;
     e.state = ALIVE; e.t = 0; e.ph = this.game.rng.next() * Math.PI * 2;
     e.charging = false; e.flash = 0; e.sflash = 0; e.cd = 0; e.ckills = 0; e.slow = 1;
+    e.burnPool = 0; e.burnT = 0; e.slowPct = 0; e.slowT = 0; e.freezeT = 0; e.shatter = 0; e.stickyT = 0; e.stickyPct = 0;
+    e.px = 0; e.pz = 0; e.pud = 0; e.spd = 1; e.ice = 0; e.burn = 0;
+    if (this.game.status) this.game.status.onPlace(e);
     this.list.push(e);
     this.alive++;
   }
@@ -132,6 +143,7 @@ export class Horde {
   // ---------------- simulation ----------------
   update(dt) {
     const game = this.game;
+    if (game.status) game.status.tickHorde(dt);
     const run = game.run;
     this.time += dt;
     this.stamp++;
@@ -156,7 +168,7 @@ export class Horde {
       if (frozen) continue;
       const ahead = L.z - e.z; // > 0 while the enemy is in front of the leader
       if (!e.charging && ahead < AGGRO) e.charging = true;
-      if (e.charging) {
+      if (e.charging && e.freezeT <= 0) { // frozen: no charge, sway or step
         const d = e.def;
         let tvx = 0;
         if (ahead < HORDE.steerRange && ahead > -2) {
@@ -165,7 +177,7 @@ export class Horde {
         }
         e.vx += (tvx - e.vx) * Math.min(1, dt * 4);
         e.x += e.vx * dt;
-        e.z += base * d.speed * e.slow * dt;
+        e.z += base * d.speed * e.slow * e.spd * dt;
         e.slow = Math.min(1, e.slow + dt * 2);
         if (e.x > MEMBER_CLAMP) e.x = MEMBER_CLAMP; else if (e.x < -MEMBER_CLAMP) e.x = -MEMBER_CLAMP;
       }
@@ -197,7 +209,7 @@ export class Horde {
     mg.insert(lr, L.z);
     const ms = squad.members;
     for (let i = 0; i < ms.length; i++) mg.insert(ms[i], ms[i].z);
-    const shielded = !!(this.game.powers && this.game.powers.has && this.game.powers.has('shield'));
+    const shielded = this.game.shielded ? this.game.shielded() : !!(this.game.powers && this.game.powers.has && this.game.powers.has('shield'));
     const k0 = Math.floor(zMin), k1 = Math.floor(zMax);
     for (let k = k0; k <= k1; k++) {
       const b = this.grid.buckets.get(k);
@@ -210,6 +222,7 @@ export class Horde {
         if (!m) continue;
         if (squad.count <= 0) return;
         if (shielded) { this.kill(e, 'contact'); continue; }
+        if (e.freezeT > 0 && e.shatter) { this.kill(e, 'shatter'); continue; } // Glacier freeze: shatters harmlessly
         const d = e.def;
         if (d.blastRadius) {
           this.kill(e, 'contact');
@@ -315,7 +328,10 @@ export class Horde {
     e.state = DYING; e.t = 0; e.flash = 1;
     this.alive--;
     const run = this.game.run;
-    if (run) run.kills++;
+    if (run) {
+      run.kills++;
+      if (run.killsBy) run.killsBy[KILL_CAT[cause] || 'other']++;
+    }
     const p = this.diePos; p.x = e.x; p.y = 0.5; p.z = e.z;
     if (this.game.events.wants('enemy:die')) this.game.events.emit('enemy:die', { type: e.def.id, pos: p, color: e.def.color });
     if (e.def.blastRadius && cause !== 'contact') this.queueBlast(e.x, e.z, e.def.blastRadius, cause === 'blast' ? CHAIN_DELAY : 0.02);
@@ -343,27 +359,15 @@ export class Horde {
     return best;
   }
 
-  hit(e, b) {
-    const p = this.hitPos; p.x = b.x; p.y = b.y; p.z = e.z + e.def.r;
-    if (e.shield > 0) {
-      e.shield--; e.sflash = 1;
-      if (this.game.events.wants('bullet:hit')) this.game.events.emit('bullet:hit', { kind: 'shield', pos: p });
-      if (e.shield === 0) { this.view.shatterShield(e); this.game.events.emit('enemy:shieldbreak', { pos: { x: e.x, y: 0.8, z: e.z } }); }
-      return true;
-    }
-    const unit = b.unit || b.dmg;
-    const hpBefore = e.hp;
-    e.hp -= b.dmg;
-    if (e.flash < 0.35) e.flash = 1;
-    if (this.game.events.wants('bullet:hit')) this.game.events.emit('bullet:hit', { kind: 'enemy', pos: p });
-    if (e.hp <= 0) {
-      this.kill(e, 'bullet');
-      // a bundled bullet stands for several real shots: the unused ones keep flying (DPS conserved)
-      const used = Math.max(1, Math.ceil(hpBefore / unit - 1e-6)) * unit;
-      if (b.dmg - used >= unit * 0.5) { b.dmg -= used; return 'carry'; }
-    }
-    return false;
-  }
+  hit(e, b) { return ops.bulletHit(this, e, b); }
+
+  // ---------------- update 2 delegates (hordeops.js) ----------------
+  /** One damage path: { killed, used, blocked } (scratch object). */
+  applyDamage(e, dmg, unit, src) { return (this.last = ops.applyDamage(this, e, dmg, unit, src)); }
+  forEachInRadius(x, z, r, fn) { ops.forEachInRadius(this, x, z, r, fn); }
+  nearestUnhit(x, z, r, hits, nh, aheadOf) { return ops.nearestUnhit(this, x, z, r, hits, nh, aheadOf); }
+  /** Sugar aim: nearest alive enemy ahead of z within the lane band (hordeops.nearestAhead). */
+  nearestAheadBand(x, z, band, maxDist) { return ops.nearestAhead(this, x, z, band, maxDist); }
 
   // ---------------- queries (helpers, autopilot) ----------------
   /** Nearest alive enemy ahead of z (smaller z) within range, preferring small lateral offset. */

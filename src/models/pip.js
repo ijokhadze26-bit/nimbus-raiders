@@ -1,5 +1,7 @@
 // Pip: the hero sky-cadet (leader). Real limb rig: legs, arms, head, scarf tail, jet flames.
 // Faces -Z. Height ~1.3u (about 1.6x a Raider).
+// Update 2 rig contract (SPEC2 §3.7), additive: scale, muzzle (local gun tip, x scale = world offset),
+// handSocket (gun parent), animate(..., ability), dispose(). Every running number is unchanged.
 import * as THREE from 'three';
 import { part, merge, G } from './util.js';
 import { toonMaterial, glowTexture } from './materials.js';
@@ -76,11 +78,12 @@ export function buildPip(skin = {}) {
     return g;
   });
   const gunMat = new THREE.MeshToonMaterial({ gradientMap: mat.gradientMap, color: '#ffd34d', vertexColors: true });
-  const gun = new THREE.Mesh(merge([
+  const ownGunGeo = merge([
     part(G.box(0.1, 0.32, 0.12), '#ffffff', { p: [0, -0.3, -0.02] }),
     part(G.box(0.06, 0.16, 0.06), '#ffffff', { p: [0, -0.5, -0.02], bright: 1.2 }),
     part(G.box(0.07, 0.08, 0.1), '#4b5672', { p: [0, -0.24, 0.07] }),
-  ]), gunMat);
+  ]);
+  const gun = new THREE.Mesh(ownGunGeo, gunMat);
   gun.castShadow = true;
   arms[1].add(gun);
 
@@ -112,9 +115,13 @@ export function buildPip(skin = {}) {
   root.scale.setScalar(PIP_SCALE);
 
   const pip = {
-    root, body, head, legs, arms, gun, gunMat, scarf, tailB, flames, glow, meshes,
-    /** t = time (s), run = 0..1 run blend, vx = sideways speed, cheer = 0..1 celebration */
-    animate(t, run, vx = 0, cheer = 0) {
+    id: 'pip', root, body, head, legs, arms, gun, gunMat, scarf, tailB, flames, glow, meshes,
+    scale: PIP_SCALE,
+    muzzle: { x: 0.32 / PIP_SCALE, y: 0.9 / PIP_SCALE, z: -0.75 / PIP_SCALE },
+    handSocket: arms[1],
+    /** t = time (s), run = 0..1 run blend, vx = sideways speed, cheer = 0..1 celebration, ability = 0..1 pose */
+    animate(t, run, vx = 0, cheer = 0, ability = 0) {
+      if (ability > 0) cheer = Math.max(cheer, Math.sin(Math.min(1, ability) * Math.PI));
       const f = 11.5;
       const s = Math.sin(t * f);
       const bob = Math.abs(Math.sin(t * f)) * 0.07 * run;
@@ -138,6 +145,13 @@ export function buildPip(skin = {}) {
       for (const fm of flames) fm.scale.set(1, fl * (0.8 + run * 0.6), 1);
       glow.material.opacity = 0.55 + fl * 0.3;
       tailA.scale.y = 1;
+    },
+    /** Frees every geometry / material this rig created (shared textures and cached gun geometries stay). */
+    dispose() {
+      for (const m of meshes) m.geometry.dispose();
+      ownGunGeo.dispose();
+      mat.dispose(); gunMat.dispose();
+      flameGeo.dispose(); flameMat.dispose(); glow.material.dispose();
     },
   };
   return pip;

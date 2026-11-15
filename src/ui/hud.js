@@ -1,9 +1,14 @@
 // In-run HUD: top bar (pause, level name + progress bar ending in a boss skull, run coins), squad count
 // bubble projected above Pip, weapon tier badge, power-up timer slots, boss name + hp bar + title card,
 // WEAPON UP banner, DRAG TO MOVE hint (levels 1-2), haptics on losses / gates / boss hits.
+// Update 2: weapon badge (weapon icon, short name, "Mk III", 5 pips in the weapon's colour), MK UP / NEW WEAPON
+// banners, Guard hearts under the squad bubble, PRACTICE label, and a mount point for the ability button
+// (ui/hudability.js, HEROES builder: mountAbility(hud, mountEl)).
 import * as THREE from 'three';
 import { icon, POWER_LOOK } from './icons.js';
-import { WEAPONS, weaponForTier } from '../data/weapons.js';
+import { weaponIcon } from './icons2.js';
+import { MAX_MK, mkLabel, weaponDef } from '../data/weapons.js';
+import { mountAbility } from './hudability.js';
 import { fmt } from './ui.js';
 
 const _v = new THREE.Vector3();
@@ -26,7 +31,8 @@ export class Hud {
         <div class="coin-pill hud-coins"><span class="coin-ico">${icon('coin')}</span><span class="num">0</span></div>
       </div>
       <div class="hud-powers"></div>
-      <div class="hud-weapon"><span class="w-ico">${icon('tier')}</span><span class="w-col"><span class="w-tier">TIER 1</span><span class="w-name"></span><span class="w-pips">${WEAPONS.map(() => '<i></i>').join('')}</span></span></div>
+      <div class="hud-weapon"><span class="w-ico">${icon('tier')}</span><span class="w-col"><span class="w-tier">MK I</span><span class="w-name"></span><span class="w-pips">${'<i></i>'.repeat(MAX_MK)}</span></span></div>
+      <div class="hud-ability-mount"></div>
       <div class="hud-hint hidden"><div class="hint-track"><span class="arrow l">${icon('back')}</span><span class="hand">${icon('hand')}</span><span class="arrow r">${icon('back')}</span></div><div class="hint-text">DRAG TO MOVE</div></div>`;
     root.appendChild(this.el);
     this.el.addEventListener('click', (e) => {
@@ -55,6 +61,9 @@ export class Hud {
     this.bubble = el('div', 'squad-bubble');
     this.bubbleInner = el('div', 'inner');
     this.bubble.appendChild(this.bubbleInner);
+    this.guardEl = el('div', 'guard-dots');
+    this.bubble.appendChild(this.guardEl);
+    this.guardShown = '';
     root.appendChild(this.bubble);
 
     this.bossBar = el('div', 'boss-bar hidden');
@@ -91,9 +100,12 @@ export class Hud {
     ev.on('boss:attack', () => this.buzz(35, 200));
     ev.on('boss:defeated', () => { this.buzz(120, 0); clearTimeout(this.bossT); this.bossT = setTimeout(() => this.hideBoss(), 900); });
     ev.on('weapon:tier', (p) => this.onTier(p));
+    ev.on('weapon:swap', (p) => this.onSwap(p));
     ev.on('gate:pass', (p) => this.buzz(p.after >= p.before ? 15 : 45, 120));
     ev.on('power:start', (p) => this.showPower(p.kind, p.duration));
     ev.on('power:end', (p) => this.hidePower(p.kind));
+    this.abilityMount = this.el.querySelector('.hud-ability-mount');
+    this.ability = mountAbility(this, this.abilityMount) || null;
     this.onState(game.state);
   }
 
@@ -113,7 +125,9 @@ export class Hud {
     const g = this.game;
     const run = g.run;
     const endless = p.mode === 'endless';
-    this.levelEl.innerHTML = endless ? `${icon('infinity')}<span>ENDLESS</span><span class="lv dist">0m</span>` : `<span class="lv">LV ${p.levelId}</span><span>${run?.name || ''}</span>`;
+    this.levelEl.innerHTML = endless ? `${icon('infinity')}<span>ENDLESS</span><span class="lv dist">0m</span>`
+      : p.mode === 'practice' ? `<span class="lv">PRACTICE</span><span>${weaponDef(p.weapon).name}</span>`
+        : `<span class="lv">LV ${p.levelId}</span><span>${run?.name || ''}</span>`;
     this.distEl = endless ? this.levelEl.querySelector('.dist') : null;
     this.distShown = 0;
     this.el.classList.toggle('endless', endless);
@@ -122,7 +136,7 @@ export class Hud {
     this.coins = -1;
     this.hideBoss(true);
     for (const k of [...this.powers.keys()]) this.hidePower(k);
-    this.setWeapon(g.weapons?.tier || 1, false);
+    this.setWeapon(g.weapons?.mk || 1, false);
     this.count = -1;
     this.hintOn = !endless && p.levelId <= 2 && !g.autopilot?.enabled;
     this.hintEl.classList.toggle('hidden', !this.hintOn);
@@ -131,13 +145,25 @@ export class Hud {
     this.banner.classList.add('hidden');
   }
 
-  setWeapon(tier, pop) {
-    const w = weaponForTier(tier);
-    this.weaponEl.style.setProperty('--tc', this.game.tierColor ? this.game.tierColor(tier) : w.color);
-    this.weaponEl.querySelector('.w-tier').textContent = `TIER ${w.tier}`;
-    this.weaponEl.querySelector('.w-name').textContent = w.name.toUpperCase();
-    this.weaponEl.querySelectorAll('.w-pips i').forEach((p, i) => p.classList.toggle('on', i < w.tier));
+  /** Badge: weapon icon, short name, "Mk III" and 5 pips in the weapon's own colour. */
+  setWeapon(mk, pop, id = this.game.weapons?.id) {
+    const def = weaponDef(id);
+    const col = def.look.mk[Math.max(1, Math.min(MAX_MK, mk)) - 1].color;
+    this.weaponEl.style.setProperty('--tc', col);
+    if (this.weaponId !== id) { this.weaponId = id; this.weaponEl.querySelector('.w-ico').innerHTML = weaponIcon(id); }
+    this.weaponEl.querySelector('.w-tier').textContent = mkLabel(mk).toUpperCase();
+    this.weaponEl.querySelector('.w-name').textContent = def.short;
+    this.weaponEl.querySelectorAll('.w-pips i').forEach((p, i) => p.classList.toggle('on', i < mk));
     if (pop) restartClass(this.weaponEl, 'pop');
+  }
+
+  banner2(sub, name, color) {
+    this.banner.innerHTML = `<div class="sub">${sub}</div><div class="name">${name}</div>`;
+    this.banner.style.setProperty('--tc', color);
+    this.banner.classList.remove('hidden');
+    restartAnim(this.banner);
+    clearTimeout(this.bannerT);
+    this.bannerT = setTimeout(() => this.banner.classList.add('hidden'), 1500);
   }
 
   // ---------------- power-up timers ----------------
@@ -222,15 +248,18 @@ export class Hud {
   }
 
   onTier(p) {
-    const w = weaponForTier(p.tier);
-    this.banner.innerHTML = `<div class="sub">WEAPON UP!</div><div class="name">${p.name.toUpperCase()}!</div>`;
-    this.banner.dataset.tier = p.tier;
-    this.banner.style.setProperty('--tc', this.game.tierColor ? this.game.tierColor(p.tier) : w.color);
-    this.banner.classList.remove('hidden');
-    restartAnim(this.banner);
-    clearTimeout(this.bannerT);
-    this.bannerT = setTimeout(() => this.banner.classList.add('hidden'), 1500);
-    this.setWeapon(p.tier, true);
+    const mk = p.mk || p.tier, def = weaponDef(p.weapon || this.game.weapons.id);
+    this.banner.dataset.tier = mk;
+    this.banner2('MK UP!', `→ ${mkLabel(mk)}`, def.look.mk[mk - 1].color);
+    this.setWeapon(mk, true, def.id);
+    this.buzz(30, 0);
+  }
+
+  /** Crate swap: NEW WEAPON banner, badge follows. */
+  onSwap(p) {
+    const def = weaponDef(p.to);
+    this.banner2('NEW WEAPON:', def.name.toUpperCase(), def.look.mk[(p.mk || 1) - 1].color);
+    this.setWeapon(p.mk || 1, true, def.id);
     this.buzz(30, 0);
   }
 
@@ -287,6 +316,7 @@ export class Hud {
       if (compact !== this.compact) { this.compact = compact; this.weaponEl.classList.toggle('compact', compact); }
       this.updatePowers();
     }
+    if (this.ability && this.ability.update) this.ability.update();
     this.flushSquadPulse(now);
     if (this.lossUntil && now >= this.lossUntil) { this.lossUntil = 0; this.bubble.classList.remove('loss'); }
     if (this.bossShown) {
@@ -300,6 +330,12 @@ export class Hud {
     if (visible !== this.bubbleShown) { this.bubbleShown = visible; this.bubble.style.display = visible ? '' : 'none'; }
     if (!visible) return;
     if (sq.count !== this.count) { this.count = sq.count; this.bubbleInner.textContent = String(sq.count); }
+    const H = g.heroes;
+    const gk = H ? H.guard + '/' + H.guardMax : '';
+    if (gk !== this.guardShown) {
+      this.guardShown = gk;
+      this.guardEl.innerHTML = H ? '<i class="on"></i>'.repeat(H.guard) + '<i></i>'.repeat(Math.max(0, H.guardMax - H.guard)) : '';
+    }
     const L = sq.leader;
     // fade the bubble while the gate the leader runs into is close: its number must stay readable
     let near = false;
@@ -307,7 +343,7 @@ export class Hud {
       if (gt.state === 'live' && gt.z < L.z && L.z - gt.z < 5 && Math.abs(gt.x - L.x) < gt.halfW + 0.8) { near = true; break; }
     }
     if (near !== this.faded) { this.faded = near; this.bubble.classList.toggle('faded', near); }
-    _v.set(L.x, 2.25 + sq.pip.body.position.y, L.z).project(g.camera);
+    _v.set(L.x, 2.25 * (sq.pipScale || 1.25) / 1.25 + sq.pip.body.position.y, L.z).project(g.camera);
     const w = g.engine.width, h = g.engine.height;
     const x = Math.round(Math.max(34, Math.min(w - 34, (_v.x * 0.5 + 0.5) * w)) * 2) / 2, y = Math.round(Math.max(120, Math.min(h - 20, (-_v.y * 0.5 + 0.5) * h)) * 2) / 2;
     if (x !== this.bx || y !== this.by) { this.bx = x; this.by = y; this.bubble.style.transform = `translate3d(${x}px, ${y}px, 0)`; }

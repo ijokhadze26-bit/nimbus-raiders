@@ -1,5 +1,8 @@
 // Raider: small sky-cadet squad member. One merged vertex-colored geometry (body) + a separate gun geometry
-// so the gun can be tinted with the weapon tier color. Faces -Z. Height ~0.8u.
+// so the gun can be tinted (gun paint / weapon colour). Faces -Z. Height ~0.8u.
+// Update 2: the body takes a palette (Pip outfits, hero raider palettes) and an optional hero "tell" merged
+// into the helmet (<= 40 triangles, no extra draw call). Raider guns come from the weapon gun builder that
+// models/weapons/guns.js registers (registerGunBuilder); the legacy tier shapes stay for the stub.
 import { part, merge, G } from './util.js';
 
 export const RAIDER_SCALE = 1.22;
@@ -9,8 +12,29 @@ export const RAIDER_COLORS = {
   packDark: '#3d4a66', glove: '#ffffff', belt: '#1c3a8c', scarf: '#ff8a2b', crest: '#2f8cff',
 };
 
+/**
+ * Hero shape tell on the helmet (SPEC2 §3): 'crest' (Cinder), 'hood' (Rime), 'buns' (Bonbon), 'brim' (Bolt),
+ * 'ridge' (Vex); null = none (Pip). Each <= 40 triangles, coloured from the palette.
+ */
+export function tellParts(tell, c) {
+  switch (tell) {
+    case 'crest': return [0, 1, 2].map((i) => part(G.cone(0.036, 0.13, 3), i === 1 ? '#ffd34d' : '#ff7a1f', { p: [(i - 1) * 0.06, 0.76, 0.03 + i * 0.0], r: [0.75, 0, (i - 1) * -0.35] }));
+    case 'hood': return [part(G.torus(0.168, 0.034, 3, 6), c.hood || '#e8f6ff', { p: [0, 0.57, 0.02], r: [Math.PI / 2 - 0.25, 0, 0] })];
+    case 'buns': return [-1, 1].map((sd) => part(G.sphere(0.065, 5, 3), c.bun || '#ff8ad8', { p: [0.13 * sd, 0.74, 0.02] }));
+    case 'brim': return [
+      part(G.cyl(0.215, 0.215, 0.022, 6), c.brim || '#ffd34d', { p: [0, 0.63, -0.01] }),
+      part(G.box(0.06, 0.05, 0.04), '#fff6c4', { p: [0, 0.69, -0.17], bright: 1.4 }),
+    ];
+    case 'ridge': return [
+      part(G.box(0.05, 0.08, 0.26), c.ridge || '#ffc531', { p: [0, 0.77, 0.01] }),
+      part(G.box(0.12, 0.05, 0.14), c.plate || '#2a2d3e', { p: [-0.17, 0.45, 0], r: [0, 0, 0.35] }),
+    ];
+    default: return [];
+  }
+}
+
 // ~220 triangles: up to 320 are drawn every frame, so every part is as low-poly as the 1u-tall cadet allows.
-export function buildRaiderGeometry(colors = RAIDER_COLORS) {
+export function buildRaiderGeometry(colors = RAIDER_COLORS, tell = null) {
   const c = { ...RAIDER_COLORS, ...colors };
   const parts = [
     // legs + boots
@@ -31,12 +55,13 @@ export function buildRaiderGeometry(colors = RAIDER_COLORS) {
     // arms: left hangs, right holds gun forward
     part(G.box(0.08, 0.2, 0.08), c.suit, { p: [-0.17, 0.3, 0], r: [0, 0, -0.25] }),
     part(G.box(0.08, 0.08, 0.2), c.suit, { p: [0.15, 0.32, -0.09] }),
+    ...tellParts(tell, c),
   ];
   return merge(parts).scale(RAIDER_SCALE, RAIDER_SCALE, RAIDER_SCALE);
 }
 
 /** ~110-triangle Raider for low quality (same proportions and colors). */
-export function buildRaiderLowGeometry(colors = RAIDER_COLORS) {
+export function buildRaiderLowGeometry(colors = RAIDER_COLORS, tell = null) {
   const c = { ...RAIDER_COLORS, ...colors };
   return merge([
     part(G.box(0.22, 0.17, 0.12), c.suitDark, { p: [0, 0.085, -0.01] }),
@@ -45,6 +70,7 @@ export function buildRaiderLowGeometry(colors = RAIDER_COLORS) {
     part(G.cyl(0.158, 0.165, 0.07, 6, true), c.visor, { p: [0, 0.585, -0.012], s: [1.06, 1, 1.06] }),
     part(G.box(0.24, 0.22, 0.13), c.pack, { p: [0, 0.35, 0.17] }),
     part(G.box(0.08, 0.08, 0.2), c.suit, { p: [0.15, 0.32, -0.09] }),
+    ...tellParts(tell, c),
   ]).scale(RAIDER_SCALE, RAIDER_SCALE, RAIDER_SCALE);
 }
 
@@ -112,30 +138,21 @@ function gunParts(tier, low = false) {
 }
 
 const gunCache = new Map();
-/** Gun for a tier centered on its grip, pointing -Z (reward displays). */
-export function buildGunGeometry(tier = 1) { return merge(gunParts(tier)); }
+/** Legacy tier gun (grip at the origin, pointing -Z): barrel displays of the stub and the gun-builder default. */
+export function buildGunGeometry(tier = 1, low = false) { return merge(gunParts(tier, low)); }
 
-/** Raider gun for a tier (cached); lod 'low' = fewer segments. */
-export function buildRaiderGunGeometry(tier = 1, lod = 'high') {
-  const key = 'r' + tier + lod;
+// weapon gun builder registered by models/weapons/guns.js: fn(weaponId, mk, lod) -> geometry (grip at the
+// origin, pointing -Z, white parts tinted by the gun material). Default = the shipped pistol shape.
+let gunBuilder = (weaponId, mk, lod) => buildGunGeometry(1, lod === 'low');
+export function registerGunBuilder(fn) { if (typeof fn === 'function') { gunBuilder = fn; gunCache.clear(); } }
+
+/** Raider gun for a weapon + Mk (cached); lod 'low' = fewer segments. <= 60 triangles High, <= 36 Low. */
+export function buildRaiderGunGeometry(weaponId = 'thunderclap', mk = 1, lod = 'high') {
+  const key = 'r' + weaponId + mk + lod;
   if (!gunCache.has(key)) {
-    const g = merge(gunParts(tier, lod === 'low'));
+    const g = gunBuilder(weaponId, mk, lod).clone();
     g.translate(0.15, 0.33, -0.2);
     g.scale(RAIDER_SCALE, RAIDER_SCALE, RAIDER_SCALE);
-    gunCache.set(key, g);
-  }
-  return gunCache.get(key);
-}
-
-/** Pip's gun for a tier: same silhouette pointing down the arm (-Y), bigger. */
-export function buildPipGunGeometry(tier = 1) {
-  const key = 'p' + tier;
-  if (!gunCache.has(key)) {
-    const g = merge(gunParts(tier));
-    g.scale(1.45, 1.45, 1.45);
-    g.rotateX(-Math.PI / 2);
-    g.rotateY(Math.PI);
-    g.translate(0, -0.22, -0.02);
     gunCache.set(key, g);
   }
   return gunCache.get(key);

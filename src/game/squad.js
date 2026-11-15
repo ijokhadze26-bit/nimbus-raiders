@@ -1,12 +1,14 @@
-// Squad: count, leader (Pip), phyllotaxis formation of instanced Raiders, pop-in, removal with death pops.
-// Logic (update) is render-free so debug.simulate() is fast; sync() writes instance matrices once per frame.
+// Squad: count, leader (Pip or another hero, see leader.js), phyllotaxis formation of instanced Raiders, pop-in,
+// removal with death pops. Logic (update) is render-free so debug.simulate() is fast; sync() writes instance
+// matrices once per frame. Update 2: every member loss first asks game.heroes.absorb(reason) (Guard points,
+// Sugar Shield); the sideways ease is MOVE.ease x the hero's Speed.
 import * as THREE from 'three';
 import { FORMATION, MEMBER_CLAMP, MOVE } from '../config.js';
-import { buildPip } from '../models/pip.js';
-import { buildRaiderGeometry, buildRaiderLowGeometry, buildRaiderGunGeometry, buildPipGunGeometry, buildRaiderShadowGeometry, RAIDER_MUZZLE } from '../models/raider.js';
+import { buildRaiderGeometry, buildRaiderLowGeometry, buildRaiderGunGeometry, buildRaiderShadowGeometry, RAIDER_MUZZLE } from '../models/raider.js';
+import { buildHeroGunGeometry } from '../models/weapons/guns.js';
 import { toonMaterial, toonGradient } from '../models/materials.js';
-import { weaponForTier } from '../data/weapons.js';
 import { markInstances } from '../core/pool.js';
+import { Leader, popScale } from './leader.js';
 
 const GA = Math.PI * (3 - Math.sqrt(5)); // golden angle
 const _tmpSlot = { tx: 0, tz: 0 };
@@ -37,9 +39,9 @@ export class Squad {
     this.cheer = 0;
     this.runBlend = 1;
 
-    this.pip = buildPip();
-    game.scene.add(this.pip.root);
-    this.pipScale = this.pip.root.scale.x;
+    this.pip = null;
+    this.leaderRig = new Leader(this);
+    this.leaderRig.setHero('pip', 'classic');
     // gap falls: Pip tumbles into the hole (pipFall); while pipGone the next raider leads invisibly and
     // steps up as Pip (pop-in) once the leader is back over solid road
     this.pipGone = false;
@@ -50,6 +52,7 @@ export class Squad {
     this.lod = 'high';
     this.raiderMat = toonMaterial();
     this.raiderGeo = { high: buildRaiderGeometry(), low: null };
+    this.raiderLook = { key: 'pip:classic', colors: undefined, tell: null };
     this.raiders = new THREE.InstancedMesh(this.raiderGeo.high, this.raiderMat, cap);
     this.raiders.castShadow = false;
     this.raiders.frustumCulled = false;
@@ -68,15 +71,16 @@ export class Squad {
     this.shadowProxy.count = 0;
     this.shadowProxy.layers.set(SHADOW_LAYER);
     game.scene.add(this.raiders, this.guns, this.shadowProxy);
-    this.setGunColor(weaponForTier(1).color);
+    this.gunGlowBase = 0.25;
+    this.setGunColor('#ffd34d');
   }
 
   /** Low quality swaps every Raider to the ~110-triangle body (purely visual; formation unchanged). */
   setLod(q) {
-    if (q === 'low' && !this.raiderGeo.low) this.raiderGeo.low = buildRaiderLowGeometry();
+    if (q === 'low' && !this.raiderGeo.low) this.raiderGeo.low = buildRaiderLowGeometry(this.raiderLook.colors, this.raiderLook.tell);
     this.raiders.geometry = q === 'low' ? this.raiderGeo.low : this.raiderGeo.high;
     this.lod = q === 'low' ? 'low' : 'high';
-    this.guns.geometry = buildRaiderGunGeometry(this.gunTier || 1, this.lod);
+    this.guns.geometry = buildRaiderGunGeometry(this.gunWeapon || 'thunderclap', this.gunMk || 1, this.lod);
   }
 
   setGunColor(hex) {
@@ -85,35 +89,24 @@ export class Squad {
     this.pip.gunMat.color.set(hex);
   }
 
-  /** Swaps the gun silhouette of all raiders + Pip to the weapon tier's model. */
-  setGunTier(tier) {
-    this.gunTier = tier;
-    this.guns.geometry = buildRaiderGunGeometry(tier, this.lod);
-    this.pip.gun.geometry = buildPipGunGeometry(tier);
+  /** Swaps the gun of all raiders + the leader to the weapon + Mk model (cached geometries). */
+  setGun(weaponId, mk) {
+    this.gunWeapon = weaponId; this.gunMk = mk;
+    this.guns.geometry = buildRaiderGunGeometry(weaponId, mk, this.lod);
+    this.leaderRig.setGunGeometry(buildHeroGunGeometry(weaponId, mk));
   }
 
-  /** Hero skin (see game/skins.js heroLook): rebuilds Pip and the Raider bodies in the skin colors. */
-  setHeroSkin(look) {
-    if (this.heroId === look.id) return;
-    const first = this.heroId === undefined;
-    this.heroId = look.id;
-    if (first && !look.pip) return; // constructor already built the classic look
-    const old = this.pip;
-    const pip = buildPip({ ...(look.pip || {}), glow: look.glow });
-    pip.root.position.copy(old.root.position);
-    pip.root.visible = old.root.visible;
-    pip.gun.geometry = old.gun.geometry; // cached per tier
-    pip.gunMat.color.copy(old.gunMat.color);
-    this.game.scene.remove(old.root);
-    for (const m of old.meshes) m.geometry.dispose();
-    old.meshes[0].material.dispose(); old.gunMat.dispose();
-    old.flames[0].geometry.dispose(); old.flames[0].material.dispose(); old.glow.material.dispose();
-    this.game.scene.add(pip.root);
-    this.pip = pip;
+  /**
+   * Raider bodies: palette (models/raider.js colour keys; undefined = the shipped look) + hero tell. One
+   * geometry swap (run start / loadout change), no new draw call.
+   */
+  setRaiderLook(key, colors, tell = null) {
+    if (key === this.raiderLook.key) return;
+    this.raiderLook = { key, colors, tell };
     const geo = this.raiderGeo, useLow = this.raiders.geometry === geo.low;
     geo.high.dispose(); if (geo.low) geo.low.dispose();
-    geo.high = buildRaiderGeometry(look.raider || undefined);
-    geo.low = geo.low ? buildRaiderLowGeometry(look.raider || undefined) : null;
+    geo.high = buildRaiderGeometry(colors, tell);
+    geo.low = geo.low ? buildRaiderLowGeometry(colors, tell) : null;
     this.raiders.geometry = useLow && geo.low ? geo.low : geo.high;
   }
 
@@ -151,11 +144,18 @@ export class Squad {
   }
 
   add(n, reason = 'gate') { return this.setCount(this.count + n, reason); }
-  remove(n, reason = 'horde') { return this.setCount(this.count - n, reason); }
+  /** Removes n members; each loss first asks the hero to absorb it (Guard, Sugar Shield). */
+  remove(n, reason = 'horde') {
+    const H = this.game.heroes;
+    let k = n;
+    if (H) { k = 0; for (let i = 0; i < n; i++) if (!H.absorb(reason)) k++; }
+    return k > 0 ? this.setCount(this.count - k, reason) : 0;
+  }
 
   /** Kills one specific rendered member (index into members) — e.g. enemy contact. */
   killMember(i, reason = 'horde') {
-    if (i < 0 || i >= this.members.length) { this.remove(1, reason); return; }
+    if (this.game.heroes && this.game.heroes.absorb(reason)) return;
+    if (i < 0 || i >= this.members.length) { this.setCount(this.count - 1, reason); return; }
     const m = this.members[i];
     for (let k = i; k < this.members.length - 1; k++) this.members[k] = this.members[k + 1];
     this.members.length--;
@@ -329,7 +329,8 @@ export class Squad {
     this.time += dt;
     const L = this.leader;
     const px = L.x;
-    L.x += (targetX - L.x) * (1 - Math.exp(-MOVE.ease * dt));
+    const ease = MOVE.ease * (this.game.heroes ? this.game.heroes.easeMul : 1);
+    L.x += (targetX - L.x) * (1 - Math.exp(-ease * dt));
     L.x = Math.max(-MEMBER_CLAMP, Math.min(MEMBER_CLAMP, L.x));
     L.vx = dt > 0 ? (L.x - px) / dt : 0;
     this.speed = forward;
@@ -378,7 +379,7 @@ export class Squad {
     this.runBlend += (running - this.runBlend) * Math.min(1, dt * 6);
     this.cheer += ((phase === 'won' ? 1 : 0) - this.cheer) * Math.min(1, dt * 4);
     const L = this.leader;
-    this.syncPip(t);
+    this.leaderRig.sync(t);
     const arr = this.raiders.instanceMatrix.array;
     let n = 0;
     const rb = Math.max(0.3, this.runBlend);
@@ -412,34 +413,10 @@ export class Squad {
     if (n) markInstances(this.raiders.instanceMatrix, n);
   }
 
-  /** Pip rig: normal run, tumbling into a gap, hidden while he is gone, pop-in when he steps back up. */
-  syncPip(t) {
-    const L = this.leader, pip = this.pip, f = this.pipFall;
-    if (f.on) {
-      const life = 1.15, u = Math.min(1, f.t / life);
-      pip.root.visible = true;
-      pip.root.position.set(f.x, Math.max(-20, f.y), f.z);
-      pip.root.rotation.set(f.spin * f.t * 0.8, 0, f.spin * f.t);
-      pip.root.scale.setScalar(this.pipScale * Math.max(0.05, 1 - u * u * 0.8));
-      pip.animate(t * 1.6, 0.9, 0, 0);
-      if (f.t >= life) {
-        f.on = false;
-        pip.root.rotation.set(0, 0, 0);
-        pip.root.scale.setScalar(this.pipScale);
-        pip.root.visible = !this.pipGone;
-      }
-      return;
-    }
-    if (this.pipGone) { pip.root.visible = false; return; }
-    pip.root.position.set(L.x, 0, L.z);
-    pip.root.scale.setScalar(this.pipScale * (this.pipPop < 1 ? popScale(this.pipPop) : 1));
-    pip.animate(t, Math.max(0.25, this.runBlend), L.vx, this.cheer);
-  }
-
   /** Shooter muzzle position: i=0 -> Pip, i>=1 -> members[i-1]. Writes into out {x,y,z}. */
   muzzle(i, out) {
     if ((i === 0 && !this.pipGone) || this.members.length === 0) {
-      out.x = this.leader.x + 0.32; out.y = 0.9; out.z = this.leader.z - 0.75;
+      this.leaderRig.muzzle(out);
     } else {
       const m = this.members[Math.max(0, i - 1) % this.members.length];
       out.x = m.x + RAIDER_MUZZLE.x; out.y = RAIDER_MUZZLE.y + 0.1; out.z = m.z + RAIDER_MUZZLE.z;
@@ -456,11 +433,4 @@ export class Squad {
   }
 
   dispose() {}
-}
-
-function popScale(p) {
-  // 0 -> 1.15 -> 1
-  if (p < 0.6) { const u = p / 0.6; return 1.15 * (1 - (1 - u) * (1 - u)); }
-  const u = (p - 0.6) / 0.4;
-  return 1.15 - 0.15 * u;
 }

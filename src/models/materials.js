@@ -36,9 +36,10 @@ export function glowTexture() {
 }
 
 /**
- * Toon material with a per-instance effect attribute `aFx` (vec3 on the geometry):
- *   x = white hit flash (0..1), y = ice tint (0..1), z = glow amount (adds `glow` color).
- * Used by the horde InstancedMeshes so hit flashes need no extra draw calls.
+ * Toon material with a per-instance effect attribute `aFx` (vec4 on the geometry):
+ *   x = white hit flash (0..1), y = ice tint (0..1), z = glow amount (adds `glow` color),
+ *   w = burn glow (orange rim toward #ff7a1f, update 2).
+ * Used by the horde InstancedMeshes so hit flashes / status tints need no extra draw calls.
  */
 export function fxToonMaterial(glow = '#ffffff', opts = {}) {
   const m = toonMaterial(opts);
@@ -47,16 +48,18 @@ export function fxToonMaterial(glow = '#ffffff', opts = {}) {
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uGlow = uGlow;
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec3 aFx;\nvarying vec3 vFx;')
+      .replace('#include <common>', '#include <common>\nattribute vec4 aFx;\nvarying vec4 vFx;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFx = aFx;');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vFx;\nuniform vec3 uGlow;')
+      .replace('#include <common>', '#include <common>\nvarying vec4 vFx;\nuniform vec3 uGlow;')
       .replace('#include <opaque_fragment>',
         'outgoingLight = mix(outgoingLight, outgoingLight * vec3(0.55, 0.8, 1.15) + vec3(0.18, 0.34, 0.5), vFx.y);\n' +
         'outgoingLight += uGlow * vFx.z;\n' +
+        'float rimF = 1.0 - clamp(abs(dot(normalize(normal), normalize(vViewPosition))), 0.0, 1.0);\n' +
+        'outgoingLight = mix(outgoingLight, vec3(1.0, 0.478, 0.122) * 1.15, clamp(vFx.w * (0.3 + 0.7 * rimF * rimF), 0.0, 0.85));\n' +
         'outgoingLight = mix(outgoingLight, vec3(1.0), clamp(vFx.x, 0.0, 1.0));\n#include <opaque_fragment>');
   };
-  m.customProgramCacheKey = () => 'fxtoon1';
+  m.customProgramCacheKey = () => 'fxtoon2';
   return m;
 }
 

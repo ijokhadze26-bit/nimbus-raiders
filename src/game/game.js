@@ -1,8 +1,10 @@
 // Game: owns systems, state machine, run lifecycle, camera, frame/step split, public API.
+// Update 2: hero + weapon loadout (loadout.js), status / zones / crates / heroes systems, practice runs,
+// procRng (weapon + hero dice; never game.rng), the fixed step order of SPEC2 §6.7.
 import * as THREE from 'three';
 import { Events } from '../core/events.js';
 import { Rng } from '../core/rng.js';
-import { CAMERA, FORMATION, QUALITY, START_SQUAD } from '../config.js';
+import { CAMERA, QUALITY, START_SQUAD } from '../config.js';
 import { World } from './world.js';
 import { Squad } from './squad.js';
 import { Weapons } from './weapons.js';
@@ -24,11 +26,18 @@ import { getLevel, LEVEL_COUNT } from '../data/levels.js';
 import { endlessDef } from '../data/endless.js';
 import { Endless } from './endless.js';
 import { upgradeEffects } from '../data/shop.js';
-import { heroLook, tierLook, isPrism, prismColor } from './skins.js';
+import { PRACTICE, practiceDef } from '../data/practice.js';
+import { MENU_STATES } from './states.js';
+import { Status } from './status.js';
+import { Zones } from './zones.js';
+import { HeroSystem } from './heroes.js';
+import { Crates } from './crates.js';
+import { Loadout } from './loadout.js';
+import { autoLoadout } from './autopilot2.js';
+import { cameraGoal, snapCamera, updateCamera } from './camera.js';
+import { createZoneViews } from '../models/weapons/zones.js';
 
 const ATTRACT_COUNT = 9;
-// stage3-ui hook: menu screens keep the live attract scene running behind them
-const MENU_STATES = new Set(['title', 'map', 'shop', 'settings', 'endless']);
 
 export class Game {
   constructor({ engine, input, params = {} }) {
@@ -39,6 +48,7 @@ export class Game {
     this.params = params;
     this.events = new Events();
     this.rng = new Rng(1);
+    this.procRng = new Rng(1);   // weapon + hero dice only (seeded per run in beginRun)
     this.state = 'boot';
     this.timeScale = 1;
     this.time = 0;
@@ -58,6 +68,7 @@ export class Game {
     const ev = this.events;
     ev.setRate('weapon:fire', 22); ev.setRate('bullet:hit', 30); ev.setRate('enemy:die', 60);
     ev.setRate('squad:lost', 40); ev.setRate('run:progress', 10);
+    ev.setRate('weapon:special', 40); ev.setRate('hero:guard', 10); ev.setRate('turret:drop', 10);
     this.shake = new Shake();
     this.slow = { scale: 1, left: 0 };
     ev.on('fx:shake', (p) => this.shake.add(p.amount || 0));
@@ -67,8 +78,9 @@ export class Game {
     ev.on('boss:spawn', () => this.holdQuality(1.5));
     // the death sequence belongs to the explosions: cease fire (beginRun re-enables)
     ev.on('boss:defeated', () => { this.weapons.enabled = false; });
-    ev.on('save:changed', () => this.applySkins());
-    this.skins = { hero: 'classic', weapon: 'factory' };
+    ev.on('save:changed', () => this.loadout.syncFromSave());
+    this.loadout = new Loadout(this);
+    this.runOpts = null;
 
     this.world = new World();
     this.bullets = new Bullets();
@@ -85,9 +97,14 @@ export class Game {
     this.pickups = new Pickups();
     this.powers = new Powers();
     this.endless = new Endless();
-    this.systems = [this.world, this.bullets, this.squad, this.weapons, this.gates, this.horde, this.barrels, this.helpers, this.telegraph, this.bosses, this.obstacles, this.pickups, this.powers, this.autopilot];
+    this.status = new Status();
+    this.zones = new Zones();
+    this.heroes = new HeroSystem();
+    this.crates = new Crates();
+    this.systems = [this.world, this.bullets, this.squad, this.status, this.zones, this.heroes, this.weapons, this.gates, this.horde, this.barrels, this.helpers, this.telegraph, this.bosses, this.obstacles, this.pickups, this.powers, this.crates, this.autopilot];
     for (const s of this.systems) s.init(this);
     this.endless.init(this);
+    this.zoneViews = createZoneViews(this);
 
     if (this.quality.setting === 'low') this.applyQuality('low');
     this.debug = createDebug(this);
@@ -100,39 +117,49 @@ export class Game {
   }
 
   // ---------------- public API ----------------
-  /** Starts a defined level; returns false (and does nothing) for an id that has no level data yet. */
+  /** Starts a defined level with the current loadout; false (and nothing happens) for an id without data. */
   startLevel(levelId) {
     const def = getLevel(Number(levelId));
     if (!def) return false;
-    this.beginRun(def, 'level');
+    this.beginRun(def, 'level', 1, { hero: this.loadout.hero, weapon: this.loadout.weapon });
     return true;
   }
 
   /** Endless run on a fresh seeded bridge (fixed seed under ?test=1 or ?seed=N so runs are reproducible). */
   startEndless(seed) {
     const s = seed ?? (this.params.seed != null ? Number(this.params.seed) : this.params.test ? 4242 : Math.floor(Math.random() * 1e9));
-    this.beginRun(endlessDef(), 'endless', s >>> 0);
+    this.beginRun(endlessDef(), 'endless', s >>> 0, { hero: this.loadout.hero, weapon: this.loadout.weapon });
   }
 
-  /** Applies the equipped hero / weapon skins from the save (no-op when unchanged). */
-  applySkins() {
-    const sk = this.save?.data?.skins;
-    const hero = sk?.hero || 'classic', weapon = sk?.weapon || 'factory';
-    if (hero === this.skins.hero && weapon === this.skins.weapon && this.skinsApplied) return;
-    this.skinsApplied = true;
-    this.skins.hero = hero; this.skins.weapon = weapon;
-    this.squad.setHeroSkin(heroLook(hero));
-    this.bullets.setSkin(weapon);
-    this.squad.setGunColor(this.tierColor(this.weapons.tier));
+  /**
+   * TRY IT practice (SPEC2 §5): a fixed short course at the chosen Mk; no shop upgrades, squad = 60 + the
+   * hero's start bonus, ability charged, never pays out. Locked heroes / weapons are allowed here.
+   */
+  startPractice({ hero = this.loadout.hero, weapon = this.loadout.weapon, mk = 3 } = {}) {
+    const m = Math.max(1, Math.min(5, mk | 0 || 3));
+    this.beginRun(practiceDef(weapon, m), 'practice', 1, { hero, weapon, mk: m, practice: true });
+    return true;
   }
 
-  /** Main color of a weapon tier under the equipped weapon skin (guns, muzzle flashes). */
-  tierColor(tier) { return tierLook(this.skins.weapon, tier).color; }
+  /** @deprecated (update 1 name): looks now follow the loadout + save (game/loadout.js). */
+  applySkins() { this.loadout.applyLook(); }
 
-  beginRun(def, mode, seed = 1) {
+  /** Gun colour of a Mk under the equipped gun paint (old callers). */
+  tierColor(mk) { return this.loadout.gunColor(mk); }
+
+  /** Squad is untouchable: the shield power-up or a hero's invulnerability (Sugar Shield). */
+  shielded() { return (this.powers && this.powers.has('shield')) || (this.heroes && this.heroes.invulnT > 0); }
+
+  beginRun(def, mode, seed = 1, opts = {}) {
     this.engine.flushQuality(); // a deferred shadow switch recompiles here, under the screen transition
     this.rng.seed(def.id * 7919 + (mode === 'endless' ? seed : 0));
+    this.procRng.seed(def.id * 104729 + seed + 17);
+    let hero = opts.hero || this.loadout.hero, weapon = opts.weapon || this.loadout.weapon;
+    if (mode === 'level' && this.autopilot.enabled && this.autopilot.opts.loadout === 'auto') ({ hero, weapon } = autoLoadout(this, def));
+    this.runOpts = { ...opts, hero, weapon };
     this.run = new Run(def, mode, this.events);
+    this.run.hero = hero; this.run.weapon = weapon;
+    this.run.killsBy = { weapon: 0, ability: 0, helper: 0, other: 0 };
     if (mode === 'endless') this.endless.start(this.run, seed); else this.endless.stop();
     this.timeScale = 1;
     this.resultTimer = -1;
@@ -141,12 +168,14 @@ export class Game {
     this.world.setGaps([]);
     this.world.reset();
     this.bullets.reset();
+    this.heroes.reset(this.run, hero);
+    this.loadout.applyLook(hero);
     this.squad.pip.root.visible = true;
-    const start = START_SQUAD + (this.save?.data?.upgrades?.squad || 0);
+    const practice = mode === 'practice';
+    const up = upgradeEffects(practice ? {} : this.save?.data?.upgrades);
+    const start = (practice ? PRACTICE.squad : START_SQUAD + up.startSquad) + this.heroes.startBonus;
     this.squad.reset(start, 0);
-    const up = upgradeEffects(this.save?.data?.upgrades);
-    this.applySkins();
-    this.weapons.reset(this.run, up.startTier, { dmgMul: up.damageMul, rateMul: up.rateMul });
+    this.weapons.reset(this.run, { weapon, mk: opts.mk ?? up.startTier, dmgMul: up.damageMul, rateMul: up.rateMul });
     this.weapons.enabled = true;
     this.gates.reset(this.run);
     this.resetCombat(this.run);
@@ -155,7 +184,7 @@ export class Game {
     this.autopilot.reset();
     this.snapCamera();
     this.setState('playing');
-    this.events.emit('run:start', { levelId: def.id, mode, theme: def.theme });
+    this.events.emit('run:start', { levelId: def.id, mode, theme: def.theme, hero, weapon });
     this.events.emit('run:phase', { phase: 'run' });
     if (this.quality.setting === 'auto') Object.assign(this.quality, { ema: 60, low: 0, hold: 1.2 });
   }
@@ -167,6 +196,9 @@ export class Game {
     this.obstacles.reset(run);
     this.pickups.reset(run);
     this.powers.reset();
+    this.status.reset();
+    this.zones.clear();
+    this.crates.reset(run);
     this.telegraph.reset();
     this.bosses.reset();
     this.shake.reset();
@@ -187,10 +219,13 @@ export class Game {
   }
 
   quitToMenu() { this.settleEndless(); this.toTitle(); }
+  /** Same run again with the same loadout (RETRY never goes through the loadout screen). */
   retry() {
     this.settleEndless();
+    const o = this.runOpts || {};
     if (this.run && this.run.mode === 'endless') this.startEndless();
-    else if (this.run) this.beginRun(this.run.def, this.run.mode);
+    else if (this.run && this.run.mode === 'practice') this.startPractice(o);
+    else if (this.run) this.beginRun(this.run.def, this.run.mode, 1, o);
     else this.startLevel(1);
   }
   /** Starts the level after the current one; false when it doesn't exist (yet). */
@@ -212,8 +247,11 @@ export class Game {
     this.gates.reset(null);
     this.resetCombat(null);
     this.squad.pip.root.visible = true;
+    this.heroes.reset(null, this.loadout.hero);
     this.squad.reset(ATTRACT_COUNT, 0);
-    this.applySkins();
+    this.weapons.setWeapon(this.loadout.weapon, { silent: true });
+    this.weapons.setMk(1, { silent: true });
+    this.loadout.applyLook(this.loadout.hero);
     this.weapons.enabled = false;
     this.world.setTheme('noon');
     this.world.reset();
@@ -303,11 +341,14 @@ export class Game {
       this.obstacles.update(dt);
       this.pickups.update(dt);
       this.powers.update(dt);
+      this.heroes.update(dt);
+      this.crates.update(dt);
       this.barrels.update(dt);
       this.horde.update(dt);
       this.helpers.update(dt);
       if (run.active) this.weapons.update(dt);
       this.bullets.update(dt);
+      this.weapons.updateBehaviour(dt);
       this.telegraph.update(dt);
       this.bosses.update(dt);
       if (run.phase === 'run' && run.dist >= run.length - (run.boss ? 2 : 0)) {
@@ -374,64 +415,18 @@ export class Game {
     this.powers.sync(dt);
     this.telegraph.sync(dt);
     this.bosses.sync(dt);
+    this.crates.sync(dt);
+    this.zoneViews.sync(dt);
     this.bullets.sync();
-    if (isPrism(this.skins.weapon)) this.squad.setGunColor(prismColor(_pc, this.time, this.weapons.tier));
+    this.loadout.sync(this.time);
     this.updateCamera(dt);
     this.world.sync(dt, L.x, L.z, this.camera.position.z);
     if (this.fx) this.fx.update(); // stage3-fx
   }
 
-  cameraGoal(outPos, outLook) {
-    const L = this.squad.leader;
-    if (MENU_STATES.has(this.state)) {
-      const t = this.time;
-      outPos.set(L.x * 0.3 + Math.sin(t * 0.2) * 1.5, 6.2, L.z + 9.5);
-      // squad framed between the title logo and the PLAY button; wider frames (desktop 9:16) show less
-      // vertical room, so the look point slides toward the squad to lift it above the button
-      const wide = Math.max(0, Math.min(1, (this.camera.aspect - 0.47) / 0.1));
-      outLook.set(L.x * 0.2, 0.4 - 0.5 * wide, L.z - 3.5 + 1.5 * wide);
-      return;
-    }
-    const boss = this.run && this.run.phase === 'boss';
-    // blob radius from the rendered member count (same formula as squad.center) -> zoom-out that keeps
-    // growing up to the 320 rendered members (r ~ 4.9), so big squads stay inside the frame
-    const r = FORMATION.spacing * 0.525 * Math.sqrt(this.squad.members.length + 0.5);
-    const crowd = Math.max(0, Math.min(1, (r - 0.6) / 4.3));
-    // 9:16 frames (desktop portrait frame, 16:9 phones) have a narrower fov than tall phones
-    const wide = Math.max(0, Math.min(1, (this.camera.aspect - 0.47) / 0.1));
-    if (boss) {
-      // pull back and look further ahead so the boss clears the HUD and the squad clears the badge
-      const zoom = 1 + CAMERA.crowdZoom * crowd;
-      outPos.set(L.x * CAMERA.followX, CAMERA.bossHeight * zoom * (1 + CAMERA.bossWideLift * wide), L.z + CAMERA.bossBack * zoom * (1 + CAMERA.bossWideBack * wide));
-      outLook.set(L.x * CAMERA.lookX, 0, L.z - (CAMERA.bossLook + CAMERA.bossWideLook * wide));
-      return;
-    }
-    const wc = wide * crowd;
-    outPos.set(L.x * CAMERA.followX, CAMERA.height * (1 + CAMERA.crowdLift * crowd + 0.12 * wide),
-      L.z + CAMERA.back * (1 + CAMERA.crowdBack * crowd + 0.1 * wide + CAMERA.wideCrowdBack * wc));
-    outLook.set(L.x * CAMERA.lookX, 0, L.z - (CAMERA.lookAhead - CAMERA.crowdLook * crowd - 2.5 * wide + CAMERA.wideCrowdLook * wc));
-  }
-
-  snapCamera() {
-    this.cameraGoal(this.camPos, this.camLook);
-    this.camera.position.copy(this.camPos);
-    this.camera.lookAt(this.camLook);
-  }
-
-  updateCamera(dt) {
-    const goalP = _gp, goalL = _gl;
-    this.cameraGoal(goalP, goalL);
-    const k = 1 - Math.exp(-CAMERA.damping * dt);
-    this.camPos.x += (goalP.x - this.camPos.x) * k;
-    this.camPos.y += (goalP.y - this.camPos.y) * k;
-    this.camPos.z += (goalP.z - this.camPos.z) * Math.max(k, 0.5);
-    this.camLook.x += (goalL.x - this.camLook.x) * k;
-    this.camLook.y += (goalL.y - this.camLook.y) * k;
-    this.camLook.z += (goalL.z - this.camLook.z) * Math.max(k, 0.5);
-    this.camera.position.copy(this.camPos);
-    if (this.shake) this.shake.apply(this.camera, dt);
-    this.camera.lookAt(this.camLook);
-  }
+  cameraGoal(outPos, outLook) { cameraGoal(this, outPos, outLook); }
+  snapCamera() { snapCamera(this); }
+  updateCamera(dt) { updateCamera(this, dt); }
 
   /**
    * Auto quality: exponential moving average of the loop fps over the whole run (not just the cheap
@@ -455,4 +450,3 @@ export class Game {
   }
 }
 
-const _gp = new THREE.Vector3(), _gl = new THREE.Vector3(), _pc = new THREE.Color();

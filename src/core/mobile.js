@@ -1,7 +1,7 @@
 // Mobile browser robustness: viewport height on iOS Safari (no 100dvh before 15.4, URL bar resizes),
 // no rubber-band / pinch / double-tap zoom / long-press menus outside the scrollable menu lists, pause on
 // page hide / freeze, and a WebGL context-loss overlay (pause, wait for the browser to restore, else reload).
-const SCROLLERS = '.map-scroll, .shop-body';
+const SCROLLERS = '.map-scroll, .shop-body, .info-scroll, .chip-row';
 
 export function installMobile(game, engine) {
   const root = document.documentElement;

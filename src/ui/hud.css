@@ -192,3 +192,11 @@
   .boss-shine { top: 2px; height: 3px; }
   .hud.boss-phase .hud-powers { top: calc(var(--safe-t) + 110px); }
 }
+
+/* ---------------- update 2: Guard hearts, ability mount ---------------- */
+.squad-bubble .guard-dots { position: absolute; left: 0; top: 2px; transform: translateX(-50%); display: flex; gap: 2px; pointer-events: none; }
+.squad-bubble .guard-dots i { width: 7px; height: 7px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: rgba(255, 255, 255, 0.35); box-shadow: 0 0 0 1.5px var(--outline); }
+.squad-bubble .guard-dots i.on { background: #ff5a7a; }
+.hud-ability-mount { position: absolute; right: calc(var(--safe-r, 0px) + 12px); bottom: calc(var(--safe-b, 0px) + 14px); pointer-events: none; }
+.hud-ability-mount > * { pointer-events: auto; }
+.hud.hinting .hud-ability-mount { display: none; }

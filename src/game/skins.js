@@ -1,15 +1,17 @@
-// Equipped skins -> in-game looks. Hero skins recolor Pip and the Raiders' accents; weapon skins
-// override the bullet / gun colors per tier (each tier keeps its shape). Prism cycles hue over time.
+// Equipped cosmetics -> in-game looks. Pip outfits (HERO_SKINS) recolour Pip and the Raiders' accents (Pip
+// only). Weapon skins are GUN PAINT (update 2): they recolour the gun bodies only, per Mk
+// (tiers[mk-1].color); 'factory' = the weapon's own gun tint. Prism cycles the gun hue every frame.
+// Projectiles, hits and status tints always keep the weapon's own colours.
 import * as THREE from 'three';
 import { HERO_BY_ID, WEAPON_SKIN_BY_ID } from '../data/skins.js';
-import { weaponForTier } from '../data/weapons.js';
+import { weaponDef, MAX_MK } from '../data/weapons.js';
 
 const _c = new THREE.Color();
 const shade = (hex, dl) => '#' + _c.set(hex).offsetHSL(0, 0, dl).getHexString();
 
 /**
- * Pip + Raider color overrides for a hero skin id. Classic returns nulls so the hand-tuned model
- * defaults stay exactly as built.
+ * Pip + Raider color overrides for an outfit id. Classic returns nulls so the hand-tuned model defaults stay
+ * exactly as built.
  */
 export function heroLook(id) {
   const s = HERO_BY_ID[id];
@@ -29,18 +31,27 @@ export function heroLook(id) {
   };
 }
 
-/** { color, core, trail } of a weapon tier under a weapon skin id (factory = data/weapons.js colors). */
-export function tierLook(skinId, tier) {
-  const w = weaponForTier(tier);
-  const s = WEAPON_SKIN_BY_ID[skinId];
-  const t = s && s.tiers ? s.tiers[w.tier - 1] : null;
-  if (!t) return { color: w.color, core: w.style.core, trail: w.style.trail || w.color };
-  return { color: t.color, core: t.core, trail: t.trail || t.color };
+/** Raider palette (models/raider.js keys) from a hero def's { body, helmet, visor, pack }. */
+export function heroRaiderColors(r) {
+  if (!r) return undefined;
+  return {
+    suit: r.body, suitDark: shade(r.body, -0.12), helmet: r.helmet, visor: r.visor, pack: r.pack,
+    scarf: r.pack, crest: shade(r.body, 0.1), hood: r.helmet, bun: r.body, brim: r.helmet, ridge: r.pack, plate: r.helmet,
+  };
 }
 
 export function isPrism(skinId) { return !!(WEAPON_SKIN_BY_ID[skinId] && WEAPON_SKIN_BY_ID[skinId].prism); }
 
-/** Rainbow tint for the Prism skin at game time t (per tier phase offset). */
-export function prismColor(out, t, tier) {
-  return out.setHSL((t * 0.35 + tier * 0.17) % 1, 0.95, 0.62);
+/** Gun body colour of weapon `id` at `mk` under gun paint `paintId`. */
+export function paintColor(paintId, id, mk) {
+  const s = WEAPON_SKIN_BY_ID[paintId];
+  const i = Math.max(1, Math.min(MAX_MK, mk | 0)) - 1;
+  if (s && s.tiers) return s.tiers[i].color;
+  const def = weaponDef(id);
+  return (def.gunTint && def.gunTint[i]) || def.look.mk[i].color;
+}
+
+/** Rainbow tint for the Prism paint at game time t (per Mk phase offset). */
+export function prismColor(out, t, mk) {
+  return out.setHSL((t * 0.35 + mk * 0.17) % 1, 0.95, 0.62);
 }

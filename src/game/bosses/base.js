@@ -5,6 +5,10 @@
 // sky), onLanded(). Steering: the boss sways toward the squad unless `lockX` is set (charges, sweeps).
 // Shared attack visuals live in game.bosses.effects (orbs, bolts, rings, puddles, laser).
 import { bossDef, cadenceFor } from '../../data/bosses.js';
+import { bossMul } from '../../data/matchups.js';
+import { HIT } from '../../config.js';
+
+const FROZEN_MUL = 1.25;
 
 const DROP_TIME = 0.85, INTRO_TIME = 1.25, DEATH_TIME = 1.55;
 // Soft enrage: past ENRAGE_AFTER s of fighting, attacks come 1 + (t - ENRAGE_AFTER) / ENRAGE_RAMP times as
@@ -35,7 +39,10 @@ export class BaseBoss {
     this.dangerZones = [];
     this.effects = game.bosses.effects;
     this.kind = 'boss';
+    this.bit = HIT.BOSS;
     this.priority = 9;
+    // update 2 status (ticked by status.tickBoss): burn pool, freeze (no new attack starts while frozenT > 0)
+    this.burnPool = 0; this.burnT = 0; this.frozenT = 0;
     this.hitTarget = { z: 0, boss: this };
     this.hitPos = { x: 0, y: 0, z: 0 };
     this.c = { x: 0, z: 0, r: 0 };
@@ -109,7 +116,7 @@ export class BaseBoss {
       if (this.attack) {
         if (this.attack.update(dt)) { this.attack = null; this.cooldown = this.nextCooldown(); }
       } else if (game.squad.count > 0 && game.run && game.run.active) {
-        this.cooldown -= dt;
+        if (!(this.frozenT > 0)) this.cooldown -= dt; // Whiteout: a running attack finishes, no new one starts
         if (this.cooldown <= 0) {
           const spec = this.pickAttack();
           this.attack = this.startAttack(spec.id, spec);
@@ -119,6 +126,7 @@ export class BaseBoss {
     } else if (this.state === 'dying') {
       if (this.t >= DEATH_TIME) { this.state = 'dead'; this.root.visible = false; game.win(); }
     }
+    if (game.status && this.targetable) game.status.tickBoss(this, dt);
     this.root.position.set(this.x, this.y, this.z);
   }
 
@@ -137,9 +145,14 @@ export class BaseBoss {
   hit(t, b) {
     const p = this.hitPos; p.x = b.x; p.z = t.z;
     p.y = this.def.hitY != null ? this.def.hitY + (Math.random() - 0.5) * 2.2 : b.y + 1.2;
-    if (this.game.events.wants('bullet:hit')) this.game.events.emit('bullet:hit', { kind: 'boss', pos: p });
-    this.damage(b.dmg);
+    if (this.game.events.wants('bullet:hit')) this.game.events.emit('bullet:hit', { kind: 'boss', pos: p, weapon: b.owner ? b.owner.id : 'helper' });
+    this.damageTyped(b.dmg, b.el);
     return true;
+  }
+
+  /** Element-aware damage (SPEC2 §1.5): matchup multiplier, +25% while frozen. el 'neutral' = 1. */
+  damageTyped(d, el = 'neutral') {
+    this.damage(d * bossMul(el, this.type) * (this.frozenT > 0 ? FROZEN_MUL : 1));
   }
 
   damage(d) {

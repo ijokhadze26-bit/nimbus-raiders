@@ -1,7 +1,7 @@
 // Gates: +N/-N add gates and the x/÷ ladder, optional moving. Shoot to increment (1 per bullet),
 // punch + color lerp red->blue, pass logic (leader crossing), unchosen gate shatters.
 import * as THREE from 'three';
-import { GATE, LANES, COLORS, FORMATION } from '../config.js';
+import { GATE, LANES, COLORS, FORMATION, HIT } from '../config.js';
 import { buildGateVisual, shardGeometry } from '../models/gate.js';
 import { drawLabel, signed, labelReady } from '../models/labels.js';
 import { hasHit } from './bullets.js';
@@ -42,6 +42,7 @@ export class Gates {
     this.events = [];
     this.time = 0;
     this.kind = 'gate';
+    this.bit = HIT.GATE;
     this.priority = 10;
     game.bullets.addTargetSystem(this);
 
@@ -221,9 +222,14 @@ export class Gates {
   }
 
   hit(g, b) {
-    // b.gw: how many real shots this visual bullet stands for at the high-quality budget (1 there; more on
-    // low quality) -> whole hits are applied, the fraction carries to the next bullet
-    g.credit += b.gw ?? 1;
+    // b.gw: how many real gate hits this bullet stands for (tracers carry the squad's whole gate rate; main
+    // projectiles are absorbed with gw 0) -> whole hits are applied, the fraction carries to the next bullet
+    g.punch = Math.max(g.punch, 0.8);
+    if (!(b.gw > 0)) {
+      if (this.game.events.wants('bullet:hit')) { const p = this.hitPos; p.x = b.x; p.y = b.y; p.z = g.z; this.game.events.emit('bullet:hit', { kind: 'gate', pos: p }); }
+      return true;
+    }
+    g.credit += b.gw;
     const n = Math.floor(g.credit);
     g.credit -= n;
     if (g.op === 'add') {

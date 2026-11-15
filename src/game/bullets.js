@@ -1,77 +1,42 @@
-// Bullets: one InstancedMesh per weapon style, pooled objects, swept collision along z against a
-// target registry. Other systems register with addTargetSystem({ kind, priority, sweep, hit }):
-//   sweep(bullet, x, z0, z1) -> nearest target object (must expose .z) with z in [z1, z0] not yet hit, or null
-//   hit(target, bullet) -> true if the bullet is consumed (otherwise pierce is spent)
+// Bullets: one InstancedMesh per registered style (key -> index), pooled bullet objects, swept collision along
+// z against a target registry. Other systems register with addTargetSystem({ kind, bit, priority, sweep, hit }):
+//   sweep(bullet, x, zHi, zLo) -> nearest target object (must expose .z) with z in [zLo, zHi] not yet hit, or null
+//   hit(target, bullet) -> true (consumed) | false (pierce spent) | 'carry' (bundled shots left, keep flying)
+// A bullet only sweeps systems whose `bit` is in its `mask` (HIT in config.js). Its owner (a weapon
+// behaviour, see weapons/base.js) may override each result in onHit(b, kind, target, res) and returns
+// 'bounce' to keep the bullet on a new heading (vx/vz rewritten); onLand(b) fires when a lobbed (air)
+// bullet comes down, onExpire(b) at the end of its range. Behaviours set b.dead = true to drop a bullet.
+// Styles: registerStyle(key, geometry) at init (all weapons register theirs at boot, hidden until used);
+// setStyleGeometry(idx, geo) swaps a style's look (Mk changes; the caller owns and caches geometries).
 import * as THREE from 'three';
-import { BULLETS } from '../config.js';
-import { WEAPONS, HELPER_SHOTS } from '../data/weapons.js';
+import { BULLETS, HIT } from '../config.js';
+import { HELPER_SHOTS } from '../data/weapons.js';
 import { part, merge, G } from '../models/util.js';
-import { XF, writeXfYaw, markInstances } from '../core/pool.js';
-import { tierLook, isPrism, prismColor } from './skins.js';
+import { XF, writeXfYawRoll, markInstances } from '../core/pool.js';
 
+const GROUND_Y = 0.55;
 // tail cone pointing back (+Z) from the bullet center
 const tail = (r, len, color, a, z0 = 0) => part(G.cone(r, len, 5), color, { r: [Math.PI / 2, 0, 0], p: [0, 0, z0 + len / 2], a });
 
-function styleGeometry(w) {
+/** Helper shot looks (drone laser, turret shell): unchanged from the shipped game. */
+export function helperShotGeometry(w) {
   const st = w.style, L = st.length, r = st.radius;
-  // solid saturated body + soft halo + small white-hot core: reads on the bright road and on the sky
-  const body = new THREE.Color(w.color);
-  const core = new THREE.Color(st.core);
-  const halo = new THREE.Color(w.color).offsetHSL(0, 0.05, 0.05);
-  const trail = new THREE.Color(st.trail || w.color);
+  const body = new THREE.Color(w.color), core = new THREE.Color(st.core);
+  const halo = new THREE.Color(w.color).offsetHSL(0, 0.05, 0.05), trail = new THREE.Color(st.trail || w.color);
   const along = [Math.PI / 2, 0, 0];
-  // Low segment counts on purpose: ~200 bullets are alive at the visual budget, all alpha-blended,
-  // so each style stays near 80 triangles (Nova ~130); at bullet size the facets don't read.
-  switch (st.shape) {
-    case 'bolt': // short fat pistol bolt
-      return merge([
-        part(G.capsule(r * 1.55, L * 1.05, 1, 5), halo, { r: along, a: 0.35 }),
-        part(G.capsule(r, L, 1, 5), body, { r: along, a: 1, bright: 1.1 }),
-        part(G.capsule(r * 0.45, L * 0.75, 1, 3), core, { r: along, a: 1, p: [0, r * 0.3, -L * 0.1] }),
-      ]);
-    case 'tracer': // rifle tracer with a long fading streak
-      return merge([
-        tail(r * 1.6, L * 1.6, trail, 0.3, L * 0.3),
-        part(G.capsule(r * 1.7, L, 1, 5), halo, { r: along, a: 0.3 }),
-        part(G.capsule(r, L * 0.95, 1, 5), body, { r: along, a: 1, bright: 1.1 }),
-        part(G.sphere(r * 1.6, 4, 2), core, { p: [0, 0, -L * 0.5], a: 1 }),
-      ]);
-    case 'laser': // thin, very long rapid laser
-      return merge([
-        part(G.cyl(r * 2.4, r * 2.4, L, 6), halo, { r: along, a: 0.35 }),
-        part(G.cyl(r * 1.2, r * 1.2, L * 1.02, 5), body, { r: along, a: 1, bright: 1.1 }),
-        part(G.cyl(r * 0.5, r * 0.5, L * 1.03, 4), core, { r: along, a: 1 }),
-      ]);
-    case 'beam': // thick glowing beam with a wide afterglow
-      return merge([
-        tail(r * 2.2, L * 1.3, trail, 0.22, L * 0.35),
-        part(G.capsule(r * 1.9, L, 1, 5), halo, { r: along, a: 0.35 }),
-        part(G.capsule(r, L, 1, 5), body, { r: along, a: 1 }),
-        part(G.capsule(r * 0.45, L, 1, 3), core, { r: along, a: 1 }),
-      ]);
-    case 'orb': // plasma orb with a short comet tail (fired as a 3-way fan)
-      return merge([
-        tail(r * 1.1, r * 5, trail, 0.35, r * 0.4),
-        part(G.sphere(r * 1.6, 6, 4), halo, { a: 0.35, s: [1, 1, 1.3] }),
-        part(G.sphere(r, 6, 4), body, { a: 1 }),
-        part(G.sphere(r * 0.5, 4, 3), core, { a: 1, p: [0, r * 0.3, 0] }),
-      ]);
-    case 'shell': // turret cannon shell
-      return merge([
-        tail(r * 1.3, 1.6, trail, 0.4, r * 0.6),
-        part(G.sphere(r * 1.5, 6, 4), halo, { a: 0.35 }),
-        part(G.capsule(r, r * 1.6, 1, 6), body, { r: along, a: 1 }),
-        part(G.sphere(r * 0.55, 4, 3), core, { a: 1, p: [0, 0, -r * 0.9] }),
-      ]);
-    case 'nova':
-    default: // big piercing nova orb with a long golden trail
-      return merge([
-        part(G.cone(r * 1.2, 2.6, 6), trail, { r: [-Math.PI / 2, 0, 0], p: [0, 0, 1.3], a: 0.55 }),
-        part(G.sphere(r * 1.7, 6, 4), halo, { a: 0.4 }),
-        part(G.sphere(r, 8, 5), body, { a: 1 }),
-        part(G.sphere(r * 0.6, 5, 3), core, { a: 1 }),
-      ]);
+  if (st.shape === 'shell') {
+    return merge([
+      tail(r * 1.3, 1.6, trail, 0.4, r * 0.6),
+      part(G.sphere(r * 1.5, 6, 4), halo, { a: 0.35 }),
+      part(G.capsule(r, r * 1.6, 1, 6), body, { r: along, a: 1 }),
+      part(G.sphere(r * 0.55, 4, 3), core, { a: 1, p: [0, 0, -r * 0.9] }),
+    ]);
   }
+  return merge([ // thin laser
+    part(G.cyl(r * 2.4, r * 2.4, L, 6), halo, { r: along, a: 0.35 }),
+    part(G.cyl(r * 1.2, r * 1.2, L * 1.02, 5), body, { r: along, a: 1, bright: 1.1 }),
+    part(G.cyl(r * 0.5, r * 0.5, L * 1.03, 4), core, { r: along, a: 1 }),
+  ]);
 }
 
 export class Bullets {
@@ -81,39 +46,39 @@ export class Bullets {
     this.active = [];
     this.free = [];
     this.meshes = [];
-    const styles = WEAPONS.concat(HELPER_SHOTS);
-    this.counts = new Int32Array(styles.length);
-    const cap = BULLETS.capacityPerStyle;
-    for (const w of styles) {
-      const mat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, fog: false, toneMapped: false });
-      const mesh = new THREE.InstancedMesh(styleGeometry(w), mat, cap);
-      mesh.frustumCulled = false;
-      mesh.count = 0;
-      mesh.visible = false;
-      mesh.renderOrder = 6;
-      game.scene.add(mesh);
-      this.meshes.push(mesh);
-    }
+    this.keys = [];
+    this.byKey = new Map();
+    this.counts = new Int32Array(64);
     this.hitPos = { x: 0, y: 0, z: 0 };
-    this.skin = 'factory';
-    this.prism = false;
+    for (const w of HELPER_SHOTS) this.registerStyle(w.id, helperShotGeometry(w));
   }
 
-  /** Weapon skin: rebuilds the six weapon-tier bullet geometries in the skin colors (helpers keep theirs). */
-  setSkin(skinId = 'factory') {
-    if (skinId === this.skin) return;
-    this.skin = skinId;
-    this.prism = isPrism(skinId);
-    for (let i = 0; i < WEAPONS.length; i++) {
-      const w = WEAPONS[i];
-      // prism: white geometry, tinted per frame by the material color (see sync)
-      const look = this.prism ? { color: '#ffffff', core: '#ffffff', trail: '#ffffff' } : tierLook(skinId, w.tier);
-      const mesh = this.meshes[i];
-      const old = mesh.geometry;
-      mesh.geometry = styleGeometry({ ...w, color: look.color, style: { ...w.style, core: look.core, trail: look.trail } });
-      old.dispose();
-      if (!this.prism) mesh.material.color.setRGB(1, 1, 1);
-    }
+  /** Registers (or returns the existing) style `key`; returns its index. Call at init only (no allocation later). */
+  registerStyle(key, geometry, { cap = BULLETS.capacityPerStyle } = {}) {
+    if (this.byKey.has(key)) return this.byKey.get(key);
+    const mat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, fog: false, toneMapped: false });
+    const mesh = new THREE.InstancedMesh(geometry, mat, cap);
+    mesh.frustumCulled = false;
+    mesh.count = 0;
+    mesh.visible = false;
+    mesh.renderOrder = 6;
+    mesh.userData.cap = cap;
+    this.game.scene.add(mesh);
+    const idx = this.meshes.length;
+    this.meshes.push(mesh);
+    this.keys.push(key);
+    this.byKey.set(key, idx);
+    if (this.counts.length <= idx) { const c = new Int32Array(this.counts.length * 2); c.set(this.counts); this.counts = c; }
+    return idx;
+  }
+
+  /** Style index of a key (-1 when unknown). */
+  styleIndex(key) { return this.byKey.has(key) ? this.byKey.get(key) : -1; }
+
+  /** Swaps the geometry of a style (Mk changes). The caller owns the geometries (nothing is disposed here). */
+  setStyleGeometry(idx, geometry) {
+    const mesh = this.meshes[idx];
+    if (mesh && geometry && mesh.geometry !== geometry) mesh.geometry = geometry;
   }
 
   addTargetSystem(sys) {
@@ -129,12 +94,19 @@ export class Bullets {
 
   get count() { return this.active.length; }
 
-  /** tier 1..6 = weapon styles, 7 = drone laser, 8 = turret shell. unit = damage of one real shot. */
-  spawn(tier, x, y, z, vx, vz, dmg, pierce, unit = dmg, range = BULLETS.range) {
-    if (this.active.length >= BULLETS.capacityPerStyle * 2) return null;
-    const b = this.free.length ? this.free.pop() : { x: 0, y: 0, z: 0, vx: 0, vz: 0, dmg: 1, unit: 1, pierce: 0, style: 0, dist: 0, range: 60, nh: 0, hits: [null, null, null, null, null, null, null, null] };
-    b.x = x; b.y = y; b.z = z; b.vx = vx; b.vz = vz; b.dmg = dmg; b.unit = unit; b.pierce = pierce; b.range = range; b.vy = 0;
-    b.style = tier - 1; b.dist = 0; b.nh = 0; b.ang = Math.atan2(-vx, -vz); b.gw = 1; b.show = true;
+  /**
+   * styleIdx from registerStyle (-1 = simulated but never drawn). unit = damage of one real shot. Every
+   * per-bullet field is reset here (pooled objects never carry an old shot's state).
+   */
+  spawn(styleIdx, x, y, z, vx, vz, dmg, pierce, unit = dmg, range = BULLETS.range) {
+    if (this.active.length >= BULLETS.maxActive) return null;
+    const b = this.free.length ? this.free.pop() : newBullet();
+    b.x = x; b.y = y; b.z = z; b.vx = vx; b.vz = vz; b.vy = 0; b.dmg = dmg; b.unit = unit; b.pierce = pierce; b.range = range;
+    b.style = styleIdx; b.dist = 0; b.nh = 0; b.ang = Math.atan2(-vx, -vz);
+    b.owner = null; b.el = 'neutral'; b.mask = HIT.ALL; b.cause = null;
+    b.g = 0; b.air = false; b.bounces = 0; b.gen = 0;
+    b.sx = 1; b.sy = 1; b.sz = 1; b.spin = 0; b.roll = 0;
+    b.bdmg = 0; b.gw = 0; b.show = true; b.t = 0; b.data = 0; b.dead = false; b.z0 = z;
     this.active.push(b);
     return b;
   }
@@ -151,26 +123,48 @@ export class Bullets {
     for (let i = list.length - 1; i >= 0; i--) {
       const b = list[i];
       let z0 = b.z;
+      b.t += dt;
+      if (b.g) b.vy -= b.g * dt;
       b.x += b.vx * dt;
       b.z += b.vz * dt;
-      if (b.vy) { b.y += b.vy * dt; if (b.y < 0.55) { b.y = 0.55; b.vy = 0; } }
+      if (b.spin) b.roll += b.spin * dt;
+      if (b.vy) {
+        b.y += b.vy * dt;
+        if (!b.air && b.y < GROUND_Y) { b.y = GROUND_Y; b.vy = 0; }
+      }
+      if (b.air && b.y <= GROUND_Y) {
+        b.air = false; b.y = GROUND_Y; b.vy = 0;
+        if (b.owner) b.owner.onLand(b);
+      }
       const step = Math.hypot(b.vx * dt, b.vz * dt);
       b.dist += step;
       const z1 = b.z;
-      let dead = b.dist > b.range;
+      let dead = b.dead;
+      if (!dead && b.dist > b.range) { dead = true; if (b.owner) b.owner.onExpire(b); }
       // swept collision: repeatedly take the nearest hit along travel (largest z), pierce as allowed
-      for (let guard = 0; !dead && guard < 8; guard++) {
+      for (let guard = 0; !dead && !b.air && guard < 8; guard++) {
         let best = null, bestSys = null, bestZ = -Infinity;
+        const hi = z0 > z1 ? z0 : z1, lo = z0 > z1 ? z1 : z0;
         for (let s = 0; s < sys.length; s++) {
-          const t = sys[s].sweep(b, b.x, z0, z1);
+          const bit = sys[s].bit || 0;
+          if (bit && !(bit & b.mask)) continue;
+          const t = sys[s].sweep(b, b.x, hi, lo);
           if (t && t.z > bestZ) { best = t; bestSys = sys[s]; bestZ = t.z; }
         }
         if (!best) break;
-        const res = bestSys.hit(best, b);
+        let res = bestSys.hit(best, b);
+        if (b.owner) res = b.owner.onHit(b, bestSys.kind, best, res);
+        if (b.dead) { dead = true; break; }
         if (res === 'carry') { // bundled shots left over: keep flying without spending pierce
           if (b.nh < b.hits.length) b.hits[b.nh++] = best;
           z0 = bestZ;
           continue;
+        }
+        if (res === 'bounce') { // new heading (owner rewrote vx/vz): restart from the hit point next step
+          if (b.nh < b.hits.length) b.hits[b.nh++] = best;
+          b.z = bestZ; b.z0 = bestZ;
+          b.ang = Math.atan2(-b.vx, -b.vz);
+          break;
         }
         if (res === true || b.pierce <= 0) { dead = true; break; }
         b.pierce--;
@@ -189,29 +183,38 @@ export class Bullets {
     const counts = this.counts;
     counts.fill(0);
     const list = this.active;
+    const meshes = this.meshes;
     // low quality: draw only the volleys flagged `show` (~budgetLow/budgetHigh); all bullets still simulate
     const low = this.game.engine && this.game.engine.quality === 'low';
     for (let i = 0; i < list.length; i++) {
       const b = list[i];
-      if (low && !b.show) continue;
-      const mesh = this.meshes[b.style];
+      if (b.style < 0 || (low && !b.show)) continue;
+      const mesh = meshes[b.style];
       const n = counts[b.style]++;
-      if (n >= BULLETS.capacityPerStyle) continue;
+      if (n >= mesh.userData.cap) continue;
       // grow-in over the first 0.6u so bullets don't pop out of the guns
       const g = b.dist < 0.6 ? 0.4 + b.dist : 1;
-      XF[0] = b.x; XF[1] = b.y; XF[2] = b.z; XF[3] = b.ang; XF[5] = XF[6] = XF[7] = g;
-      writeXfYaw(mesh.instanceMatrix.array, n);
+      XF[0] = b.x; XF[1] = b.y; XF[2] = b.z; XF[3] = b.ang; XF[4] = b.roll; XF[5] = b.sx * g; XF[6] = b.sy * g; XF[7] = b.sz * g;
+      writeXfYawRoll(mesh.instanceMatrix.array, n);
     }
-    for (let s = 0; s < this.meshes.length; s++) {
-      const mesh = this.meshes[s];
-      mesh.count = Math.min(counts[s], BULLETS.capacityPerStyle);
+    for (let s = 0; s < meshes.length; s++) {
+      const mesh = meshes[s];
+      mesh.count = Math.min(counts[s], mesh.userData.cap);
       mesh.visible = mesh.count > 0;
       if (mesh.visible) markInstances(mesh.instanceMatrix, mesh.count);
     }
-    if (this.prism) for (let s = 0; s < WEAPONS.length; s++) prismColor(this.meshes[s].material.color, this.game.time, s + 1);
   }
 
   dispose() {}
+}
+
+function newBullet() {
+  return {
+    x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, dmg: 1, unit: 1, pierce: 0, style: 0, dist: 0, range: 60, nh: 0, ang: 0,
+    hits: [null, null, null, null, null, null, null, null],
+    owner: null, el: 'neutral', mask: HIT.ALL, cause: null, g: 0, air: false, bounces: 0, gen: 0,
+    sx: 1, sy: 1, sz: 1, spin: 0, roll: 0, bdmg: 0, gw: 0, show: true, t: 0, data: 0, dead: false, z0: 0,
+  };
 }
 
 export const hasHit = Bullets.hasHit;

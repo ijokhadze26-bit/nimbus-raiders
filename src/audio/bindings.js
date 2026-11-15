@@ -1,5 +1,10 @@
 // Event bus -> sound. Maps every gameplay/UI event (SPEC §4) to sfx, and game state /
 // run phase to music tracks (crossfades, pause duck, win/lose stingers).
+// Update 2: the fire sound is the equipped weapon's def.sfx.fire; weapon / hero specifics live in
+// bindweapons.js / bindheroes.js (WEAPONS / HEROES builders).
+import { weaponDef } from '../data/weapons.js';
+import { bindWeapons } from './bindweapons.js';
+import { bindHeroes } from './bindheroes.js';
 
 const POP_PITCH = { grunt: 1, runner: 1.28, tank: 0.68, shield: 0.88, bomber: 1.1 };
 const BOSS_ATTACK = { slam: 'slam', roll: 'rumble', orb: 'orb', orbs: 'orb', volley: 'orb', summon: 'summon', puddle: 'summon', charge: 'charge', lightning: 'lightning', strike: 'lightning' };
@@ -46,7 +51,7 @@ export function bindAudio(audio, game) {
   });
   on('run:start', () => {
     if (audio.sfxEngine) audio.sfxEngine.stopAllLoops();
-    lastTier = game.weapons ? game.weapons.tier : 1;
+    lastTier = game.weapons ? game.weapons.mk : 1;
     holdUntil = 0;
     const m = audio.music;
     if (!m) return;
@@ -77,11 +82,13 @@ export function bindAudio(audio, game) {
 
   // ---------------- weapons / combat ----------------
   let lastTier = 1;
-  on('weapon:fire', (p) => fx('fire' + Math.max(1, Math.min(6, p.tier | 0 || 1))));
+  const fireOpts = { mk: 1 };
+  on('weapon:fire', (p) => { const n = weaponDef(p.weapon).sfx.fire; fireOpts.mk = p.mk; if (n) fx(n, fireOpts); });
   on('weapon:tier', (p) => {
-    if ((p.tier | 0) > lastTier) { fx('tierUp', { tier: p.tier }); dip(0.3, 0.4); }
-    lastTier = p.tier | 0;
+    if ((p.mk | 0) > lastTier) { fx('tierUp', { tier: p.mk }); dip(0.3, 0.4); }
+    lastTier = p.mk | 0;
   });
+  on('weapon:swap', (p) => { fx('tierUp', { tier: p.mk }); dip(0.3, 0.4); });
   on('bullet:hit', (p) => {
     if (p.kind === 'boss') fx('bossHit');
     else if (p.kind === 'shield') fx('shieldHit');
@@ -143,6 +150,7 @@ export function bindAudio(audio, game) {
   // ---------------- UI ----------------
   on('ui:click', () => fx('click'));
 
+  offs.push(...(bindWeapons(audio, game) || []), ...(bindHeroes(audio, game) || []));
   return offs;
 }
 

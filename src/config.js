@@ -64,7 +64,13 @@ export const BULLETS = {
   range: 60,         // how far ahead of the leader a bullet travels
   y: 0.55,
   capacityPerStyle: 640,
+  maxActive: 1600,   // all simulated bullets incl. tracers (update 2)
 };
+
+// Bullet target masks (update 2): a bullet only sweeps target systems whose bit is in its mask.
+export const HIT = { GATE: 1, BARREL: 2, ENEMY: 4, BOSS: 8, ALL: 15 };
+// Tracers: invisible-to-enemies helper shots that carry the gate / barrel economy for every weapon.
+export const TRACER = { speed: 60, range: 60 };
 
 export const GATE = {
   width: 4.4,

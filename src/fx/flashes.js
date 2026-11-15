@@ -1,7 +1,9 @@
-// Muzzle flashes (tier color, at the front shooters, throttled) and bullet impact flashes:
+// Muzzle flashes (weapon + Mk colour, at the front shooters, throttled) and bullet impact flashes:
 // enemy/barrel sparks, shield blocks, gate shimmer ripples, boss hit sparks.
+// Weapon-keyed since update 2 (FOUNDATION made it so; the WEAPONS builder owns it from here): colours come from
+// the weapon's own look (data/weapons.js look.mk), never from gun paint.
 import { hexInt, shade } from './bursts.js';
-import { weaponForTier } from '../data/weapons.js';
+import { weaponDef } from '../data/weapons.js';
 
 const MUZZLE_INTERVAL = 1 / 18; // s of game time between flash volleys
 const _m = { x: 0, y: 0, z: 0 };
@@ -16,12 +18,12 @@ export class Flashes {
     this.tier = 0;
   }
 
-  colors(tier) {
-    const g = this.game;
-    const key = tier + (g.skins ? g.skins.weapon : '');
+  colors(mk, weapon = this.game.weapons.id) {
+    const key = weapon + mk;
     if (key === this.tier) return;
     this.tier = key;
-    const c = hexInt(g.tierColor ? g.tierColor(tier) : weaponForTier(tier).color);
+    const def = weaponDef(weapon);
+    const c = hexInt(def.look.mk[Math.max(1, Math.min(5, mk | 0)) - 1].color);
     this.tierColor = c;
     this.sparkColor = shade(c, 0.35);
   }
@@ -33,7 +35,7 @@ export class Flashes {
     if (now - this.last < MUZZLE_INTERVAL && now >= this.last) return;
     this.last = now;
     const g = this.game, sq = g.squad;
-    this.colors(p.tier);
+    this.colors(p.mk || p.tier, p.weapon);
     const vz = -sq.speed;
     const n = sq.rendered;
     const flashes = g.engine.quality === 'low' ? 1 : Math.min(3, 1 + (n > 6 ? 1 : 0) + (n > 30 ? 1 : 0));
@@ -56,11 +58,11 @@ export class Flashes {
   hit(p) {
     const x = p.pos.x, y = p.pos.y, z = p.pos.z;
     switch (p.kind) {
-      case 'enemy': this.colors(this.game.weapons.tier); this.B.sparks(x, y, z, this.sparkColor, 3); break;
+      case 'enemy': this.colors(this.game.weapons.mk); this.B.sparks(x, y, z, this.sparkColor, 3); break;
       case 'barrel': this.B.sparks(x, y, z, 0xffcc55, 3, 0.6); break;
       case 'shield': this.B.shieldHit(x, y, z); break;
       case 'gate': this.B.gateShimmer(x, y, z); break;
-      case 'boss': this.colors(this.game.weapons.tier); this.B.bossHit(x, y, z, this.sparkColor); break;
+      case 'boss': this.colors(this.game.weapons.mk); this.B.bossHit(x, y, z, this.sparkColor); break;
       default: this.B.sparks(x, y, z, 0xffffff, 2);
     }
   }

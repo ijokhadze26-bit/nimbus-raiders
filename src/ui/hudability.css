@@ -1,0 +1,12 @@
+/* Ability button (FOUNDATION stub; HEROES builder owns it). 68 px round, conic recharge ring. */
+.ability-btn {
+  position: relative; width: 68px; height: 68px; border-radius: 50%; border: 3px solid var(--outline, #1b3a8a);
+  background: #2f8cff; color: #fff; font: 700 16px/1 'Lilita One', sans-serif; touch-action: none; cursor: pointer;
+  box-shadow: 0 4px 0 #1b3a8a;
+}
+.ability-btn .ab-ring {
+  position: absolute; inset: -6px; border-radius: 50%; pointer-events: none;
+  background: conic-gradient(#ffd34d var(--f, 0deg), rgba(255, 255, 255, 0.2) 0);
+  -webkit-mask: radial-gradient(circle, transparent 37px, #000 38px); mask: radial-gradient(circle, transparent 37px, #000 38px);
+}
+.ability-btn.ready { background: #ffb21f; }

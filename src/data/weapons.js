@@ -231,6 +231,3 @@ export function weaponDef(id) { return WEAPON_BY_ID[id] || (id === 'ref' ? REF_W
 /** Mk row of a def (clamped). */
 export function mkRow(def, mk) { return def.mk[Math.max(1, Math.min(MAX_MK, mk | 0)) - 1]; }
 
-// ---- transitional aliases (removed once the Mk runtime lands) ----
-export const MAX_TIER = MAX_MK;
-export function weaponForTier(tier) { return LEGACY_TIERS[Math.max(1, Math.min(MAX_MK, tier | 0)) - 1]; }

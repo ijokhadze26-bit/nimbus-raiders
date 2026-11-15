@@ -8,9 +8,24 @@ import { buildBarrelVisual, buildRewardDisplay } from '../models/barrel.js';
 import { buildBladeVisual, buildGapView, disposeGapView } from '../models/obstacles.js';
 import { buildPowerToken, POWER_STYLE } from '../models/pickups.js';
 
+// Lazily built update-2 visuals (crates, mini turrets, Fortress, meteor, zone views, hero rigs ...) register a
+// builder here from their module's top level: fn(game) -> Object3D | Object3D[] | { objects, done } | null.
+// warmShaders compiles them with the scene's lights at boot (programs never grow mid-run).
+const WARM = [];
+export function registerWarm(fn) { if (typeof fn === 'function') WARM.push(fn); }
+
 export function warmShaders(game) {
   const tmp = new THREE.Group();
   const done = [];
+  for (const fn of WARM) {
+    try {
+      const r = fn(game);
+      if (!r) continue;
+      const objs = r.isObject3D ? [r] : Array.isArray(r) ? r : (r.objects || []);
+      for (const o of objs) { tmp.add(o); done.push(() => tmp.remove(o)); }
+      if (r.done) done.push(r.done);
+    } catch (e) { console.warn('[warmup] builder failed', e); }
+  }
 
   // gates (lane + centre width): back into the gates' pool afterwards
   for (const w of [GATE.width, GATE.widthCenter]) {

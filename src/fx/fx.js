@@ -9,6 +9,10 @@ import { Flashes } from './flashes.js';
 import { Popups } from './popups.js';
 import { Screen } from './screen.js';
 import { Confetti } from './confetti.js';
+import { installWeaponFx } from './weapons/index.js';
+import { installHeroFx } from './heroes.js';
+import { MENU_STATES } from '../game/states.js';
+import { weaponDef } from '../data/weapons.js';
 
 const BOSS_DEBRIS = {
   grawlstone: [0x8d8576, 0x6f8f4a], oculon: [0x6d7aa8, 0xd9e4ff], mothermurk: [0x6a3fb0, 0x9d6bff],
@@ -24,7 +28,6 @@ const REWARD_TEXT = {
 // boss death: explosion stages on game time (the first ~0.28 s play out inside the 0.2x slow-mo)
 const DEATH_STAGES = [0, 0.045, 0.09, 0.14, 0.2, 0.27, 0.38, 0.52, 0.7, 0.92, 1.18];
 const DEATH_FINAL = 1.42;
-const MENU_STATES = new Set(['title', 'map', 'shop', 'settings', 'endless']);
 const rnd = (a, b) => a + Math.random() * (b - a);
 
 export function installFx(game) {
@@ -61,6 +64,9 @@ export class Fx {
     this.death = { on: false, t: 0, stage: 0, x: 0, z: 0, debris: BOSS_DEBRIS.grawlstone, final: false };
     this.syncQuality();
     this.bind();
+    // update 2: per-weapon and per-hero effects (WEAPONS / HEROES builders own these modules)
+    this.weaponFx = installWeaponFx(this) || null;
+    this.heroFx = installHeroFx(this) || null;
   }
 
   bind() {
@@ -90,12 +96,14 @@ export class Fx {
       this.coinPos.x = p.pos.x; this.coinPos.y = (p.pos.y || 0) + 1.4; this.coinPos.z = p.pos.z;
     });
     on('barrel:break', (p) => this.barrelBreak(p));
-    on('weapon:tier', (p) => {
-      const L = g.squad.leader, c = hexInt(weaponColor(g, p.tier));
+    const mkUp = (p) => {
+      const L = g.squad.leader, col = weaponColor(p.weapon || p.to, p.mk || p.tier), c = hexInt(col);
       B.sparkle(L.x, 0.6, L.z + 0.8, c, 22, 2.2, -g.squad.speed, 1.4);
       B.gatePass(L.x, L.z - 1.5, L.x, L.z, true, -g.squad.speed);
-      this.screen.flash(weaponColor(g, p.tier), 0.28, 2.5);
-    });
+      this.screen.flash(col, 0.28, 2.5);
+    };
+    on('weapon:tier', mkUp);
+    on('weapon:swap', mkUp);
     on('helper:add', (p) => B.sparkle(p.pos.x, p.pos.y || 1.5, p.pos.z, p.kind === 'turret' ? 0xffb36b : 0x8dff9a, 14, 1.2, -g.squad.speed));
     on('pickup:collect', (p) => B.sparkle(p.pos.x, (p.pos.y || 0) + 0.6, p.pos.z, POWER_COLORS[p.kind] || 0xffffff, 12, 1.2, -g.squad.speed));
     on('power:start', (p) => {
@@ -291,6 +299,8 @@ export class Fx {
       this.ambient(dt);
       this.flushDamage();
       this.flushCoins();
+      if (this.weaponFx && this.weaponFx.update) this.weaponFx.update(dt);
+      if (this.heroFx && this.heroFx.update) this.heroFx.update(dt);
       this.P.update(dt);
       this.D.update(dt);
     }
@@ -305,8 +315,8 @@ export class Fx {
   }
 }
 
-function weaponColor(g, tier) {
-  if (g.tierColor) return g.tierColor(tier);
-  const w = g.weapons && g.weapons.weapon;
-  return w && w.tier === tier ? w.color : '#ffd34d';
+/** A weapon's own colour at a Mk (fx identity; gun paint never changes it). */
+function weaponColor(id, mk) {
+  const def = weaponDef(id);
+  return def.look.mk[Math.max(1, Math.min(5, mk | 0 || 1)) - 1].color;
 }

@@ -11,7 +11,8 @@ import { Rng } from '../core/rng.js';
 import { ALIVE } from './horde.js';
 import { TARGET_CLAMP, MEMBER_CLAMP } from '../config.js';
 import { BLADE_R } from '../models/obstacles.js';
-import { MAX_TIER } from '../data/weapons.js';
+import { ENEMY_INDEX } from '../data/enemies.js';
+import { BOT_DEFAULTS, barrelValue, crateGoal, avoidCrates, hordeFire, easeLookAhead, abilityTick } from './autopilot2.js';
 
 const LOOK = 75;
 const HAZ_LOOK = 24;     // start lining up this far before a blade / gap
@@ -41,10 +42,15 @@ export class Autopilot {
     this.choice = null;
     this.c = { x: 0, z: 0, r: 0 };
     this.rng = new Rng(1);
+    this.rng2 = new Rng(1);       // update 2 decisions (crates, abilities): never shifts the shipped dice
     this.seedBase = 1;
     this.runs = 0;
+    this.opts = { ...BOT_DEFAULTS };
     this.setProfile('pro');
   }
+
+  /** Profile options (SPEC2 §6.10): { crates: 'never'|'favoured'|'always'|'auto', ability: bool, loadout: 'keep'|'auto' }. */
+  setOptions(opts = {}) { this.opts = { ...BOT_DEFAULTS, ...opts }; return this.opts; }
 
   /** 'pro' | 'casual' | 'novice' (true = 'pro'). */
   setProfile(name) {
@@ -58,6 +64,9 @@ export class Autopilot {
     this.choice = null;
     this.targetX = this.game.squad.leader.x;
     this.rng.seed(this.seedBase * 1013 + ++this.runs * 7919);
+    this.rng2.seed(this.seedBase * 4099 + this.runs * 131 + 7);
+    this.crateRolls = new Map();
+    this.abClock = 0; this.abNext = 0; this.abPending = -1;
     this.rolls = new WeakMap();   // per row / hazard / telegraph dice (stable while it is on screen)
     this.seen = new WeakMap();    // danger zone -> time first seen
     this.telRolls = new WeakMap();
@@ -75,6 +84,7 @@ export class Autopilot {
   }
 
   update(dt = 1 / 60) {
+    abilityTick(this, dt);
     const x = this.decide(dt);
     const p = this.p;
     if (!p.react && !p.jitter) return x;
@@ -121,23 +131,28 @@ export class Autopilot {
     // live boss hazards that outlast their warning (charges, laser sweeps, quake crests, goo puddles)
     const zones = game.boss && game.boss.dangerZones;
     let x = null;
-    const look = this.p.hazLook;
+    // a hero that dodges slower than Pip plans further ahead (0 for Pip: the shipped bot)
+    const extra = easeLookAhead(game) * (game.run ? game.run.speed : 9);
+    const look = this.p.hazLook + extra;
     this.look = look;
     const seen = tel.length || (zones && zones.length) ? this.perceived(tel, zones) : tel;
     if (seen.length) x = this.dodge(seen);
     if (x === null) {
       const gate = this.gateGoal();
-      const near = gate && gate.dz < GATE_ALIGN;
+      const near = gate && gate.dz < GATE_ALIGN + extra;
       // a gate decision is not overruled by a hazard well past it (there is time to sidestep after passing)
       this.look = near ? Math.min(look, gate.dz + 8) : look;
-      if (near) x = gate.x;
+      // a wanted crate clearly before the gate row is taken first (crates sit >= 12 u from every row)
+      const cg = crateGoal(this);
+      if (near) x = cg && cg.dz < gate.dz - 6 ? cg.x : gate.x;
+      if (x === null && cg) x = cg.x;
       if (x === null) x = this.pickupGoal(gate, false);
       if (x === null) x = this.hordeGoal();
       if (x === null) x = this.barrelGoal(gate);
       if (x === null) x = this.pickupGoal(gate, true);
       if (x === null && gate) x = gate.x;
       if (x === null && game.boss && game.run && game.run.phase === 'boss') x = game.boss.x;
-      if (x !== null) x = this.avoidBarrels(x);
+      if (x !== null) x = avoidCrates(this, this.avoidBarrels(x));
     }
     if (x !== null) this.targetX = x;
     if (!seen.length) this.targetX = this.avoidHazards(this.targetX);
@@ -237,18 +252,19 @@ export class Autopilot {
     }
     // hp per 0.2 u column across the road
     const bins = this.bins || (this.bins = new Float32Array(52));
-    bins.fill(0);
-    let mass = 0, near = Infinity;
+    const types = this.types || (this.types = new Float32Array(Object.keys(ENEMY_INDEX).length));
+    bins.fill(0); types.fill(0);
+    let mass = 0, near = Infinity, heads = 0;
     for (const e of h.list) {
       if (e.state !== ALIVE || e.z < zFar || e.z > zNear) continue;
       const m = e.hp + (e.shield || 0);
       mass += m;
+      types[e.type]++; heads++;
       if (L.z - e.z < near) near = L.z - e.z;
       bins[Math.max(0, Math.min(51, Math.round((e.x + 5.2) / 0.2)))] += m;
     }
     if (mass === 0) return null;
-    const w = game.weapons, wd = w.weapon;
-    const fire = w.lastShotsPerSec * wd.pellets * wd.damage * w.dmgMul * (1 + wd.pierce * 0.5);
+    const fire = hordeFire(game, types, heads);
     // shoot into the thick of it while it is far, sidestep to the thin side before contact (unless it melts)
     const strong = fire * 0.35 > mass || near > 16;
     let best = null, bestScore = Infinity;
@@ -262,18 +278,7 @@ export class Autopilot {
     return best;
   }
 
-  barrelValue(b) {
-    const game = this.game;
-    const r = b.reward;
-    switch (r.kind) {
-      case 'weapon': return game.weapons.tier < MAX_TIER ? 120 : 5;
-      case 'troops': return (r.amount || 1) * 4;
-      case 'drone': return game.helpers && game.helpers.drones < 4 ? 45 : 0;
-      case 'turret': return game.helpers && game.helpers.turrets < 2 ? 55 : 0;
-      case 'coins': return 8;
-      default: return 20;
-    }
-  }
+  barrelValue(b) { return barrelValue(this.game, b); }
 
   barrelGoal(gate) {
     const game = this.game;
@@ -281,8 +286,7 @@ export class Autopilot {
     const L = game.squad.leader;
     const run = game.run;
     const speed = Math.max(1, run ? run.speed : 9);
-    const w = game.weapons.weapon;
-    const dps = game.squad.count * w.rate * w.damage * game.weapons.dmgMul;
+    const dps = game.weapons.barrelDps();
     let best = null, bs = 0;
     for (const b of game.barrels.upcoming()) {
       const dz = L.z - b.z;

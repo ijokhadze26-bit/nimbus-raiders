@@ -14,8 +14,13 @@ import { createResult } from './screens/result.js';
 import { createDaily } from './screens/daily.js';
 import { createEndless } from './screens/endless.js';
 import { createConfirm } from './screens/confirm.js';
+import { createArmory } from './screens/armory.js';
+import { createHeroes } from './screens/heroes.js';
+import { createLoadout } from './screens/loadout.js';
+import { createCompare } from './screens/compare.js';
+import { MENU_STATE_LIST } from '../game/states.js';
 
-const MENU_STATES = ['title', 'map', 'shop', 'settings', 'endless'];
+const MENU_STATES = MENU_STATE_LIST;
 const LEAVE_MS = 240;
 
 export class UI {
@@ -29,12 +34,14 @@ export class UI {
     this.hud = new Hud(game, root, this);
     this.screens = {};
     const make = { title: createTitle, map: createMap, shop: createShop, settings: createSettings, pause: createPause,
-      result: createResult, daily: createDaily, endless: createEndless, confirm: createConfirm };
+      result: createResult, daily: createDaily, endless: createEndless, confirm: createConfirm,
+      armory: createArmory, heroes: createHeroes, loadout: createLoadout, compare: createCompare };
     for (const [k, f] of Object.entries(make)) this.screens[k] = f(this);
     this.current = null;     // page screen name
     this.modals = [];        // stack of modal screen names (pause, settings over pause, daily, confirm)
     this.dailyChecked = false;
     this.navigating = null;
+    this.navOpts = null;     // opts of the last nav(state, opts): passed to the page's show(opts)
 
     root.addEventListener('click', (e) => this.onClick(e));
     root.addEventListener('touchstart', () => {}, { passive: true }); // enables :active on iOS
@@ -47,9 +54,13 @@ export class UI {
   }
 
   // ---------------- navigation ----------------
-  /** Menu navigation goes through game.state so the game and UI agree on where we are. */
-  nav(state) {
+  /**
+   * Menu navigation goes through game.state so the game and UI agree on where we are. opts reach the page's
+   * show(opts) (e.g. ui.nav('armory', { from: 'loadout', levelId: 7, weapon: 'glacier' })).
+   */
+  nav(state, opts = null) {
     const g = this.game;
+    this.navOpts = opts;
     if (g.state === 'playing' || g.state === 'paused' || g.state === 'result') {
       this.navigating = state; // swallow the intermediate 'title' while leaving a run
       try { g.quitToMenu(); } finally { this.navigating = null; }
@@ -62,7 +73,9 @@ export class UI {
     if (this.navigating && state !== this.navigating && MENU_STATES.includes(state)) return;
     if (MENU_STATES.includes(state)) {
       this.closeModals();
-      this.go(state);
+      const opts = this.navOpts;
+      this.navOpts = null;
+      this.go(state, opts || undefined);
       if (state === 'title') this.maybeDaily();
     } else if (state === 'playing') {
       this.closeModals();

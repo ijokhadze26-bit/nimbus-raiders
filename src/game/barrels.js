@@ -1,8 +1,11 @@
 // Barrels: red drums with an HP band. Bullets chip the HP (damage based); at 0 the barrel explodes and grants
 // its reward (weapon tier, troops, drone, turret, coins, power). Running into an unbroken barrel kills one
 // member and breaks it without a reward.
-import { LANES, MEMBER_CLAMP } from '../config.js';
-import { MAX_TIER } from '../data/weapons.js';
+// Update 2: bullets chip barrels with b.bdmg (tracers carry the weapon-independent barrel damage; main
+// projectiles are absorbed with bdmg 0); damage(barrel, d) is the non-bullet path (Meteor Drop). A weapon
+// barrel raises the Mk (display = the current weapon's gun at the next Mk; +25 coins at Mk V).
+import { LANES, MEMBER_CLAMP, HIT } from '../config.js';
+import { MAX_MK } from '../data/weapons.js';
 import { buildBarrelVisual, buildRewardDisplay, BARREL_R } from '../models/barrel.js';
 import { drawLabel, drawBadge, labelReady } from '../models/labels.js';
 import { hasHit } from './bullets.js';
@@ -23,6 +26,7 @@ export class Barrels {
     this.cursor = 0;
     this.time = 0;
     this.kind = 'barrel';
+    this.bit = HIT.BARREL;
     this.priority = 8;
     this.hitPos = { x: 0, y: 0, z: 0 };
     game.bullets.addTargetSystem(this);
@@ -40,23 +44,23 @@ export class Barrels {
   // ---------------- visuals pooling ----------------
   displayKey(b) {
     const k = b.reward.kind;
-    if (k === 'weapon') return 'weapon:' + this.rewardTier(b) + (this.game.weapons.tier >= MAX_TIER ? ':max' : '');
+    if (k === 'weapon') return 'weapon:' + this.game.weapons.id + ':' + this.rewardMk(b) + (this.game.weapons.mk >= MAX_MK ? ':max' : '');
     if (k === 'troops') return 'troops:' + (b.reward.amount || 1);
     return k;
   }
 
-  rewardTier(b) { return Math.min(MAX_TIER, this.game.weapons.tier + (b.reward.amount || 1)); }
+  rewardMk(b) { return Math.min(MAX_MK, this.game.weapons.mk + (b.reward.amount || 1)); }
 
   acquireDisplay(b) {
     const key = this.displayKey(b);
     const list = this.displays.get(key);
     let d = list && list.length ? list.pop() : null;
     if (!d) {
-      d = buildRewardDisplay(b.reward.kind, b.reward.amount, this.rewardTier(b));
+      d = buildRewardDisplay(b.reward.kind, b.reward.amount, { weapon: this.game.weapons.id, mk: this.rewardMk(b) });
       d.userData.key = key;
       if (d.userData.label) {
         // at the top tier a gun barrel pays 25 coins instead (applyReward)
-        if (b.reward.kind === 'weapon') drawBadge(d.userData.label, key.endsWith(':max') ? '+25' : 'GUN UP', '#ffae1a', '#a85400');
+        if (b.reward.kind === 'weapon') drawBadge(d.userData.label, key.endsWith(':max') ? '+25' : 'MK UP', '#ffae1a', '#a85400');
         else drawBadge(d.userData.label, '+' + (b.reward.amount || 1));
       }
     }
@@ -159,7 +163,7 @@ export class Barrels {
     const n = r.amount || 1;
     switch (r.kind) {
       case 'weapon':
-        if (game.weapons.tier >= MAX_TIER) { if (game.run) game.run.coins += 25; game.events.emit('coin:collect', { amount: 25, pos }); }
+        if (game.weapons.mk >= MAX_MK) { if (game.run) game.run.coins += 25; game.events.emit('coin:collect', { amount: 25, pos }); }
         else game.weapons.upgrade(n);
         break;
       case 'troops': game.squad.add(n, 'barrel'); break;
@@ -192,10 +196,22 @@ export class Barrels {
     b.punch = 1; b.flash = 1;
     const run = this.game.run;
     if (!run || !run.active) return true; // run is over: stray bullets still clink but cannot break/reward
-    b.hp -= bl.dmg;
+    if (!(bl.bdmg > 0)) return true;       // absorbed main projectile: no barrel credit (tracers carry it)
+    b.hp -= bl.bdmg;
     const p = this.hitPos; p.x = bl.x; p.y = bl.y + 0.3; p.z = b.z + BARREL_R;
     this.game.events.emit('barrel:hit', { id: b.id, hp: Math.max(0, Math.ceil(b.hp)), pos: p });
     this.game.events.emit('bullet:hit', { kind: 'barrel', pos: p });
+    if (b.hp <= 0) this.breakBarrel(b, true);
+    return true;
+  }
+
+  /** Non-bullet damage (Meteor Drop): breaks the barrel with its reward at hp <= 0. */
+  damage(b, d) {
+    if (!b || b.state !== 'live' || !(d > 0)) return false;
+    const run = this.game.run;
+    if (!run || !run.active) return false;
+    b.punch = 1; b.flash = 1;
+    b.hp -= d;
     if (b.hp <= 0) this.breakBarrel(b, true);
     return true;
   }

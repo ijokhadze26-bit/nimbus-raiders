@@ -44,6 +44,9 @@ export class Engine {
     this.lost = false;
     this.needsFrame = true;
     this.sun = null;         // directional light whose shadow follows quality (set by World)
+    // update 2: info-page 3D previews render as overlays into scissored rects of the ONE renderer
+    this.overlays = [];
+    this.skipMain = false;   // true only while an opaque info page is fully shown (no main scene draw)
 
     this.resize = this.resize.bind(this);
     window.addEventListener('resize', this.resize);
@@ -154,11 +157,21 @@ export class Engine {
 
   render() {
     if (this.lost) return;
-    this.renderer.render(this.scene, this.camera);
     const r = this.renderer.info.render;
-    this.stats.calls = r.calls;
-    this.stats.tris = r.triangles;
+    if (!this.skipMain) {
+      this.renderer.render(this.scene, this.camera);
+      this.stats.calls = r.calls;
+      this.stats.tris = r.triangles;
+    } else { this.stats.calls = 0; this.stats.tris = 0; }
+    // overlays set their own scissor / viewport and must restore scissor-test off + the full viewport
+    for (let i = 0; i < this.overlays.length; i++) {
+      try { this.overlays[i](this.renderer); } catch (e) { console.error('[engine] overlay failed', e); }
+    }
   }
+
+  /** Registers a per-frame overlay renderer fn(renderer) (called after the main scene). */
+  addOverlay(fn) { if (!this.overlays.includes(fn)) this.overlays.push(fn); this.needsFrame = true; }
+  removeOverlay(fn) { const i = this.overlays.indexOf(fn); if (i >= 0) this.overlays.splice(i, 1); this.needsFrame = true; }
 }
 
 const HALF_H_TAN = Math.tan((CAMERA.fov * Math.PI) / 360) * VIEW.aspect;

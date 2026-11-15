@@ -1,6 +1,7 @@
 // Active power-ups: timers + effects. shield (8s hex bubble; enemy contact kills the enemy, see horde),
 // rapid (8s x2 fire rate, read by weapons via rateMul; glowing guns), magnet (10s; pickups pulls coins and
 // tokens from both lanes), freeze (4s; horde stops + ice tint). Re-collecting refreshes the timer.
+// Horde contacts ask game.shielded() (this shield or a hero's Sugar Shield) instead of has('shield').
 // Emits power:start / power:end { kind, duration } (the HUD timer listens to power:start -> hud.showPower).
 import * as THREE from 'three';
 import { buildShieldBubble, auraTexture, POWER_STYLE } from '../models/pickups.js';
@@ -111,8 +112,7 @@ export class Powers {
   applyGunGlow(amount) {
     const sq = this.game.squad;
     if (!sq || !sq.gunMat) return;
-    if (this.gunBase === null) this.gunBase = sq.gunMat.emissiveIntensity;
-    sq.gunMat.emissiveIntensity = this.gunBase + amount * 1.1;
+    sq.gunMat.emissiveIntensity = (sq.gunGlowBase ?? 0.25) + amount * 1.1; // base follows the Mk (loadout.js)
     const pm = sq.pip && sq.pip.gunMat;
     if (pm) { pm.emissive.copy(pm.color); pm.emissiveIntensity = amount * 0.9; }
   }

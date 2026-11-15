@@ -3,6 +3,8 @@
 // vol, vary (random pitch +-semitones), steal (false = skip instead of stealing when capped).
 import { tone, noise, bell, mtof } from './synth.js';
 import { BOSS_SFX } from './sfxboss.js';
+import { WEAPON_SFX } from './sfxweapons.js';
+import { HERO_SFX } from './sfxheroes.js';
 import { winStinger, loseStinger } from './instruments.js';
 
 const fire = (fn, gap, vol) => ({ fn, gap, max: 3, pri: 0, vol, vary: 0.8 });
@@ -219,6 +221,8 @@ export const SFX = {
   lose: { fn(c, d, t) { return loseStinger(c, d, t); }, gap: 1, max: 1, pri: 2, vol: 0.75, vary: 0 },
 
   ...BOSS_SFX,
+  ...WEAPON_SFX,
+  ...HERO_SFX,
 };
 
 /** Gate tick pitch: add gates climb with value (-24..+40), x/÷ rungs map to a step ladder. */

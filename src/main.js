@@ -37,6 +37,7 @@ async function boot() {
   window.__game = game;
   // Install order: save -> progress -> audio (game.audio) -> fx (game.fx) -> ui (screens + HUD).
   game.save = new Save(game.events);
+  game.loadout.syncFromSave(); // saved hero + weapon (update 2)
   installProgress(game);
   createAudio().install(game); // unlocks on first gesture; reads mute state from game.save
   installFx(game); // sets game.fx (updated from game.sync)

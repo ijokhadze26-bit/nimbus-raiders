@@ -1,4 +1,4 @@
-// Horde rendering: one InstancedMesh per Murkling type (toon + per-instance flash/ice/glow attribute),
+// Horde rendering: one InstancedMesh per Murkling type (toon + per-instance flash/ice/glow/burn attribute),
 // Shieldbearer shields, Fizzbomb fuse sparks, instanced blob shadows and bomber blast puffs.
 import * as THREE from 'three';
 import { ENEMY_TYPES, ENEMIES } from '../data/enemies.js';
@@ -27,7 +27,7 @@ export class HordeView {
     const scene = game.scene;
     this.meshes = ENEMY_TYPES.map((t) => {
       const geo = buildMurklingGeometry(t);
-      const fx = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3);
+      const fx = new THREE.InstancedBufferAttribute(new Float32Array(cap * 4), 4);
       fx.setUsage(THREE.DynamicDrawUsage);
       geo.setAttribute('aFx', fx);
       const mat = fxToonMaterial(t === 'bomber' ? '#ff6a3a' : t === 'tank' ? '#ff2a3a' : '#ffffff');
@@ -97,13 +97,17 @@ export class HordeView {
         yaw = Math.max(-0.5, Math.min(0.5, e.vx * 0.18)) + (e.charging ? 0 : Math.sin(time * 0.9 + e.ph * 3) * 0.35);
         e.flash = Math.max(0, e.flash - fd);
       }
+      const still = frozen || e.freezeT > 0;
+      if (still && e.state === 0) { y = 0; roll = 0; sy = 1; sx = sz = 1; }
       XF[0] = e.x; XF[1] = y; XF[2] = e.z; XF[3] = yaw; XF[4] = roll; XF[5] = sx; XF[6] = sy; XF[7] = sz;
       writeXfYawRoll(vm.mesh.instanceMatrix.array, vm.n);
-      const fo = vm.n * 3;
+      if (e.px || e.pz) lean(vm.mesh.instanceMatrix.array, vm.n, e.px, e.pz, e.x, e.z);
+      const fo = vm.n * 4;
       const fx = vm.fx.array;
       fx[fo] = flash * 0.7;
-      fx[fo + 1] = frozen ? 1 : 0;
+      fx[fo + 1] = frozen ? 1 : e.ice;
       fx[fo + 2] = d.blastRadius ? 0.25 + 0.25 * Math.sin(time * 11 + e.ph) : (d.contactKills ? e.ckills * 0.2 : 0);
+      fx[fo + 3] = e.burn > 0 ? Math.min(1, 0.35 + e.burn * 1.5) * (0.8 + 0.2 * Math.sin(time * 17 + e.ph)) : 0;
       vm.n++;
       // blob shadow
       if (nb < this.cap) {
@@ -154,6 +158,30 @@ export class HordeView {
     this.blastMesh.count = nx;
     if (nx) markInstances(this.blastMesh.instanceMatrix, nx);
   }
+}
+
+/**
+ * Pull lean (SPEC2 §6.4): tilts an instance toward its pull direction by min(0.35, 0.06 * |p|) rad about its
+ * base (left-multiplies the written rotation by an axis-angle turn about (pz, 0, -px)).
+ */
+export function leanAngle(px, pz) { return Math.min(0.35, 0.06 * Math.hypot(px, pz)); }
+function lean(arr, i, px, pz, x, z) {
+  const a = leanAngle(px, pz);
+  if (a <= 1e-4) return;
+  const len = Math.hypot(px, pz), ax = pz / len, az = -px / len; // axis = up x dir
+  const c = Math.cos(a), s = Math.sin(a), t = 1 - c;
+  // rotation about (ax, 0, az)
+  const r00 = c + ax * ax * t, r01 = -az * s, r02 = ax * az * t;
+  const r10 = az * s, r11 = c, r12 = -ax * s;
+  const r20 = az * ax * t, r21 = ax * s, r22 = c + az * az * t;
+  const o = i * 16;
+  for (let col = 0; col < 3; col++) {
+    const k = o + col * 4, m0 = arr[k], m1 = arr[k + 1], m2 = arr[k + 2];
+    arr[k] = r00 * m0 + r01 * m1 + r02 * m2;
+    arr[k + 1] = r10 * m0 + r11 * m1 + r12 * m2;
+    arr[k + 2] = r20 * m0 + r21 * m1 + r22 * m2;
+  }
+  arr[o + 12] = x; arr[o + 14] = z;
 }
 
 export const MURKLING_COLORS = Object.fromEntries(ENEMY_TYPES.map((t) => [t, ENEMIES[t].color]));
