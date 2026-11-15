@@ -1,9 +1,16 @@
 // Result screens. Win: stars pop in one by one, coins count up, NEXT / RETRY / HOME.
 // Lose: 'SQUAD DOWN', distance reached (% of the level or metres in endless), coins, RETRY / HOME.
+// Update 2: NEXT opens the pre-level LOADOUT; a level win that unlocks a weapon / hero shows one card each
+// (INFO opens its page); Bonbon's coin bonus gets its own tag; a TRY IT practice run ends on 'PRACTICE DONE'
+// with TRY AGAIN and BACK (to the Armory / Heroes item it came from).
 import { screenEl, countTo, bump, wait, fmt } from '../ui.js';
 import { icon } from '../icons.js';
 import { getLevel } from '../../data/levels.js';
 import { coinMul } from '../../save/progress.js';
+import { weaponDef } from '../../data/weapons.js';
+import { heroDef } from '../../data/heroes.js';
+import { weaponIcon, heroIcon } from '../icons2.js';
+import { mkLabel } from '../infofmt.js';
 
 const TIPS = [
   'Shoot red gates to turn them blue before you pass!',
@@ -24,7 +31,7 @@ export function createResult(ui) {
   function winHtml(a) {
     const endless = a.mode === 'endless';
     const next = !endless && !!getLevel(a.levelId + 1);
-    const bonus = coinMul(ui.save) > 1 ? `<span class="bonus">+${Math.round((coinMul(ui.save) - 1) * 100)}% BONUS</span>` : '';
+    const bonus = (coinMul(ui.save) > 1 ? `<span class="bonus">+${Math.round((coinMul(ui.save) - 1) * 100)}% BONUS</span>` : '') + heroBonus(a);
     const tag = a.galaxy ? '<div class="unlock-tag legendary">GALAXY SKIN UNLOCKED!</div>'
       : a.unlocked ? `<div class="unlock-tag">LEVEL ${a.unlocked} UNLOCKED!</div>` : '';
     return `
@@ -41,6 +48,7 @@ export function createResult(ui) {
         </div>
         <div class="res-coins"><span class="coin-ico">${icon('coin')}</span><span class="num amt">+0</span>${bonus}</div>
         ${tag}
+        ${cardsHtml(a.newItems)}
         <div class="res-btns">
           ${endless ? `<button type="button" class="btn btn-gold btn-lg" data-act="retry">${icon('retry')}<span>PLAY AGAIN</span></button>`
     : next ? `<button type="button" class="btn btn-gold btn-lg" data-act="next"><span>NEXT</span><span class="play-ico">${icon('play')}</span></button>`
@@ -70,7 +78,7 @@ export function createResult(ui) {
         <div class="res-level">${endless ? 'ENDLESS RUN' : `LEVEL ${a.levelId}`}</div>
         <div class="lose-ico">${icon('heart')}<span class="crack"></span></div>
         ${dist}
-        <div class="res-coins"><span class="coin-ico">${icon('coin')}</span><span class="num amt">+0</span></div>
+        <div class="res-coins"><span class="coin-ico">${icon('coin')}</span><span class="num amt">+0</span>${heroBonus(a)}</div>
         <div class="tip">${tip}</div>
         <div class="res-btns">
           <button type="button" class="btn btn-gold btn-lg" data-act="retry">${icon('retry')}<span>RETRY</span></button>
@@ -78,6 +86,44 @@ export function createResult(ui) {
             <button type="button" class="sq-btn btn-blue" data-act="map" aria-label="Map">${icon('map')}<span>MAP</span></button>
             <button type="button" class="sq-btn btn-blue" data-act="home" aria-label="Home">${icon('home')}<span>HOME</span></button>
           </div>
+        </div>
+      </div>`;
+  }
+
+  /** Bonbon's Sweet Tooth (+25% coins): its own tag next to the shop bonus. */
+  function heroBonus(a) {
+    return a.heroMul > 1 && a.hero ? `<span class="bonus hero-bonus">${heroDef(a.hero).name.toUpperCase()} +${Math.round((a.heroMul - 1) * 100)}%</span>` : '';
+  }
+
+  /** One card per weapon / hero this win unlocked (unlocks.newlyUnlocked via the save layer). */
+  function cardsHtml(items) {
+    if (!items || !items.length) return '';
+    return `<div class="unlock-cards">${items.map((it) => {
+      const w = it.kind === 'weapon';
+      const name = (w ? weaponDef(it.id) : heroDef(it.id)).name.toUpperCase();
+      return `<div class="ucard ${w ? 'w' : 'h'}"><span class="ucard-ico">${w ? weaponIcon(it.id) : heroIcon(it.id)}</span>`
+        + `<span class="ucard-t"><span class="ucard-k">${w ? 'NEW WEAPON UNLOCKED: ' : 'NEW HERO: '}</span><b>${name}</b></span>`
+        + `<button type="button" class="btn btn-blue ucard-b" data-act="info" data-kind="${it.kind}" data-id="${it.id}">INFO</button></div>`;
+    }).join('')}</div>`;
+  }
+
+  /** TRY IT practice: no payout, just the outcome and the way back. */
+  function practiceHtml(a, r) {
+    const run = ui.game.runOpts || {};
+    const w = weaponDef(run.weapon || r?.weapon), h = heroDef(run.hero || r?.hero);
+    return `
+      <div class="panel panel-result practice pop">
+        <div class="ribbon ${a.win ? 'ribbon-gold' : 'ribbon-blue'}"><span>PRACTICE DONE</span></div>
+        <div class="res-level">${h.name} + ${w.name} · ${mkLabel(run.mk || 3)}</div>
+        <div class="prac-ico"><span>${heroIcon(h.id)}</span><span>${weaponIcon(w.id)}</span></div>
+        <div class="res-stats">
+          <div class="stat">${icon('damage')}<span class="num">${fmt(a.kills ?? 0)}</span><small>KILLS</small></div>
+          <div class="stat">${icon(a.win ? 'trophy' : 'skull')}<span class="num">${a.win ? 'WON' : 'LOST'}</span><small>BOSS</small></div>
+        </div>
+        <div class="tip">Practice never costs or pays coins. Try another weapon or hero!</div>
+        <div class="res-btns">
+          <button type="button" class="btn btn-gold btn-lg" data-act="retry">${icon('retry')}<span>TRY AGAIN</span></button>
+          <div class="btn-row"><button type="button" class="btn btn-blue btn-md" data-act="practice-back">${icon('back')}<span>BACK</span></button></div>
         </div>
       </div>`;
   }
@@ -126,23 +172,29 @@ export function createResult(ui) {
       if (a.length == null) a.length = g.run?.length || 0;
       token++;
       shownFor = { levelId: a.levelId || 0, done: false };
-      wrap.innerHTML = a.win ? winHtml(a) : loseHtml(a);
-      root.classList.toggle('is-win', !!a.win);
-      play(a, token);
+      const practice = a.mode === 'practice';
+      wrap.innerHTML = practice ? practiceHtml(a, g.run) : a.win ? winHtml(a) : loseHtml(a);
+      root.classList.toggle('is-win', !!a.win && !practice);
+      if (practice) ui.sfx(a.win ? 'star' : 'coin', { index: 2 }); else play(a, token);
       ui.refreshCoins(true);
     },
     hide() { token++; },
-    onAct(act) {
+    onAct(act, btn) {
       const g = ui.game;
       if (act === 'next') {
         if (!shownFor || shownFor.done) return;
         shownFor.done = true;
         const id = shownFor.levelId + 1;
-        if (!getLevel(id) || id > ui.save.data.unlockedLevel || !g.startLevel(id)) ui.nav('map');
+        if (!getLevel(id) || id > ui.save.data.unlockedLevel) ui.nav('map');
+        else ui.nav('loadout', { levelId: id });
       } else if (act === 'retry') g.retry();
+      else if (act === 'practice-back') { const p = g.practiceReturn || { screen: 'armory', opts: {} }; ui.nav(p.screen, p.opts); }
+      else if (act === 'info') ui.nav(btn.dataset.kind === 'hero' ? 'heroes' : 'armory', { from: 'result', [btn.dataset.kind]: btn.dataset.id });
       else if (act === 'home') ui.nav('title');
       else if (act === 'map') ui.nav('map');
     },
-    onBack() { ui.nav('title'); },
+    onBack() {
+      if (ui.game.lastResult?.mode === 'practice') { const p = ui.game.practiceReturn || { screen: 'armory', opts: {} }; ui.nav(p.screen, p.opts); } else ui.nav('title');
+    },
   };
 }

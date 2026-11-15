@@ -39,7 +39,14 @@
     linear-gradient(180deg, rgba(20, 70, 170, 0.45) 0%, rgba(20, 70, 170, 0) 30%),
     linear-gradient(0deg, rgba(10, 30, 90, 0.55) 0%, rgba(10, 30, 90, 0.18) 26%, rgba(10, 30, 90, 0) 42%);
 }
-.title-logo { position: absolute; left: 0; right: 0; top: calc(var(--safe-t) + 50px + 8cqh); display: flex; justify-content: center; }
+.title-upper { position: absolute; left: 0; right: 0; top: calc(var(--safe-t) + 50px + 8cqh); display: flex; flex-direction: column; align-items: center; gap: clamp(6px, 2.4cqh, 22px); pointer-events: none; }
+.title-logo { display: flex; justify-content: center; }
+.title-row2 .tbtn { position: relative; }
+.title-row2 .tbtn .ico { font-size: 36px; filter: drop-shadow(0 3px 0 var(--b3)); }
+.title-row2 .tdot {
+  position: absolute; top: -8px; right: -6px; padding: 2px 6px 3px; border-radius: 9px; font: 400 11px/1 var(--font-display); font-style: normal;
+  color: #fff; background: #ff3b4e; border: 2px solid #fff; box-shadow: 0 2px 0 #8e0f22; -webkit-text-stroke: 0; animation: dot-pulse 1s ease-in-out infinite;
+}
 .title-menu {
   position: absolute; left: 0; right: 0; bottom: calc(var(--safe-b) + 4.5cqh); display: flex; flex-direction: column; align-items: center; gap: 22px;
 }
@@ -159,3 +166,10 @@
   background: linear-gradient(0deg, rgba(14, 40, 110, 0.55), rgba(14, 40, 110, 0));
 }
 .map-footer .btn { pointer-events: auto; }
+/* short frames (phones under ~700 px tall): a smaller logo leaves the ARMORY / HEROES row clear of the squad */
+@container (max-height: 700px) {
+  .title-upper { top: calc(var(--safe-t) + 70px); gap: 6px; }
+  .title-upper .logo-row1 { font-size: min(56px, 15cqw); }
+  .title-upper .logo-row2 { font-size: min(44px, 11.5cqw); }
+  .title-upper .logo-ribbon { display: none; }
+}

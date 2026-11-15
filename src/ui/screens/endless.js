@@ -1,4 +1,4 @@
-// Endless intro: best distance, a short pitch, PLAY (-> game.startEndless()).
+// Endless intro: best distance, a short pitch, PLAY (-> the LOADOUT screen, then game.startEndless()).
 import { screenEl, coinPill, fmt } from '../ui.js';
 import { icon } from '../icons.js';
 
@@ -35,7 +35,7 @@ export function createEndless(ui) {
     show() { bv.textContent = fmt(ui.save.data.endlessBest); ui.refreshCoins(true); },
     onAct(act) {
       if (act === 'back') ui.nav('title');
-      else if (act === 'play') ui.game.startEndless();
+      else if (act === 'play') ui.nav('loadout', { mode: 'endless' });
     },
     onBack() { ui.nav('title'); },
   };
