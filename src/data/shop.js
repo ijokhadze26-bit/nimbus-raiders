@@ -35,11 +35,11 @@ export function upgradeEffects(upgrades = {}) {
   };
 }
 
-/** Short label of the current effect, e.g. "+30%" or "Tier 2". */
+/** Short label of the current effect, e.g. "+30%" or "Mk II" (the start weapon level, update 2). */
 export function upgradeLabel(id, level) {
   const u = UPGRADE_BY_ID[id];
   if (!u) return '';
-  if (id === 'tier') return `Tier ${1 + level}`;
+  if (id === 'tier') return `Mk ${['I', 'II', 'III', 'IV', 'V'][Math.max(0, Math.min(4, level))]}`;
   if (u.unit === '%') return `+${Math.round(u.per * level * 100)}%`;
   return `+${u.per * level}`;
 }

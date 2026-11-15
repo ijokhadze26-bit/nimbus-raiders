@@ -7,6 +7,9 @@
 // gap staircase, tank walls, ladders, finale medley). Late rows keep the squad under the 999 cap until the
 // arena; the last rows of the big levels offer helpers instead of troops. Boss rotation follows the spec
 // (Tempest King on 10 as a mini fight and on 15 as the finale).
+// Update 2: weapon levels are Mk I..V (the tier walk caps at 5), every level lists the weapons it favours
+// (hints, SPEC2 §2.11) and L4-15 get weapon crates (CRATES, placed after level() so beats never move).
+import { LANES } from '../config.js';
 
 // ---------------- event builders (shared with data/endless.js) ----------------
 export const gate = (at, lane, op, extra = {}) => ({ type: 'gate', at, lane, op, ...extra });
@@ -16,6 +19,8 @@ export const blade = (at, lane, extra = {}) => ({ type: 'blade', at, lane, ...ex
 export const gap = (at, lane, length = 10) => ({ type: 'gap', at, lane, length });
 export const powerup = (at, lane, kind) => ({ type: 'powerup', at, lane, kind });
 export const coins = (at, lane, count = 8, pattern = 'line') => ({ type: 'coins', at, lane, count, pattern });
+/** Weapon crate (lane L or R only): taking it switches to `weapon` (same weapon: +1 Mk). */
+export const crate = (at, lane, weapon) => ({ type: 'crate', at, lane, x: LANES[lane] ?? 0, weapon });
 
 // ---------------- gate specs ----------------
 // a(+N, max) add gate; x(k, hits) ladder starting at ×k, dv(k, hits) at ÷k (one rung up per `hits` bullets,
@@ -43,7 +48,7 @@ const O = (lane, length = 12) => (at) => [gap(at - length / 2, lane, length)];
 const Xd = (lane, dz, extra = {}) => (at) => [blade(at + dz, lane, extra)];
 const Od = (lane, length, dz) => (at) => [gap(at + dz, lane, length)];
 
-const START = 24, ARENA = 30;
+export const START = 24, ARENA = 30;
 
 // Horde toughness follows the gun the squad should be holding and how far into the level it is: a horde's
 // hp multiplier is the relative crowd damage of the tier reached by breaking every weapon barrel before it
@@ -53,13 +58,13 @@ const START = 24, ARENA = 30;
 // without its own multiplier (boss broods) uses def.enemyHp = BROOD x the arena toughness.
 export const TIER_CROWD = [1, 2.05, 3.2, 6.1, 9.3, 9.8];
 export const TIER_EXP = 0.7, RAMP_EXP = 1.5, BROOD = 0.35;
-export const toughFor = (tough, tier) => Math.round(tough * Math.pow(TIER_CROWD[Math.min(6, tier) - 1], TIER_EXP) * 100) / 100;
+export const toughFor = (tough, tier) => Math.round(tough * Math.pow(TIER_CROWD[Math.min(5, tier) - 1], TIER_EXP) * 100) / 100;
 
 function toughen(def, events) {
   const tough = def.tough ?? 1;
   let tier = 1;
   for (const e of events.slice().sort((a, b) => a.at - b.at)) {
-    if (e.type === 'barrel' && e.reward.kind === 'weapon') tier = Math.min(6, tier + (e.reward.amount || 1));
+    if (e.type === 'barrel' && e.reward.kind === 'weapon') tier = Math.min(5, tier + (e.reward.amount || 1));
     else if (e.type === 'horde' && (e.hpMul == null || e.autoHp)) {
       const p = Math.max(0, Math.min(1, e.at / def.length));
       e.hpMul = toughFor(1 + (tough - 1) * Math.pow(p, RAMP_EXP), tier) * (e.tough ?? 1);
@@ -410,6 +415,56 @@ export const LEVELS = [
     B([340, 'turret', 1], [340, 'shield']),
   ]),
 ];
+
+// ---------------- update 2: favours + weapon crates ----------------
+/** Weapons each level favours (loadout hint; backed by the matchups and the level's enemy mix). */
+export const FAVOURS = {
+  1: ['thunderclap', 'spectra'], 2: ['glacier', 'spectra'], 3: ['glacier', 'voidsiphon', 'thunderclap'],
+  4: ['gearworks', 'thunderclap'], 5: ['emberstorm', 'sugarrush', 'thunderclap'], 6: ['spectra', 'glacier'],
+  7: ['voidsiphon', 'emberstorm', 'sugarrush'], 8: ['gearworks', 'thunderclap'], 9: ['emberstorm', 'sugarrush', 'spectra'],
+  10: ['spectra', 'voidsiphon', 'glacier'], 11: ['spectra', 'glacier'], 12: ['voidsiphon', 'emberstorm'],
+  13: ['gearworks', 'spectra'], 14: ['emberstorm', 'sugarrush', 'voidsiphon'], 15: ['spectra', 'gearworks', 'voidsiphon'],
+};
+
+/** Weapon crates per level: [lane, weapon, p] with p = 0..1 of the beat span (SPEC2 §2.10). L1-3 have none. */
+export const CRATES = {
+  4: [['R', 'gearworks', 0.55]], 5: [['L', 'emberstorm', 0.4]], 6: [['R', 'spectra', 0.7]], 7: [['L', 'sugarrush', 0.68]],
+  8: [['R', 'gearworks', 0.65]], 9: [['L', 'voidsiphon', 0.35], ['R', 'spectra', 0.85]], 10: [['L', 'glacier', 0.45]],
+  11: [['R', 'thunderclap', 0.3], ['L', 'spectra', 0.6]], 12: [['R', 'voidsiphon', 0.55]],
+  13: [['L', 'gearworks', 0.3], ['R', 'spectra', 0.85]], 14: [['L', 'voidsiphon', 0.35], ['R', 'sugarrush', 0.5]],
+  15: [['L', 'gearworks', 0.4], ['R', 'spectra', 0.85]],
+};
+export const CRATE_CLEAR = 12, CRATE_SEARCH = 40;
+
+/**
+ * Crate z for target p: START + p * (length - ARENA - START), then the first z in 0, +2, -2, +4, ... (±40)
+ * that is >= 12 u outside every other event's extent [at, at + length] and every placed crate. null = none.
+ */
+export function crateAt(def, events, p) {
+  const base = Math.round(START + p * (def.length - ARENA - START));
+  for (let k = 0; k <= CRATE_SEARCH; k += 2) {
+    for (const z of k === 0 ? [base] : [base + k, base - k]) {
+      let ok = z > START && z < def.length - ARENA;
+      for (let i = 0; ok && i < events.length; i++) {
+        const e = events[i], a = e.at, b = e.at + (e.length || 0);
+        if (z > a - CRATE_CLEAR && z < b + CRATE_CLEAR) ok = false;
+      }
+      if (ok) return z;
+    }
+  }
+  return null;
+}
+
+/** Adds the level's crates (beat-independent; toughen() already ran and ignores crates). */
+export function placeCrates(def, list = CRATES[def.id] || []) {
+  for (const [lane, weapon, p] of list) {
+    const at = crateAt(def, def.events, p);
+    if (at != null) def.events.push(crate(at, lane, weapon));
+  }
+  return def;
+}
+
+for (const l of LEVELS) { l.favours = FAVOURS[l.id] || []; placeCrates(l); }
 
 export function getLevel(id) {
   return LEVELS.find((l) => l.id === id) || null;

@@ -113,7 +113,7 @@ export class Helpers {
       if (firing && h.cd <= 0) {
         h.cd += 1 / DRONE.rate;
         if (h.cd < 0) h.cd = 0;
-        if (this.target(h.x, h.z)) this.shoot(7, h, DRONE, dmgMul, 0);
+        if (this.target(h.x, h.z)) this.shoot(6, h, DRONE, dmgMul, 0);
       }
     }
     // turrets roll behind the squad
@@ -130,7 +130,7 @@ export class Helpers {
       if (firing && h.cd <= 0) {
         h.cd += 1 / SHELL.rate;
         if (h.cd < 0) h.cd = 0;
-        if (this.target(h.x, h.z)) { this.shoot(8, h, SHELL, dmgMul, 0.85); h.recoil = 1; }
+        if (this.target(h.x, h.z)) { this.shoot(7, h, SHELL, dmgMul, 0.85); h.recoil = 1; }
       }
     }
   }

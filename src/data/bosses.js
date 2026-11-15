@@ -1,11 +1,11 @@
-// Boss definitions (data only). Level data gives { type, hp, tier }; hp here is the fallback.
+// Boss definitions (data only). favours = weapons that do well against it (loadout hint, SPEC2 §2.11). Level data gives { type, hp, tier }; hp here is the fallback.
 // Attack cooldowns are divided by cadenceFor(tier, phase). Every damaging attack telegraphs >= 0.9 s.
 // Tier 1 bosses (early levels) pause longer between attacks so a small squad can learn the dodge; by tier 5
 // the cadence matches the old tuning, endless tiers 6-7 go beyond it.
 
 export const BOSSES = {
   grawlstone: {
-    type: 'grawlstone', name: 'GRAWLSTONE', subtitle: 'THE MOSSY COLOSSUS', hp: 1600,
+    type: 'grawlstone', favours: ['spectra', 'thunderclap'], name: 'GRAWLSTONE', subtitle: 'THE MOSSY COLOSSUS', hp: 1600,
     distance: 26,                      // stands this far ahead of the halted squad
     hitbox: { halfW: 3.1, front: 1.7 },
     firstAttack: 0.4,
@@ -17,7 +17,7 @@ export const BOSSES = {
     ],
   },
   oculon: {
-    type: 'oculon', name: 'OCULON', subtitle: 'THE STORM EYE', hp: 2600,
+    type: 'oculon', favours: ['spectra', 'glacier'], name: 'OCULON', subtitle: 'THE STORM EYE', hp: 2600,
     distance: 26, hitbox: { halfW: 3.6, front: 2.6 }, hitY: 6.3, sway: 0.3,
     enterTime: 1.3,
     firstAttack: 0.4,
@@ -31,7 +31,7 @@ export const BOSSES = {
     ],
   },
   mothermurk: {
-    type: 'mothermurk', name: 'MOTHER MURK', subtitle: 'QUEEN OF THE GOO', hp: 3200,
+    type: 'mothermurk', favours: ['voidsiphon', 'thunderclap'], name: 'MOTHER MURK', subtitle: 'QUEEN OF THE GOO', hp: 3200,
     distance: 27, hitbox: { halfW: 4.0, front: 3.4 }, hitY: 3.6, sway: 0.18,
     enterTime: 1.4,
     firstAttack: 0.4,
@@ -45,7 +45,7 @@ export const BOSSES = {
     ],
   },
   ironhorn: {
-    type: 'ironhorn', name: 'IRONHORN', subtitle: 'THE MECH RHINO', hp: 3000,
+    type: 'ironhorn', favours: ['gearworks', 'thunderclap'], name: 'IRONHORN', subtitle: 'THE MECH RHINO', hp: 3000,
     distance: 26, hitbox: { halfW: 2.8, front: 4.6 }, hitY: 3.2, sway: 0.1,
     enterTime: 1.5,
     firstAttack: 0.4,
@@ -59,7 +59,7 @@ export const BOSSES = {
     ],
   },
   tempestking: {
-    type: 'tempestking', name: 'TEMPEST KING', subtitle: 'LORD OF THE STORM', hp: 5200,
+    type: 'tempestking', favours: ['spectra', 'voidsiphon'], name: 'TEMPEST KING', subtitle: 'LORD OF THE STORM', hp: 5200,
     distance: 28, hitbox: { halfW: 3.8, front: 2.4 }, hitY: 5.2, sway: 0.25,
     enterTime: 1.5,
     firstAttack: 0.4,

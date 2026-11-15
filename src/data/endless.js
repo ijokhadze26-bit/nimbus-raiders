@@ -44,7 +44,7 @@ export function endlessBoss(n) {
 
 /** Horde hp multiplier at distance d. */
 export function endlessTough(d) {
-  const tier = Math.min(6, 1 + Math.floor(d / ENDLESS.tierEvery));
+  const tier = Math.min(5, 1 + Math.floor(d / ENDLESS.tierEvery)); // Mk V is the top (update 2)
   return toughFor(1 + ENDLESS.toughK * Math.pow(d / ENDLESS.bossEvery, ENDLESS.toughExp), tier);
 }
 
