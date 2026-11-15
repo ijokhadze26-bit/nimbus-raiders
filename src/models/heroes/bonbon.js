@@ -67,7 +67,7 @@ export function buildBonbon({ lod = 'high' } = {}) {
     const g = k.group(body, 0.12 * side, 0.2, 0);
     k.mk(merge([
       part(CAP(k, 0.07, 0.04, 8), side < 0 ? C.mint : C.pink, { p: [0, -0.06, 0] }),
-      part(S(k, 0.1, 10, 7), C.shoe, { p: [0, -0.15, -0.03], s: [1, 0.7, 1.35] }),
+      part(S(k, 0.1, 10, 7), C.shoe, { p: [0, -0.13, -0.03], s: [1, 0.7, 1.35] }),
     ]), g);
     return g;
   });
