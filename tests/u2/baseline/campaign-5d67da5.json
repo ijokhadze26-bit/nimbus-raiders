@@ -1,0 +1,272 @@
+{
+ "commit": "5d67da5",
+ "rule": "probe/campaign.js verbatim: fresh save; for prof in [pro, casual]: save.reset(); levels 1..15 in order, up to 5 attempts each; one global bot seed counter starting at 1, incremented per attempt (setAutopilot(prof, seed++)); after every run buy the cheapest of damage/rate/squad/tier while affordable",
+ "result": {
+  "pro": {
+   "ms": 3954,
+   "ups": {
+    "squad": 6,
+    "damage": 6,
+    "rate": 6,
+    "tier": 0,
+    "coins": 0
+   },
+   "coins": 93,
+   "log": [
+    {
+     "id": 1,
+     "tries": 1,
+     "won": true,
+     "stars": 3,
+     "squad": 116,
+     "t": 44
+    },
+    {
+     "id": 2,
+     "tries": 1,
+     "won": true,
+     "stars": 3,
+     "squad": 484,
+     "t": 48
+    },
+    {
+     "id": 3,
+     "tries": 1,
+     "won": true,
+     "stars": 2,
+     "squad": 395,
+     "t": 58
+    },
+    {
+     "id": 4,
+     "tries": 1,
+     "won": true,
+     "stars": 3,
+     "squad": 704,
+     "t": 60
+    },
+    {
+     "id": 5,
+     "tries": 1,
+     "won": true,
+     "stars": 2,
+     "squad": 81,
+     "t": 58
+    },
+    {
+     "id": 6,
+     "tries": 1,
+     "won": true,
+     "stars": 3,
+     "squad": 247,
+     "t": 60
+    },
+    {
+     "id": 7,
+     "tries": 1,
+     "won": true,
+     "stars": 2,
+     "squad": 296,
+     "t": 69
+    },
+    {
+     "id": 8,
+     "tries": 1,
+     "won": true,
+     "stars": 3,
+     "squad": 666,
+     "t": 68
+    },
+    {
+     "id": 9,
+     "tries": 1,
+     "won": true,
+     "stars": 3,
+     "squad": 577,
+     "t": 65
+    },
+    {
+     "id": 10,
+     "tries": 1,
+     "won": true,
+     "stars": 1,
+     "squad": 318,
+     "t": 68
+    },
+    {
+     "id": 11,
+     "tries": 1,
+     "won": true,
+     "stars": 2,
+     "squad": 321,
+     "t": 72
+    },
+    {
+     "id": 12,
+     "tries": 1,
+     "won": true,
+     "stars": 2,
+     "squad": 554,
+     "t": 75
+    },
+    {
+     "id": 13,
+     "tries": 1,
+     "won": true,
+     "stars": 2,
+     "squad": 428,
+     "t": 70
+    },
+    {
+     "id": 14,
+     "tries": 1,
+     "won": true,
+     "stars": 2,
+     "squad": 536,
+     "t": 76
+    },
+    {
+     "id": 15,
+     "tries": 1,
+     "won": true,
+     "stars": 3,
+     "squad": 619,
+     "t": 75
+    }
+   ]
+  },
+  "casual": {
+   "ms": 1616,
+   "ups": {
+    "squad": 6,
+    "damage": 6,
+    "rate": 6,
+    "tier": 0,
+    "coins": 0
+   },
+   "coins": 134,
+   "log": [
+    {
+     "id": 1,
+     "tries": 1,
+     "won": true,
+     "stars": 2,
+     "squad": 88,
+     "t": 45
+    },
+    {
+     "id": 2,
+     "tries": 1,
+     "won": true,
+     "stars": 2,
+     "squad": 153,
+     "t": 54
+    },
+    {
+     "id": 3,
+     "tries": 1,
+     "won": true,
+     "stars": 3,
+     "squad": 478,
+     "t": 58
+    },
+    {
+     "id": 4,
+     "tries": 1,
+     "won": true,
+     "stars": 1,
+     "squad": 447,
+     "t": 60
+    },
+    {
+     "id": 5,
+     "tries": 1,
+     "won": true,
+     "stars": 2,
+     "squad": 160,
+     "t": 58
+    },
+    {
+     "id": 6,
+     "tries": 1,
+     "won": true,
+     "stars": 2,
+     "squad": 71,
+     "t": 63
+    },
+    {
+     "id": 7,
+     "tries": 1,
+     "won": true,
+     "stars": 2,
+     "squad": 420,
+     "t": 62
+    },
+    {
+     "id": 8,
+     "tries": 1,
+     "won": true,
+     "stars": 3,
+     "squad": 635,
+     "t": 68
+    },
+    {
+     "id": 9,
+     "tries": 2,
+     "won": true,
+     "stars": 3,
+     "squad": 290,
+     "t": 67
+    },
+    {
+     "id": 10,
+     "tries": 2,
+     "won": true,
+     "stars": 2,
+     "squad": 383,
+     "t": 69
+    },
+    {
+     "id": 11,
+     "tries": 1,
+     "won": true,
+     "stars": 2,
+     "squad": 218,
+     "t": 70
+    },
+    {
+     "id": 12,
+     "tries": 1,
+     "won": true,
+     "stars": 2,
+     "squad": 503,
+     "t": 73
+    },
+    {
+     "id": 13,
+     "tries": 1,
+     "won": true,
+     "stars": 2,
+     "squad": 301,
+     "t": 74
+    },
+    {
+     "id": 14,
+     "tries": 1,
+     "won": true,
+     "stars": 3,
+     "squad": 797,
+     "t": 76
+    },
+    {
+     "id": 15,
+     "tries": 1,
+     "won": true,
+     "stars": 3,
+     "squad": 519,
+     "t": 77
+    }
+   ]
+  }
+ }
+}

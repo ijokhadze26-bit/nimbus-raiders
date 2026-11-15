@@ -1,0 +1,349 @@
+{
+ "commit": "5d67da5",
+ "flags": "smoke.mjs --size 390x844 (dpr 2, mobile) --cpu-throttle 4 --query test=1; scenario tests/u2/lib perf probe: L8 pro bot 20 s from start; L15 skipToBoss + 300 troops + tier 5, 15 s",
+ "metric": "p95 = 95th percentile frame interval (ms, rAF real dt); longPer10s = frames with dt > 50 ms per 10 s; median of 3 runs",
+ "configs": {
+  "high_l8": {
+   "p95": 133.3,
+   "longPer10s": 104,
+   "callsAvg": 75,
+   "callsMax": 92,
+   "programs": 38,
+   "heapKBf": 104.4
+  },
+  "high_l15boss": {
+   "p95": 133.3,
+   "longPer10s": 96,
+   "callsAvg": 61,
+   "callsMax": 95,
+   "programs": 38,
+   "heapKBf": 106.3
+  },
+  "low_l8": {
+   "p95": 33.4,
+   "longPer10s": 12,
+   "callsAvg": 65,
+   "callsMax": 80,
+   "programs": 65,
+   "heapKBf": 51.7
+  },
+  "low_l15boss": {
+   "p95": 33.4,
+   "longPer10s": 7.3,
+   "callsAvg": 50,
+   "callsMax": 88,
+   "programs": 71,
+   "heapKBf": 65.4
+  }
+ },
+ "runs": [
+  {
+   "high_l8": {
+    "frames": 216,
+    "seconds": 20,
+    "p95": 150,
+    "p50": 83.3,
+    "longPer10s": 108,
+    "calls": {
+     "avg": 75,
+     "max": 92
+    },
+    "tris": {
+     "avg": 74686,
+     "max": 81066
+    },
+    "programs": 38,
+    "heapKBf": 104.4
+   },
+   "high_l15boss": {
+    "frames": 149,
+    "seconds": 15,
+    "p95": 133.3,
+    "p50": 100,
+    "longPer10s": 99.3,
+    "calls": {
+     "avg": 61,
+     "max": 95
+    },
+    "tris": {
+     "avg": 212239,
+     "max": 227846
+    },
+    "programs": 38,
+    "heapKBf": 102.4
+   },
+   "low_l8": {
+    "frames": 702,
+    "seconds": 20,
+    "p95": 33.4,
+    "p50": 16.7,
+    "longPer10s": 12,
+    "calls": {
+     "avg": 65,
+     "max": 80
+    },
+    "tris": {
+     "avg": 62428,
+     "max": 78285
+    },
+    "programs": 65,
+    "heapKBf": 50.3
+   },
+   "low_l15boss": {
+    "frames": 525,
+    "seconds": 15,
+    "p95": 33.4,
+    "p50": 33.3,
+    "longPer10s": 7.3,
+    "calls": {
+     "avg": 50,
+     "max": 88
+    },
+    "tris": {
+     "avg": 90789,
+     "max": 126070
+    },
+    "programs": 71,
+    "heapKBf": 65.4
+   }
+  },
+  {
+   "high_l8": {
+    "frames": 208,
+    "seconds": 20,
+    "p95": 133.3,
+    "p50": 83.3,
+    "longPer10s": 104,
+    "calls": {
+     "avg": 75,
+     "max": 92
+    },
+    "tris": {
+     "avg": 74614,
+     "max": 81044
+    },
+    "programs": 38,
+    "heapKBf": 105.2
+   },
+   "high_l15boss": {
+    "frames": 144,
+    "seconds": 15,
+    "p95": 133.3,
+    "p50": 100,
+    "longPer10s": 96,
+    "calls": {
+     "avg": 61,
+     "max": 95
+    },
+    "tris": {
+     "avg": 213329,
+     "max": 228500
+    },
+    "programs": 38,
+    "heapKBf": 106.3
+   },
+   "low_l8": {
+    "frames": 683,
+    "seconds": 20,
+    "p95": 33.4,
+    "p50": 16.8,
+    "longPer10s": 11,
+    "calls": {
+     "avg": 65,
+     "max": 80
+    },
+    "tris": {
+     "avg": 62415,
+     "max": 78203
+    },
+    "programs": 64,
+    "heapKBf": 51.7
+   },
+   "low_l15boss": {
+    "frames": 502,
+    "seconds": 15,
+    "p95": 33.4,
+    "p50": 33.3,
+    "longPer10s": 5.3,
+    "calls": {
+     "avg": 50,
+     "max": 88
+    },
+    "tris": {
+     "avg": 89052,
+     "max": 125722
+    },
+    "programs": 70,
+    "heapKBf": 65
+   }
+  },
+  {
+   "high_l8": {
+    "frames": 206,
+    "seconds": 20,
+    "p95": 116.7,
+    "p50": 83.3,
+    "longPer10s": 103,
+    "calls": {
+     "avg": 75,
+     "max": 92
+    },
+    "tris": {
+     "avg": 74609,
+     "max": 81082
+    },
+    "programs": 38,
+    "heapKBf": 104
+   },
+   "high_l15boss": {
+    "frames": 141,
+    "seconds": 15,
+    "p95": 133.3,
+    "p50": 100,
+    "longPer10s": 94,
+    "calls": {
+     "avg": 61,
+     "max": 95
+    },
+    "tris": {
+     "avg": 213720,
+     "max": 228068
+    },
+    "programs": 38,
+    "heapKBf": 116.8
+   },
+   "low_l8": {
+    "frames": 676,
+    "seconds": 20,
+    "p95": 33.4,
+    "p50": 33.3,
+    "longPer10s": 12,
+    "calls": {
+     "avg": 65,
+     "max": 80
+    },
+    "tris": {
+     "avg": 62597,
+     "max": 89415
+    },
+    "programs": 65,
+    "heapKBf": 56.9
+   },
+   "low_l15boss": {
+    "frames": 486,
+    "seconds": 15,
+    "p95": 33.4,
+    "p50": 33.3,
+    "longPer10s": 8,
+    "calls": {
+     "avg": 50,
+     "max": 88
+    },
+    "tris": {
+     "avg": 99356,
+     "max": 126074
+    },
+    "programs": 71,
+    "heapKBf": 69.2
+   }
+  }
+ ],
+ "calls": {
+  "title": {
+   "calls": {
+    "avg": 33,
+    "max": 33
+   },
+   "tris": {
+    "avg": 60285,
+    "max": 60292
+   },
+   "programs": 37,
+   "geometries": 35,
+   "textures": 7,
+   "quality": "high",
+   "st": 9,
+   "en": 0,
+   "bullets": 0,
+   "particles": 9,
+   "debris": 0
+  },
+  "lvl8_run": {
+   "calls": {
+    "avg": 83,
+    "max": 83
+   },
+   "tris": {
+    "avg": 238633,
+    "max": 240597
+   },
+   "programs": 38,
+   "geometries": 67,
+   "textures": 19,
+   "quality": "high",
+   "st": 356,
+   "en": 180,
+   "bullets": 63,
+   "particles": 116,
+   "debris": 0
+  },
+  "lvl8_boss": {
+   "calls": {
+    "avg": 61,
+    "max": 64
+   },
+   "tris": {
+    "avg": 224799,
+    "max": 226212
+   },
+   "programs": 38,
+   "geometries": 78,
+   "textures": 18,
+   "quality": "high",
+   "st": 356,
+   "en": 0,
+   "bullets": 207,
+   "particles": 49,
+   "debris": 2
+  },
+  "low_lvl8_run": {
+   "calls": {
+    "avg": 67,
+    "max": 71
+   },
+   "tris": {
+    "avg": 148929,
+    "max": 154257
+   },
+   "programs": 63,
+   "geometries": 84,
+   "textures": 24,
+   "quality": "low",
+   "st": 354,
+   "en": 104,
+   "bullets": 179,
+   "particles": 106,
+   "debris": 11
+  },
+  "low_lvl8_boss": {
+   "calls": {
+    "avg": 41,
+    "max": 47
+   },
+   "tris": {
+    "avg": 122270,
+    "max": 125462
+   },
+   "programs": 66,
+   "geometries": 84,
+   "textures": 22,
+   "quality": "low",
+   "st": 336,
+   "en": 0,
+   "bullets": 168,
+   "particles": 15,
+   "debris": 4
+  }
+ },
+ "callsErrors": []
+}
