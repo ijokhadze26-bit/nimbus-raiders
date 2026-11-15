@@ -1,12 +1,47 @@
-/* Ability button (FOUNDATION stub; HEROES builder owns it). 68 px round, conic recharge ring. */
+/* Ability button (HEROES builder): 68 px round, hero-coloured conic recharge ring, ready pulse, READY chip. */
 .ability-btn {
-  position: relative; width: 68px; height: 68px; border-radius: 50%; border: 3px solid var(--outline, #1b3a8a);
-  background: #2f8cff; color: #fff; font: 700 16px/1 'Lilita One', sans-serif; touch-action: none; cursor: pointer;
-  box-shadow: 0 4px 0 #1b3a8a;
+  --hc: #2f8cff; --f: 0deg;
+  position: relative; width: 68px; height: 68px; padding: 0; border: 0; border-radius: 50%; background: none;
+  touch-action: none; cursor: pointer; -webkit-tap-highlight-color: transparent; user-select: none;
+  font: 400 15px/1 'Lilita One', sans-serif; color: #fff;
 }
 .ability-btn .ab-ring {
-  position: absolute; inset: -6px; border-radius: 50%; pointer-events: none;
-  background: conic-gradient(#ffd34d var(--f, 0deg), rgba(255, 255, 255, 0.2) 0);
-  -webkit-mask: radial-gradient(circle, transparent 37px, #000 38px); mask: radial-gradient(circle, transparent 37px, #000 38px);
+  position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background: conic-gradient(var(--hc) var(--f), rgba(255, 255, 255, 0.28) 0);
+  box-shadow: 0 4px 0 rgba(10, 28, 80, 0.5);
 }
-.ability-btn.ready { background: #ffb21f; }
+.ability-btn .ab-face {
+  position: absolute; inset: 6px; border-radius: 50%; display: grid; place-items: center; overflow: hidden;
+  background: radial-gradient(circle at 38% 30%, #3b66d8, #13306f 75%); border: 3px solid #fff;
+  transition: filter 0.2s ease, transform 0.12s ease;
+}
+.ability-btn .ab-ico { width: 34px; height: 34px; display: block; opacity: 0.55; filter: grayscale(0.4); transition: opacity 0.2s, filter 0.2s; }
+.ability-btn .ab-ico .ab-svg { width: 100%; height: 100%; display: block; }
+.ability-btn .ab-cd {
+  position: absolute; right: 7px; bottom: 5px; font-size: 13px; letter-spacing: 0.5px;
+  -webkit-text-stroke: 3px #13306f; paint-order: stroke fill;
+}
+.ability-btn.ready .ab-face { background: radial-gradient(circle at 38% 30%, color-mix(in srgb, var(--hc) 70%, #fff), var(--hc) 70%); }
+.ability-btn.ready .ab-ico { opacity: 1; filter: drop-shadow(0 2px 0 rgba(10, 28, 80, 0.45)); }
+.ability-btn.ready .ab-ring { animation: ab-pulse 1.1s ease-in-out infinite; }
+.ability-btn.ready::after {
+  content: ''; position: absolute; inset: -6px; border-radius: 50%; border: 3px solid var(--hc); pointer-events: none;
+  animation: ab-halo 1.1s ease-out infinite;
+}
+.ability-btn:active .ab-face, .ability-btn.used .ab-face { transform: scale(0.9); }
+.ability-btn.used .ab-face { animation: ab-used 0.35s ease-out; }
+.ability-btn .ab-chip {
+  position: absolute; left: 50%; top: -20px; transform: translateX(-50%) scale(0); padding: 3px 8px; border-radius: 10px;
+  background: var(--hc); border: 2px solid #fff; font-size: 12px; letter-spacing: 1px; white-space: nowrap; pointer-events: none;
+  -webkit-text-stroke: 3px #13306f; paint-order: stroke fill; box-shadow: 0 2px 0 rgba(10, 28, 80, 0.45);
+}
+.ability-btn .ab-chip.show { animation: ab-chip 1.4s ease-out forwards; }
+.pw.ab-pill .pw-ico .ab-svg { width: 26px; height: 26px; display: block; }
+@keyframes ab-pulse { 50% { transform: scale(1.06); } }
+@keyframes ab-halo { from { transform: scale(0.95); opacity: 0.9; } to { transform: scale(1.3); opacity: 0; } }
+@keyframes ab-used { 0% { transform: scale(0.82); } 60% { transform: scale(1.08); } 100% { transform: scale(1); } }
+@keyframes ab-chip {
+  0% { transform: translateX(-50%) scale(0); } 15% { transform: translateX(-50%) scale(1.15); } 25% { transform: translateX(-50%) scale(1); }
+  80% { transform: translateX(-50%) scale(1); opacity: 1; } 100% { transform: translateX(-50%) scale(0.8); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .ability-btn.ready .ab-ring, .ability-btn.ready::after { animation: none; } }
