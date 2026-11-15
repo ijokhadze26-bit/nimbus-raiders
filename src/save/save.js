@@ -83,7 +83,7 @@ export function sanitize(raw) {
   // keep unknown top-level JSON keys (a newer build's fields survive this one)
   let extra = 0;
   for (const [k, v] of Object.entries(raw)) {
-    if (KNOWN.has(k) || extra >= EXTRA_MAX || v === undefined || typeof v === 'function') continue;
+    if (KNOWN.has(k) || k === '__proto__' || extra >= EXTRA_MAX || v === undefined || typeof v === 'function') continue;
     let text;
     try { text = JSON.stringify(v); } catch { continue; }
     if (text === undefined || text.length > EXTRA_BYTES) continue;
