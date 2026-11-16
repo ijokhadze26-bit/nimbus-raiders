@@ -27,6 +27,9 @@
   background: radial-gradient(circle at 40% 35%, #ff7a8a, #d01d3a 70%); border: 3px solid #fff; box-shadow: 0 3px 0 #6a0d1d;
 }
 .hud-prog.near .hud-boss-ico, .hud.boss-phase .hud-boss-ico { animation: skull-pulse 0.6s ease-in-out infinite alternate; }
+.hud-boss-ico.finish { background: radial-gradient(circle at 40% 35%, #8dffb0, #1fb85a 70%); box-shadow: 0 3px 0 #0d5a2a; font-size: 20px; }
+.hud-prog.near .hud-boss-ico.finish { animation-name: flag-pulse; }
+@keyframes flag-pulse { from { scale: 1; box-shadow: 0 3px 0 #0d5a2a, 0 0 0 0 rgba(80, 255, 140, 0.7); } to { scale: 1.15; box-shadow: 0 3px 0 #0d5a2a, 0 0 0 8px rgba(80, 255, 140, 0); } }
 .hud.boss-phase .hud-prog .fill { background: linear-gradient(180deg, #ffd27a, #ff8a3d 50%, #ff3b4e); }
 @keyframes skull-pulse { from { scale: 1; box-shadow: 0 3px 0 #6a0d1d, 0 0 0 0 rgba(255, 59, 78, 0.7); } to { scale: 1.15; box-shadow: 0 3px 0 #6a0d1d, 0 0 0 8px rgba(255, 59, 78, 0); } }
 .coin-pill.hud-coins { min-width: 86px; height: 40px; font-size: 21px; padding-left: 40px; pointer-events: none; }

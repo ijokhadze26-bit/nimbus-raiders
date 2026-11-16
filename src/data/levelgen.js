@@ -24,8 +24,8 @@ export const NAMES = {
   46: 'Bolt Battlements', 47: 'Windshear Walk', 48: 'Crumbling Keep', 49: 'Tempest Stair', 50: 'Storm Throne',
 };
 
-// Boss per level: { type, hp, tier, skin?, mini? }. 'glacius' and 'gumdrop' are stage-2 bosses: until their
-// classes exist the boss system falls back to Grawlstone (recoloured by `skin`).
+// Boss per level: { type, hp, tier, skin?, mini? }. 'glacius' (L30) and 'gumdrop' (L35) are their own boss
+// classes (update 3 stage 2); their world skin here is their native look, so bossLook keeps their colours.
 const BOSS_PLAN = {
   20: { type: 'ironhorn', tier: 5 },
   25: { type: 'ironhorn', tier: 5, skin: 'frost', mini: true },
