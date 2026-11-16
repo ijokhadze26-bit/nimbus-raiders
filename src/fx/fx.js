@@ -24,6 +24,7 @@ const REWARD_TEXT = {
   troops: ['RAIDERS', '#7fe0ff', '#12408f'], drone: ['DRONE', '#8dff9a', '#11602a'], turret: ['TURRET', '#ffb36b', '#7a3300'],
   shield: ['SHIELD', '#7fe0ff', '#12408f'], rapid: ['RAPID FIRE', '#ffd84a', '#8a4a00'], magnet: ['MAGNET', '#ff8ab0', '#7a1037'],
   freeze: ['FREEZE', '#b8f4ff', '#1b5a8a'],
+  cursed: ['CURSED!', '#e2b8ff', '#3d0a5e'], // update 3 stage 3 cursed barrel
 };
 // boss death: explosion stages on game time (the first ~0.28 s play out inside the 0.2x slow-mo)
 const DEATH_STAGES = [0, 0.045, 0.09, 0.14, 0.2, 0.27, 0.38, 0.52, 0.7, 0.92, 1.18];
@@ -175,6 +176,12 @@ export class Fx {
     if (r.granted === false || !r.kind) return;
     const info = REWARD_TEXT[r.kind];
     if (!info) return; // weapon -> HUD banner, coins -> coin:collect popup
+    if (r.kind === 'cursed') {
+      const t = r.blocked ? 'BLOCKED' : r.curse === 'mk' ? 'MK DOWN' : '-' + r.amount;
+      this.popups.show('reward', `${t}<small>${info[0]}</small>`, x, y + 1.6, z, { color: info[1], outline: info[2] });
+      if (!r.blocked) this.screen.flash('#8a2be2', 0.22, 2.5);
+      return;
+    }
     const amount = r.amount || 1;
     const main = r.kind === 'troops' || r.kind === 'drone' || r.kind === 'turret' ? '+' + amount : info[0] + '!';
     const html = main === info[0] + '!' ? main : `${main}<small>${info[0]}</small>`;

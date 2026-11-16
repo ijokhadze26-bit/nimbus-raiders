@@ -3,6 +3,8 @@
 // Update 2: NEXT opens the pre-level LOADOUT; a level win that unlocks a weapon / hero shows one card each
 // (INFO opens its page); Bonbon's coin bonus gets its own tag; a TRY IT practice run ends on 'PRACTICE DONE'
 // with TRY AGAIN and BACK (to the Armory / Heroes item it came from).
+// Update 3 stage 3: an ELITE run says so (purple ELITE CLEAR! ribbon + glow, purple stars = the elite stars,
+// an ELITE x2 tag on the coins; a loss shows the ELITE tag under the level).
 import { screenEl, countTo, bump, wait, fmt } from '../ui.js';
 import { icon } from '../icons.js';
 import { getLevel } from '../../data/levels.js';
@@ -11,6 +13,9 @@ import { weaponDef } from '../../data/weapons.js';
 import { heroDef } from '../../data/heroes.js';
 import { weaponIcon, heroIcon } from '../icons2.js';
 import { mkLabel } from '../infofmt.js';
+import { ELITE_BADGE } from '../elite.js';
+
+const eliteTag = () => `<div class="res-elite-tag">${ELITE_BADGE}<span>ELITE</span></div>`;
 
 const TIPS = [
   'Shoot red gates to turn them blue before you pass!',
@@ -31,14 +36,16 @@ export function createResult(ui) {
   function winHtml(a) {
     const endless = a.mode === 'endless';
     const next = !endless && !!getLevel(a.levelId + 1);
-    const bonus = (coinMul(ui.save) > 1 ? `<span class="bonus">+${Math.round((coinMul(ui.save) - 1) * 100)}% BONUS</span>` : '') + heroBonus(a);
+    const bonus = (a.elite ? '<span class="bonus elite-bonus">ELITE x2</span>' : '')
+      + (coinMul(ui.save) > 1 ? `<span class="bonus">+${Math.round((coinMul(ui.save) - 1) * 100)}% BONUS</span>` : '') + heroBonus(a);
     const tag = a.galaxy ? '<div class="unlock-tag legendary">GALAXY SKIN UNLOCKED!</div>'
       : a.unlocked ? `<div class="unlock-tag">LEVEL ${a.unlocked} UNLOCKED!</div>` : '';
     return `
       <div class="rays"></div>
-      <div class="panel panel-result win pop">
-        <div class="ribbon ribbon-gold"><span>${endless ? 'BOSS DOWN!' : 'LEVEL CLEAR!'}</span></div>
+      <div class="panel panel-result win pop${a.elite ? ' elite' : ''}">
+        <div class="ribbon ${a.elite ? 'ribbon-elite' : 'ribbon-gold'}"><span>${endless ? 'BOSS DOWN!' : a.elite ? 'ELITE CLEAR!' : 'LEVEL CLEAR!'}</span></div>
         <div class="res-level">${endless ? 'ENDLESS' : `LEVEL ${a.levelId}${getLevel(a.levelId)?.name ? ' · ' + getLevel(a.levelId).name : ''}`}</div>
+        ${a.elite ? eliteTag() : ''}
         ${endless ? '' : `<div class="big-stars">
           <span class="bs bs1">${icon('star')}</span><span class="bs bs2">${icon('star')}</span><span class="bs bs3">${icon('star')}</span>
         </div>`}
@@ -76,6 +83,7 @@ export function createResult(ui) {
       <div class="panel panel-result lose pop">
         <div class="ribbon ribbon-red"><span>SQUAD DOWN</span></div>
         <div class="res-level">${endless ? 'ENDLESS RUN' : `LEVEL ${a.levelId}`}</div>
+        ${a.elite ? eliteTag() : ''}
         <div class="lose-ico">${icon('heart')}<span class="crack"></span></div>
         ${dist}
         <div class="res-coins"><span class="coin-ico">${icon('coin')}</span><span class="num amt">+0</span>${heroBonus(a)}</div>

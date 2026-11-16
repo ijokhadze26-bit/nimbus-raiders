@@ -5,6 +5,8 @@
 // show COMING SOON. Opens scrolled to the current level. Tap a node (or the big footer button) to open the
 // pre-level LOADOUT screen for that level. Phone-cheap: ~50 nodes, static CSS / SVG scenery built once, the
 // scroll handler only reads scrollTop and toggles classes when the world in view changes.
+// Update 3 stage 3: an ELITE tag beside a node (away from its label) once the level has 3 stars (dim pulse = ELITE open, bright
+// with purple stars = cleared on ELITE, save.elite).
 import { screenEl, coinPill, el } from '../ui.js';
 import { icon } from '../icons.js';
 import { getLevel, LAST_LEVEL } from '../../data/levels.js';
@@ -12,6 +14,7 @@ import { WORLDS, TOTAL_LEVELS, LEVELS_PER_WORLD, levelKind, isWorldUnlocked } fr
 import { BOSS_NAMES, bossName, worldLevelText, WORLD_LOOK, WORLD_GLYPH, BOSS_SKULL, BOSS_CROWN, MINI_BADGE, bandDecor, bandSeam } from '../worldart.js';
 import { ENTER_MS } from './armory.js';
 import '../worldmap.css';
+import { ELITE_BADGE, eliteStarsHtml } from '../elite.js';
 
 const STEP = 106;          // px between nodes inside a world
 const TOPGAP = 104;        // band top -> its boss node (room for the crown + Pip)
@@ -98,6 +101,7 @@ export function createMap(ui) {
     n.innerHTML = kind === 'boss'
       ? `${BOSS_CROWN}<span class="disc">${BOSS_SKULL}<span class="num">${id}</span><span class="lock">${icon('lock')}</span></span>${STARS}`
       : `<span class="disc"><span class="num">${id}</span><span class="lock">${icon('lock')}</span></span>${kind === 'mini' ? MINI_BADGE : ''}${STARS}`;
+    n.insertAdjacentHTML('beforeend', `<span class="wm-elite">${ELITE_BADGE}${eliteStarsHtml(0)}</span>`);
     const head = kind === 'boss' ? `LEVEL ${id} · BOSS` : kind === 'mini' ? `LEVEL ${id} · MINI-BOSS` : `LEVEL ${id}`;
     const title = boss || (def?.name ? def.name : '');
     const label = el('div', `map-label k-${kind}`, `<span class="n">${head}</span>${title ? `<span class="t">${title}</span>` : ''}${!def ? '<span class="t soon">COMING SOON</span>' : ''}`);
@@ -127,6 +131,7 @@ export function createMap(ui) {
       const r = o.kind === 'boss' ? 66 : o.kind === 'mini' ? 56 : 48;
       const right = o.x < w * 0.5;
       o.label.classList.toggle('right', right);
+      o.n.classList.toggle('lab-right', right); // the ELITE tag sits on the side away from the label
       o.label.style.left = right ? `${o.x + r}px` : '';
       o.label.style.right = right ? '' : `${w - o.x + r}px`;
       o.label.style.maxWidth = `${Math.max(90, Math.round(right ? w - o.x - r - 8 : o.x - r - 8))}px`;
@@ -152,6 +157,10 @@ export function createMap(ui) {
       o.n.classList.toggle('current', o.id === cur);
       o.n.classList.toggle('done', stars > 0);
       o.n.dataset.stars = stars;
+      const es = d.elite[o.id] || 0, eo = !locked && stars >= 3;
+      o.n.classList.toggle('elite-open', eo && !es);
+      o.n.classList.toggle('elite-done', eo && es > 0);
+      if (eo && es && o.es !== es) { o.es = es; o.n.querySelector('.wm-elite .e-stars').outerHTML = eliteStarsHtml(es); }
       o.label.classList.toggle('locked', locked);
     }
     const cn = nodes[cur - 1];

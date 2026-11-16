@@ -1,5 +1,6 @@
 // Progress rules on top of the save: run rewards (stars, unlocks, coins with the coin bonus, stats),
 // shop purchases / equips and the daily reward streak. UI calls these; game events drive the run rewards.
+// Update 3 stage 3: an ELITE win (p.elite) records save.elite[id] (best elite stars) instead of the normal stars.
 import { DAILY, UPGRADE_BY_ID, upgradeCost, upgradeEffects } from '../data/shop.js';
 import { HERO_BY_ID, PAID_SKIN_IDS, WEAPON_SKIN_BY_ID } from '../data/skins.js';
 import { LAST_LEVEL } from '../data/levels.js';
@@ -27,7 +28,9 @@ export function awardWin(save, p, run = null) {
   const d = save.data;
   const level = p.mode === 'level';
   const dist = Math.round(run?.dist || 0);
+  const elite = level && !!p.elite;
   const prevStars = level ? d.stars[p.levelId] || 0 : 0;
+  const prevElite = elite ? d.elite[p.levelId] || 0 : 0;
   const heroMul = heroCoinMul(run);
   const coins = Math.round((p.coins || 0) * coinMul(save) * heroMul);
   let unlocked = 0;
@@ -38,8 +41,9 @@ export function awardWin(save, p, run = null) {
     s.stats.runs++; s.stats.wins++;
     s.stats.kills += p.kills || 0;
     if (!level && dist > s.endlessBest) s.endlessBest = dist;
+    if (elite) s.elite[p.levelId] = Math.max(prevElite, Math.min(3, p.stars || 1)); // ELITE: its own stars
     if (level) {
-      s.stars[p.levelId] = Math.max(prevStars, Math.min(3, p.stars || 1));
+      if (!elite) s.stars[p.levelId] = Math.max(prevStars, Math.min(3, p.stars || 1));
       const next = Math.min(LAST_LEVEL, p.levelId + 1); // never unlock a level that has no data yet
       if (next > s.unlockedLevel) { s.unlockedLevel = next; unlocked = next; }
       const threes = Object.values(s.stars).filter((n) => n >= 3).length;
@@ -49,7 +53,7 @@ export function awardWin(save, p, run = null) {
     }
   });
   const newItems = newlyUnlocked(before, unlockSet(save.data));
-  return { win: true, mode: p.mode, levelId: p.levelId, stars: p.stars || 1, prevStars, coins, unlocked, galaxy, squad: p.squad, kills: p.kills, heroMul, hero: run?.hero || null, newItems };
+  return { win: true, mode: p.mode, levelId: p.levelId, stars: p.stars || 1, prevStars, coins, unlocked, galaxy, squad: p.squad, kills: p.kills, heroMul, hero: run?.hero || null, newItems, elite, prevElite };
 }
 
 /** Endless pays dist/10 + kills/20 + collected (SPEC §5); a level loss pays the collected coins. */
@@ -67,7 +71,7 @@ export function awardLose(save, p, run) {
     if (newBest) s.endlessBest = Math.round(p.dist);
   });
   const length = run?.length || 0;
-  return { win: false, mode: p.mode, levelId: p.levelId, dist: Math.round(p.dist || 0), length, coins, newBest, best: Math.max(prevBest, Math.round(p.dist || 0)), kills: p.kills, heroMul, hero: run?.hero || null };
+  return { win: false, mode: p.mode, levelId: p.levelId, dist: Math.round(p.dist || 0), length, coins, newBest, best: Math.max(prevBest, Math.round(p.dist || 0)), kills: p.kills, heroMul, hero: run?.hero || null, elite: !!p.elite };
 }
 
 // ---------------- shop ----------------

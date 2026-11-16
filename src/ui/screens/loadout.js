@@ -5,6 +5,8 @@
 // and WEAPON chip rows (locked chips are silhouettes; tapping one shows the lock line + BUY when affordable),
 // INFO buttons to the Heroes / Armory pages, START and BACK.
 // Opened with ui.nav('loadout', { levelId }) or { mode: 'endless' }.
+// Update 3 stage 3: an ELITE switch above START (campaign levels only; locked until the level has 3 stars).
+// The choice is remembered while the game is open (eliteOn) and applies to every elite-open level.
 import { screenEl, coinPill, bump, fmt } from '../ui.js';
 import { icon } from '../icons.js';
 import { HERO_DEFS, HERO_DEF_BY_ID } from '../../data/heroes.js';
@@ -19,6 +21,8 @@ import { chipHtml, ENTER_MS } from './armory.js';
 import { worldOf } from '../../data/worlds.js';
 import { bossName, kindTag } from '../worldart.js';
 import '../info.css';
+import { eliteUnlocked, eliteStars } from '../../data/elite.js';
+import { eliteRowHtml } from '../elite.js';
 
 const STAR = `<i class="fav-star" aria-hidden="true">${icon('star')}</i>`;
 
@@ -41,12 +45,14 @@ export function createLoadout(ui) {
       <div class="chip-row lo-weapons" role="toolbar" aria-label="Weapon"></div>
       <div class="lo-lock" hidden></div>
     </div>
-    <div class="info-foot lo-foot"><button type="button" class="btn btn-gold btn-lg lo-start" data-act="start">${icon('play')}<span>START</span></button></div>`;
+    <div class="info-foot lo-foot"><div class="lo-elite-slot" hidden></div><button type="button" class="btn btn-gold btn-lg lo-start" data-act="start">${icon('play')}<span>START</span></button></div>`;
   const $ = (s) => el.querySelector(s);
   const heroesRow = $('.lo-heroes'), weaponsRow = $('.lo-weapons'), level = $('.lo-level'), title = $('.lo-title');
   const cap = $('.lo-cap'), lock = $('.lo-lock'), pvEl = $('.lo-pv');
   const preview = createPreview(ui);
+  const eliteSlot = $('.lo-elite-slot'), foot = $('.lo-foot'), startBtn = $('.lo-start');
   let opts = {}, skipT = 0, pending = null; // pending = { kind, id } of a tapped locked chip
+  let eliteOn = false;                       // the ELITE switch (kept across levels while the game is open)
 
   const def = () => (opts.levelId ? getLevel(opts.levelId) : null);
   const favours = () => (def() && def().favours) || [];
@@ -96,7 +102,18 @@ export function createLoadout(ui) {
   }
   // the gun shown is the Mk the run starts at (shop Starting Weapon upgrade)
   function item() { const d = ui.save.data; return { kind: 'loadout', hero: d.heroes.selected, weapon: d.arsenal.selected, mk: Math.min(5, 1 + (d.upgrades.tier | 0)) }; }
-  function render() { renderLevel(); renderChips(); renderCap(); renderLock(); }
+  const eliteOpen = () => !!def() && eliteUnlocked(ui.save.data, def().id);
+  function renderElite() {
+    const L = def();
+    eliteSlot.hidden = !L;
+    foot.classList.toggle('has-elite', !!L);
+    const on = eliteOn && eliteOpen();
+    eliteSlot.innerHTML = L ? eliteRowHtml({ unlocked: eliteOpen(), on, best: eliteStars(ui.save.data, L.id) }) : '';
+    startBtn.classList.toggle('is-elite', on);
+    startBtn.classList.toggle('btn-gold', !on);
+    startBtn.querySelector('span').textContent = on ? 'START ELITE' : 'START';
+  }
+  function render() { renderLevel(); renderChips(); renderCap(); renderLock(); renderElite(); }
   function back() { ui.nav(opts.mode === 'endless' ? 'endless' : 'map'); }
   function tap(kind, id) {
     const d = ui.save.data;
@@ -126,6 +143,9 @@ export function createLoadout(ui) {
       if (act === 'back') back();
       else if (act === 'hero' || act === 'weapon') tap(act, btn.dataset.id);
       else if (act === 'lock-close') { pending = null; renderLock(); }
+      else if (act === 'elite') {
+        if (eliteOpen()) { eliteOn = !eliteOn; renderElite(); } else { const r = eliteSlot.firstElementChild; if (r) bump(r); ui.vibrate(30); }
+      }
       else if (act === 'buy' && pending) {
         const ok = pending.kind === 'hero' ? buyHero(ui.save, pending.id) : buyWeapon(ui.save, pending.id);
         if (ok) { ui.sfx('purchase'); ui.vibrate(25); pending = null; render(); preview.set(item()); }
@@ -137,9 +157,11 @@ export function createLoadout(ui) {
         // the selection is stored in the save on every tap; START copies it into the run's loadout
         ui.game.loadout.syncFromSave();
         if (opts.mode === 'endless') ui.game.startEndless();
-        else if (!ui.game.startLevel(opts.levelId || 1)) ui.nav('map');
+        else if (!ui.game.startLevel(opts.levelId || 1, { elite: eliteOn && eliteOpen() })) ui.nav('map');
       }
     },
     onBack: back,
+    /** Test hooks: the ELITE switch state on screen. */
+    eliteState: () => ({ open: eliteOpen(), on: eliteOn && eliteOpen() }),
   };
 }

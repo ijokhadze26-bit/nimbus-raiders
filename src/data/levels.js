@@ -15,6 +15,7 @@ import { FAVOURS, CRATES, placeCrates } from './levelcrates.js';
 import { generateLevels } from './levelgen.js';
 import { worldOf, levelKind, TOTAL_LEVELS } from './worlds.js';
 import { planHazards } from './hazardplan.js';
+import { hardenHand } from './harder.js';
 
 export {
   gate, barrel, horde, blade, gap, powerup, coins, crate, START, ARENA, RUSH_TAIL, TIER_CROWD, TIER_EXP, RAMP_EXP, BROOD,
@@ -340,6 +341,8 @@ const HAND = [
 
 
 for (const l of HAND) { l.favours = FAVOURS[l.id] || []; l.crates = CRATES[l.id] || []; placeCrates(l, l.crates); }
+// stage 3: the Forge levels 11-15 keep their beats; their hordes gain Boomlings + Mendlings (data pass only)
+for (const l of HAND) hardenHand(l);
 
 export const LEVELS = [...HAND, ...generateLevels()];
 for (const l of LEVELS) { l.world = worldOf(l.id).id; l.kind = levelKind(l.id); }

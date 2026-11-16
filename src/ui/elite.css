@@ -1,0 +1,65 @@
+/* ELITE mode (update 3 stage 3): loadout toggle row, map node badge, result ribbon / stars. */
+.elite-ico { width: 100%; height: 100%; display: block; }
+
+/* ---- loadout row (sits in the footer above START) ---- */
+.lo-foot.has-elite { flex-wrap: wrap; }
+.lo-elite-slot { flex: 1 1 100%; display: flex; justify-content: center; }
+.lo-elite-slot[hidden] { display: none; }
+.lo-elite {
+  flex: 1 1 100%; max-width: 420px; display: flex; align-items: center; gap: 10px; min-height: 58px; padding: 6px 10px 6px 8px;
+  border-radius: 18px; border: 3px solid #48208f; background: linear-gradient(180deg, #f1e6ff, #dcc6ff); box-shadow: 0 4px 0 #48208f;
+  color: #2e1270; text-align: left; cursor: pointer; font: inherit; transition: background 0.18s ease, box-shadow 0.18s ease;
+}
+.lo-elite:active { transform: translateY(2px); box-shadow: 0 2px 0 #48208f; }
+.lo-elite .le-badge { flex: none; width: 40px; height: 40px; filter: drop-shadow(0 3px 0 rgba(46, 18, 112, 0.35)); }
+.lo-elite .le-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.lo-elite .le-t b { display: flex; align-items: center; gap: 6px; font: 400 19px/1 var(--font-display); color: #fff; letter-spacing: 1px;
+  -webkit-text-stroke: 4px #48208f; paint-order: stroke fill; }
+.lo-elite .le-t b .ico { font-size: 16px; -webkit-text-stroke: 0; color: #48208f; }
+.lo-elite .le-t small { font-size: 12.5px; line-height: 1.15; font-weight: 700; color: #48208f; }
+.lo-elite .le-t small .ico { display: inline-block; vertical-align: -2px; font-size: 13px; color: #ffae1a; }
+.lo-elite .switch { flex: none; transform: scale(0.82); margin: -4px -6px -4px 0; pointer-events: none; }
+.lo-elite .switch.is-on { background: linear-gradient(180deg, #c99bff, #8a4dff); border-color: #48208f; }
+.lo-elite.on { background: linear-gradient(180deg, #a874ff, #6a2bd6); border-color: #2e1270; box-shadow: 0 4px 0 #2e1270, 0 0 18px rgba(170, 100, 255, 0.75); }
+.lo-elite.on .le-t small { color: #fff; }
+.lo-elite.on .le-badge { animation: elite-pulse 1.4s ease-in-out infinite; }
+.lo-elite.locked { cursor: default; background: linear-gradient(180deg, #eceff6, #d4d9e6); border-color: #6c7591; box-shadow: 0 4px 0 #6c7591; }
+.lo-elite.locked .le-badge { filter: grayscale(1) opacity(0.7); }
+.lo-elite.locked .le-t b { -webkit-text-stroke-color: #4c5574; }
+.lo-elite.locked .le-t small, .lo-elite.locked .le-t b .ico { color: #4c5574; }
+.lo-elite .le-best { display: inline-flex; gap: 0; margin-left: 2px; }
+.lo-elite .le-t b .le-best .ico { font-size: 17px; color: #cdbdea; stroke: #48208f; stroke-width: 2.2px; paint-order: stroke; overflow: visible; }
+.lo-elite .le-t b .le-best .ico.on { color: #ff7bff; }
+.lo-start.is-elite { --b1: #c99bff; --b2: #8a4dff; --b3: #48208f; }
+@keyframes elite-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+@container (max-height: 700px) {
+  .lo-elite { min-height: 50px; padding-top: 4px; padding-bottom: 4px; }
+  .lo-elite .le-badge { width: 34px; height: 34px; }
+  .lo-elite .le-t b { font-size: 17px; }
+}
+
+/* ---- world map node tag: shield over a purple star pill, beside the node on the side away from its label (map.js
+   sets lab-right); dim pulse = ELITE open (3 stars), bright with purple stars = cleared on ELITE ---- */
+.map-node .wm-elite { display: none; position: absolute; top: 50%; margin-top: -28px; right: -24px; z-index: 3;
+  flex-direction: column; align-items: center; filter: drop-shadow(0 2px 0 rgba(14, 36, 100, 0.4)); pointer-events: none; }
+.map-node.lab-right .wm-elite { right: auto; left: -24px; }
+.map-node.k-mini:not(.lab-right) .wm-elite { margin-top: -12px; }
+.map-node .wm-elite .elite-ico { width: 30px; height: 32px; flex: none; position: relative; z-index: 1; }
+.map-node.elite-open .wm-elite, .map-node.elite-done .wm-elite { display: flex; }
+.map-node.elite-open .wm-elite { opacity: 0.85; }
+.map-node.elite-open .wm-elite .elite-ico { animation: elite-pulse 1.6s ease-in-out infinite; }
+.map-node .wm-elite .e-stars { display: none; gap: 0; margin-top: -5px; padding: 3px 3px 1px; border-radius: 8px; background: #48208f; border: 2px solid #fff; }
+.map-node.elite-done .wm-elite .e-stars { display: flex; }
+.map-node .wm-elite .e-stars .ico { font-size: 11px; color: #8d74b8; }
+.map-node .wm-elite .e-stars .ico.on { color: #ff8dff; }
+
+/* ---- result screen ---- */
+.ribbon-elite { --r1: #b07bff; --r2: #6a2bd6; --r3: #2e1270; }
+.panel-result.elite { box-shadow: 0 0 0 4px #8a4dff, 0 0 30px rgba(170, 100, 255, 0.7); }
+.panel-result.elite .bs.on { color: #ff7bff; }
+.panel-result.elite .bs.on .ico { filter: drop-shadow(0 4px 0 #48208f) drop-shadow(0 0 14px rgba(200, 110, 255, 0.95)); }
+.res-elite-tag { display: inline-flex; align-items: center; gap: 6px; margin: 2px auto 0; padding: 3px 12px 4px 6px; border-radius: 999px;
+  background: linear-gradient(180deg, #a874ff, #6a2bd6); border: 2px solid #fff; box-shadow: 0 3px 0 #2e1270;
+  font: 400 15px/1 var(--font-display); color: #fff; letter-spacing: 1px; -webkit-text-stroke: 3px #2e1270; paint-order: stroke fill; }
+.res-elite-tag .elite-ico { width: 24px; height: 24px; }
+.bonus.elite-bonus { background: #8a4dff; }
