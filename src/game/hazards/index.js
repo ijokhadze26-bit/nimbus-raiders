@@ -1,6 +1,7 @@
 // World hazards (update 3, SPEC3 stage 2): lava, embers, cracking floors, geysers, ice, snowstorms, icicles,
-// avalanches (and the candy / citadel kinds registered later). Level events { type:'hazard', kind, at, lane?,
-// length?, ...params } (src/data/hazardplan.js places them) spawn ~110 u ahead like obstacles.js; each kind
+// avalanches, jelly pads, syrup, gumballs, chocolate falls, moving platforms, lightning, wind, collapsing
+// bridges. Level events { type:'hazard', kind, at, lane?, length?, ...params } (src/data/hazardplan.js places
+// them) spawn ~110 u ahead like obstacles.js (kinds with reserve() cut their holes ~230 u ahead); each kind
 // module (registry.js) owns its objects. Step order: after obstacles (game.step); sync after obstacles.
 // Every step `mods` is reset and then written by the active hazards; other systems read it:
 //   easeMul (squad steering), slide (0..1 ice momentum), pushX (u/s sideways), speedMul (forward speed),
@@ -15,6 +16,9 @@ import { COMMON } from './common.js';
 import { registerWarm } from '../warmup.js';
 
 const SPAWN_AHEAD = 110;
+// kinds with reserve(sys, ev) claim their road earlier (a hazard-made gap must exist before its tiles come into
+// view; obstacles.js spawns level gaps 230 ahead too); create() then finds the result in sys.reserved.get(ev)
+const RESERVE_AHEAD = 230;
 const HINT_AHEAD = 48;
 export const HINT_COLORS = { 2: '#ff8a3d', 3: '#8fe3ff', 4: '#ff7ad1', 5: '#b49dff' };
 
@@ -39,6 +43,8 @@ export class Hazards {
     this.game = game;
     this.list = [];
     this.cursor = 0;
+    this.rcursor = 0;
+    this.reserved = new Map();
     this.run = null;
     this.time = 0;
     this.dt = 0;
@@ -58,6 +64,8 @@ export class Hazards {
     for (const o of this.list) o.def.release(this, o);
     this.list.length = 0;
     this.cursor = 0;
+    this.rcursor = 0;
+    this.reserved.clear();
     this.run = run;
     this.time = 0;
     freshMods(this.mods);
@@ -74,7 +82,8 @@ export class Hazards {
     const run = this.run;
     for (const o of this.list) o.def.release(this, o);
     this.list.length = 0;
-    if (run) this.cursor = run.eventsOf('hazard').length;
+    if (run) this.cursor = this.rcursor = run.eventsOf('hazard').length;
+    this.reserved.clear();
     freshMods(this.mods);
     this.danger.length = 0;
   }
@@ -88,6 +97,11 @@ export class Hazards {
     this.time += dt;
     const dist = this.dist;
     const evs = run.eventsOf('hazard');
+    while (this.rcursor < evs.length && evs[this.rcursor].at - dist < RESERVE_AHEAD) {
+      const e = evs[this.rcursor++];
+      const def = KINDS[e.kind];
+      if (def && def.reserve) this.reserved.set(e, def.reserve(this, e));
+    }
     while (this.cursor < evs.length && evs[this.cursor].at - dist < SPAWN_AHEAD) {
       const e = evs[this.cursor++];
       const def = KINDS[e.kind];

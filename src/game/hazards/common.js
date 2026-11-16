@@ -8,6 +8,8 @@
 //     it (squad.remove, carried as a fraction), and a hazard costs a 900 squad the same share as a 90 squad.
 //   sys.laneRange(lane, out) -> {x0, x1}; sys.tele(kind, ...) telegraphs flagged `hazard` (the autopilot reads
 //     the matching sys.danger zones instead of dodging the paint); sys.sfx(name) / sys.fxB() / sys.shake(a).
+//   sys.addGap(gap) cuts a hazard-made hole (jelly, platform, collapse); sys.fallUnless(solid) is the gap fall
+//     for a hazard that carries the squad over its own hole (platform / bridge rectangles stay solid).
 // FALLER: the shared falling-object hazard (embers, icicles; later lightning): a telegraphed circle lands
 // on where the squad will be, the object drops during the last `fallT` seconds and kills inside on impact.
 import * as THREE from 'three';
@@ -73,6 +75,29 @@ export const COMMON = {
   sfx(name, opts) { const ev = this.game.events; if (ev.wants('hazard:sfx')) ev.emit('hazard:sfx', { sfx: name, opts }); },
   fxB() { const fx = this.game.fx; return fx && fx.B ? fx.B : null; },
   shake(a) { this.game.events.emit('fx:shake', { amount: a }); },
+
+  /**
+   * Cuts a hazard-made hole into the road (obstacles' gap system: the world drops the tiles and dresses it,
+   * obstacles forgets it once it is 40 u behind). Returns the world's dressing of it (or null).
+   */
+  addGap(gap) {
+    const obs = this.game.obstacles, world = this.game.world;
+    obs.gaps.push(gap);
+    world.setGaps(obs.gaps);
+    return world.gapViews ? world.gapViews.get(gap) || null : null;
+  },
+
+  /**
+   * While a hazard carries the squad over its own hole (moving platform, collapsing bridge) it sets
+   * mods.airborne (obstacles' fall check pauses) and calls this instead: members over any hole fall (the
+   * usual gap fall, reason 'gap') unless solid(x, z) holds there.
+   */
+  fallUnless(solid) {
+    if (!this.live) return 0;
+    this._solid = solid;
+    if (!this._fallTest) this._fallTest = (x, z) => this.game.obstacles.overGap(x, z) && !this._solid(x, z);
+    return this.game.squad.fallCheck(this._fallTest);
+  },
 
   /** Shared lazily built visuals of a kind (one set per kind per session). */
   view(key, make) { return this.views[key] || (this.views[key] = make(this)); },

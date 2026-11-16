@@ -14,6 +14,8 @@ import { START, ARENA } from './beats.js';
 export const WORLD_KINDS = {
   2: ['lava', 'ember', 'crack', 'geyser'],
   3: ['ice', 'snow', 'icicle', 'avalanche'],
+  4: ['jelly', 'syrup', 'choco', 'gumball'],
+  5: ['platform', 'lightning', 'collapse', 'wind'],
 };
 
 export const HINTS = {
@@ -25,6 +27,14 @@ export const HINTS = {
   snow: 'SNOWSTORM! Gates show up late',
   icicle: 'ICICLES! Dodge the blue shadows',
   avalanche: 'AVALANCHE! Steer against the push',
+  jelly: 'JELLY PAD! Hit it to bounce over the gap',
+  syrup: 'SYRUP! It slows you down',
+  gumball: 'GUMBALLS! Shoot them or dodge',
+  choco: 'CHOCOLATE FALLS! Pass between the pours',
+  platform: 'MOVING PLATFORM! Stay on it',
+  lightning: 'LIGHTNING! Dodge the purple marks',
+  wind: 'WIND! Steer against the gusts',
+  collapse: 'FALLING BRIDGE! Take the solid side',
 };
 
 /** Clearance a hazard keeps from other events: [before the event, after its end] (u). */
@@ -32,15 +42,18 @@ export const CLEAR = { gate: [7, 8], barrel: [4, 4], crate: [12, 12], gap: [4, 4
 const SPAN = { coins: 12 };           // road taken by events without a length
 export const OVERLAY = new Set(['snow']);
 /** Standing hazards that kill on their spot also keep off power-ups and coin lines (no lure into the lava). */
-export const LETHAL = new Set(['lava', 'geyser', 'crack']);
+export const LETHAL = new Set(['lava', 'geyser', 'crack', 'jelly', 'choco', 'platform', 'collapse']);
 const SOFT_BLOCK = new Set(['powerup', 'coins']);
 /** Kinds whose length may shrink (x0.75, x0.55) to fit a tight stretch. */
-const SHRINK = new Set(['ember', 'icicle', 'ice', 'snow', 'crack']);
+const SHRINK = new Set(['ember', 'icicle', 'ice', 'snow', 'crack', 'syrup', 'lightning', 'wind', 'platform', 'collapse']);
 
 const lanePick = (r) => (r.chance(0.5) ? 'L' : 'R');
 const r2 = (v) => Math.round(v * 100) / 100;
 
-/** Params per kind: (r, { t: 0..1 difficulty, gentle }) -> { length (road it takes), ...event params }. */
+/**
+ * Params per kind: (r, { t: 0..1 difficulty, gentle, p: 0..1 through the level }) -> { length (road it takes),
+ * ...event params }. Jelly / platform / collapse cut a hole across the whole road (their length covers it).
+ */
 export const MAKERS = {
   lava(r, { t, gentle }) {
     if (gentle) return { lane: 'both', length: 4, paths: [0], pathHalf: 1.35, rate: 10 };
@@ -69,6 +82,41 @@ export const MAKERS = {
   },
   avalanche(r, { t, gentle }) {
     return { from: lanePick(r), length: 18, push: gentle ? 6.5 : r2(8 + 2 * t), dur: 1.5, warn: gentle ? 1.6 : 1.3 };
+  },
+  jelly(r, { t, gentle }) {
+    const pad = 3.5, gap = gentle ? 6 : 6 + 2 * Math.round(2 * t);
+    if (gentle) return { side: 'both', pad, gap, length: pad + 3 + gap };
+    return { side: lanePick(r), frac: r2(0.72 - 0.14 * t), pad, gap, length: pad + 3 + gap };
+  },
+  syrup(r, { t, gentle }) {
+    if (gentle) return { lane: 'both', length: 14, slow: 0.65, ease: 0.45 };
+    return { lane: r.pick(['both', 'L', 'R', 'L', 'R']), length: 14 + Math.round(10 * t), slow: r2(0.62 - 0.1 * t), ease: 0.4 };
+  },
+  gumball(r, { t, gentle, p = 0.5 }) {
+    // length: the road the balls roll down to meet the squad (gumball.js ROLL_LEN + 6 per ball, spacing apart)
+    if (gentle) return { lane: lanePick(r), count: 1, spacing: 10, roll: 5, hp: 40, length: 20 };
+    const count = r.int(1, 2 + Math.round(t));
+    return { lane: lanePick(r), count, spacing: 10, roll: r2(6 + 3 * t), hp: Math.round(60 + 280 * t + 160 * p), zigzag: r.chance(0.5), length: 20 + (count - 1) * 10 };
+  },
+  choco(r, { t, gentle }) {
+    if (gentle) return { lane: lanePick(r), count: 1, spacing: 10, period: 3.6, on: 1.4, warn: 1.0, length: 4 };
+    const count = r.int(1, 2 + Math.round(t));
+    return { lane: lanePick(r), count, spacing: 10, period: r2(3.4 - 0.5 * t), on: r2(1.3 + 0.3 * t), warn: 0.9, zigzag: r.chance(0.5), length: (count - 1) * 10 + 4 };
+  },
+  platform(r, { t, gentle }) {
+    if (gentle) return { length: 14, w: 7, amp: 0.8, period: 5 };
+    return { length: 16 + 2 * Math.round(3 * t), w: r2(6.4 - 1.0 * t), amp: r2(1.3 + 1.1 * t), period: r2(4.6 - 1.0 * t) };
+  },
+  lightning(r, { t, gentle }) {
+    return gentle ? { length: 24, every: 1.6, r: 1.4, warn: 1.5 } : { length: 26 + Math.round(12 * t), every: r2(1.2 - 0.4 * t), r: 1.45, warn: r2(1.3 - 0.15 * t) };
+  },
+  wind(r, { t, gentle }) {
+    const dir = r.chance(0.5) ? 1 : -1;
+    return gentle ? { length: 30, dir, push: 4.5, period: 2.6 } : { length: 30 + Math.round(20 * t), dir, push: r2(5.5 + 3 * t), period: r2(2.6 - 0.5 * t) };
+  },
+  collapse(r, { t, gentle }) {
+    if (gentle) return { length: 16, weak: lanePick(r), warn: 1.0, fast: 1.35, slow: 0.8 };
+    return { length: 18 + 2 * Math.round(2 * t), weak: lanePick(r), warn: r2(0.85 - 0.2 * t), fast: r2(1.4 + 0.25 * t), slow: 0.85 };
   },
 };
 
@@ -127,7 +175,7 @@ export function planHazards(def) {
     if (c) blocks.push([e.at - c[0], e.at + (e.length || SPAN[e.type] || 0) + c[1], e.type === 'crate' ? 'crate' : SOFT_BLOCK.has(e.type) ? 'soft' : 'hard']);
   }
   for (const it of itemsFor(def, kinds, r, idx)) {
-    const params = MAKERS[it.k](r, { t, gentle: !!it.gentle });
+    const params = MAKERS[it.k](r, { t, gentle: !!it.gentle, p: it.p });
     const overlay = OVERLAY.has(it.k) && !it.hint, lethal = LETHAL.has(it.k);
     let at = null, len = params.length || 0;
     // a lesson that finds no room near its spot may move anywhere in the level (every kind gets taught)

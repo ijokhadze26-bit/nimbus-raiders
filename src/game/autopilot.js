@@ -4,7 +4,8 @@
 // in front of the boss. Blades and gaps are a hard filter on the final x: the whole formation (not just Pip)
 // is tested against each hazard; power tokens (and coins when idle) are grabbed when the path is safe.
 // Update 3 world hazards: their telegraphs (flagged `hazard`) are not dodged as boss attacks; the squad keeps out
-// of game.hazards.danger zones instead (same hard filter as blades / gaps, zones may carry pad / shift / w).
+// of game.hazards.danger zones instead (same hard filter as blades / gaps, zones may carry pad / shift / w, and
+// look: lined up for only this late, e.g. a bridge whose danger is at its far end).
 // Skill profiles (balance tests): 'pro' plays perfectly; 'casual' / 'novice' react late, misjudge close gate
 // calls, often judge a gate by its current number, dodge telegraphs late (or not at all), wobble and clip
 // hazard edges. Their randomness comes from the bot's own seeded rng (one seed per run), never game.rng.
@@ -368,7 +369,7 @@ export class Autopilot {
     const pad = (zn.pad ?? 0.3) - (p.clip && this.roll(zn, 'clip') < p.clip ? p.clipPad : 0);
     const circle = zn.kind === 'circle';
     const near = circle ? zn.z + zn.r : zn.zNear, far = circle ? zn.z - zn.r : zn.zFar;
-    if (L.z - near > (this.look || HAZ_LOOK) || far > back + pad) return 0;
+    if (L.z - near > Math.min(this.look || HAZ_LOOK, zn.look || Infinity) || far > back + pad) return 0; // zn.look: a late-biting zone
     const sh = zn.shift || 0, w = zn.w ?? 1;
     const inX = circle ? (x) => Math.abs(x + sh - zn.x) < zn.r + pad : (x) => x + sh > zn.x0 - pad && x + sh < zn.x1 + pad;
     let loss = 0;
