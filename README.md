@@ -19,13 +19,13 @@ It runs in the browser on phone and computer, with nothing to install.
 - **Murklings:** crowds of purple enemies charge at you. Watch out for fast Dashlings, tough Bulwarks, Shieldbearers and exploding Fizzbombs.
 - **Hazards:** dodge spinning blades and holes in the road. Raiders who step over a hole fall in.
 - **Power-ups:** a shield bubble, rapid fire, a coin magnet and a freeze.
-- **Bosses:** every level ends with a boss. Red warning stripes show where an attack will land, so step out of the way. There are five bosses: Grawlstone, Oculon, Mother Murk, Ironhorn and the Tempest King.
+- **Bosses:** levels 10, 20, 30, 40 and 50 end with a world boss, and each world has a mini-boss halfway; other levels end with a big final rush and a finish line. Red warning stripes show where an attack will land, so step out of the way. There are five bosses: Grawlstone, Oculon, Mother Murk, Ironhorn and the Tempest King.
 - **Win** by defeating the boss before your squad runs out. You earn up to three stars and some coins.
 - **Before each level** the loadout screen shows which weapons the level favours. Choose your hero and weapon, then press START.
 
 ## Features
 
-- 15 levels on a sky map, plus **Endless mode** with a saved best distance
+- **50 levels in 5 worlds** (Sky Bridge, Volcanic Forge, Frozen Peaks, Candy Kingdom, Storm Citadel) on a world map, each with its own look, music and enemy colours, plus **Endless mode** with a saved best distance
 - 7 weapons and 6 heroes, unlocked by reaching levels or with coins
 - An **Armory** and a **Heroes** screen (from the main menu or the loadout screen) with a spinning 3D preview, simple descriptions, stat bars, exact numbers, strong and weak matchups and what changes from Mk I to Mk V. Locked items show as silhouettes with how to unlock them
 - **Compare** two weapons or two heroes side by side, and **TRY IT** to test one in a short practice run
