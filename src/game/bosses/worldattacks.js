@@ -83,8 +83,10 @@ export function freezeLane(boss, o) {
 }
 
 /**
- * o: { halfW, telegraph, launch }. The gumball's kill edge reaches the front of the blob as the warning ends, and
- * it kills nothing before then (the warning is never shorter than 0.9 s).
+ * o: { halfW, telegraph, launch }. The gumball rolls fast (it would reach the blob centre as the warning ends if
+ * launched at o.launch) but leaves a little later, so its kill edge reaches the front of the blob exactly as the
+ * warning ends; it kills nothing before then (the warning is never shorter than 0.9 s). While it rolls on past
+ * the warning, its lane stays a danger zone (the autopilot does not step back into it).
  */
 export function gumballRoll(boss, o) {
   const game = boss.game, T = game.telegraph, fx = boss.effects;
@@ -93,11 +95,14 @@ export function gumballRoll(boss, o) {
   const cx = clampX(c.x, 3.4);
   const zNear = c.z + c.r + 1.5, zFar = boss.z + 2.5;
   const dur = boss.warnTime(o.telegraph);
-  const launch = Math.min(o.launch, dur - 0.3);
+  const launch0 = Math.min(o.launch, dur - 0.3);
   const mark = T.lane(cx - hw, cx + hw, zNear, zFar, dur, { attack: 'gumball', color: '#ff3aa8' });
   const br = hw * 0.95;
-  const speed = Math.max(1, (c.z - c.r - br * 0.6) - zFar) / Math.max(0.3, dur - launch);
-  let t = 0, ball = null, lastZ = zFar;
+  const speed = Math.max(1, c.z - zFar) / Math.max(0.3, dur - launch0);
+  const launch = Math.max(launch0, dur - Math.max(0, c.z - c.r - br * 0.6 - zFar) / speed);
+  const zone = { kind: 'lane', x0: cx - hw, x1: cx + hw, zNear, zFar };
+  let t = 0, ball = null, lastZ = zFar, zoned = false;
+  const unzone = () => { if (zoned) { boss.dropZone(zone); zoned = false; } };
   return {
     update(dt) {
       t += dt;
@@ -110,12 +115,14 @@ export function gumballRoll(boss, o) {
         ball.z += ball.vz * dt;
         const z = ball.z;
         if (t < dur) return false; // still the warning: the sweep starts as it ends (covers the path rolled so far)
+        if (!zoned) { boss.dangerZones.push(zone); zoned = true; }
+        zone.zFar = z - br;
         if (z > lastZ) boss.killInBox(cx, hw, lastZ - ball.r * 0.6, z + ball.r * 0.6);
         lastZ = z;
-        if (z > zNear + 6) ball.active = false;
+        if (z > zNear + 6) { ball.active = false; unzone(); }
       }
       return !!ball && !ball.active;
     },
-    cancel() { T.cancel(mark); if (ball) ball.active = false; },
+    cancel() { T.cancel(mark); if (ball) ball.active = false; unzone(); },
   };
 }
