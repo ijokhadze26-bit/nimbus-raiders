@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { icon, POWER_LOOK } from './icons.js';
 import { weaponIcon } from './icons2.js';
-import { MAX_MK, mkLabel, weaponDef } from '../data/weapons.js';
+import { MAX_MK, mkLabel, weaponDef, weaponUiColor } from '../data/weapons.js';
 import { mountAbility } from './hudability.js';
 import { fmt } from './ui.js';
 
@@ -148,8 +148,9 @@ export class Hud {
   /** Badge: weapon icon, short name, "Mk III" and 5 pips in the weapon's own colour. */
   setWeapon(mk, pop, id = this.game.weapons?.id) {
     const def = weaponDef(id);
-    const col = def.look.mk[Math.max(1, Math.min(MAX_MK, mk)) - 1].color;
+    const col = weaponUiColor(def, mk);
     this.weaponEl.style.setProperty('--tc', col);
+    this.weaponEl.style.setProperty('--ic', def.look.mk[Math.max(1, Math.min(MAX_MK, mk)) - 1].color);
     if (this.weaponId !== id) { this.weaponId = id; this.weaponEl.querySelector('.w-ico').innerHTML = weaponIcon(id); }
     this.weaponEl.querySelector('.w-tier').textContent = mkLabel(mk).toUpperCase();
     this.weaponEl.querySelector('.w-name').textContent = def.short;
@@ -250,7 +251,7 @@ export class Hud {
   onTier(p) {
     const mk = p.mk || p.tier, def = weaponDef(p.weapon || this.game.weapons.id);
     this.banner.dataset.tier = mk;
-    this.banner2('MK UP!', `→ ${mkLabel(mk)}`, def.look.mk[mk - 1].color);
+    this.banner2('MK UP!', `→ ${mkLabel(mk)}`, weaponUiColor(def, mk));
     this.setWeapon(mk, true, def.id);
     this.buzz(30, 0);
   }
@@ -258,7 +259,7 @@ export class Hud {
   /** Crate swap: NEW WEAPON banner, badge follows. */
   onSwap(p) {
     const def = weaponDef(p.to);
-    this.banner2('NEW WEAPON:', def.name.toUpperCase(), def.look.mk[(p.mk || 1) - 1].color);
+    this.banner2('NEW WEAPON:', def.name.toUpperCase(), weaponUiColor(def, p.mk || 1));
     this.setWeapon(p.mk || 1, true, def.id);
     this.buzz(30, 0);
   }

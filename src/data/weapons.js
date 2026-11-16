@@ -87,8 +87,8 @@ export const WEAPON_DEFS = [
     look: { mk: look([['#9fe8ff', '#ffffff', '#d8f6ff'], ['#8ce0ff', '#ffffff', '#d4ecff'], ['#78d8ff', '#ffffff', '#d0e2ff'], ['#62cdff', '#ffffff', '#ccd2ff'], ['#4dc3ff', '#ffffff', '#c9b8ff']]) },
     gunTint: ['#bff0ff', '#a9e8ff', '#93e0ff', '#7dd6ff', '#66ccff'], gunBody: '#f4fbff',
     tracerLook: null,
-    strong: [{ id: 'runner' }, { id: 'shield', why: 'each shard breaks 2 shield hits' }, { id: 'oculon' }],
-    weak: [{ id: 'tank' }, { id: 'ironhorn' }],
+    strong: [{ id: 'runner' }, { id: 'oculon' }],
+    weak: [{ id: 'bomber', why: 'one shard at a time cannot stop a Fizzbomb pack' }, { id: 'ironhorn' }],
     sfx: { fire: 'wpn_ice_fire', hit: 'wpn_ice_hit', freeze: 'wpn_ice_freeze', shatter: 'wpn_ice_shatter' },
     bars: { damage: 0.7, rate: 0.55, range: 1.0, special: 0.7, specialLabel: 'Pierce + Slow' },
     mkLook: ['Plain crystal barrel', 'Frost fins', 'Glowing core', 'Bigger shards, frost rings on the ground', 'Gold trim, twin crystal shards'],
@@ -96,7 +96,7 @@ export const WEAPON_DEFS = [
   },
   {
     id: 'sugarrush', name: 'Sugar Rush', short: 'SUGAR', element: 'candy', tag: 'CANDY',
-    blurb: 'Bouncy candy bombs splash crowds and leave sticky caramel. Slower on most bosses.',
+    blurb: 'Bouncy candy bombs splash crowds and leave sticky caramel. Weak against most bosses.',
     special: 'Splash hits right over shields. Caramel puddles slow everything that steps in.',
     K: 0.55, bossK: 0.83, visualCap: 200,
     mk: rows(['rate', 'dmg', 'splashR', 'throw', 'bounces', 'puddleR', 'puddleTime', 'puddleSlow'], [
@@ -111,7 +111,7 @@ export const WEAPON_DEFS = [
       candy: ['#ff8ad8', '#8affc8', '#fff08a', '#b48aff'], caramel: '#d98a2b' },
     gunTint: ['#ff9ade', '#ff8ad8', '#ff79d2', '#ff68cc', '#ff57c6'], gunBody: '#8affc8',
     tracerLook: 'sugar',
-    strong: [{ id: 'grunt' }, { id: 'shield', why: 'splashes over shields' }, { id: 'bomber' }],
+    strong: [{ id: 'shield', why: 'splashes over shields' }],
     weak: [{ id: 'runner' }, { id: 'oculon' }, { id: 'ironhorn' }, { id: 'tempestking' }],
     sfx: { fire: 'wpn_sugar_fire', land: 'wpn_sugar_pop', puddle: 'wpn_sugar_goo' },
     bars: { damage: 0.5, rate: 0.3, range: 0.4, special: 0.85, specialLabel: 'Splash + Puddles' },
@@ -138,7 +138,7 @@ export const WEAPON_DEFS = [
     weak: [{ id: 'grunt', why: 'big crowds waste its power on tiny enemies' }],
     sfx: { fire: 'wpn_prism_fire', split: 'wpn_prism_split' },
     bars: { damage: 1.0, rate: 0.65, range: 1.0, special: 0.6, specialLabel: 'Split beams' },
-    mkLook: ['Glass prism', 'Lens fin', 'Glowing core, second colour sleeve', 'Bigger beams, three splits', 'Gold trim, halo ring, four splits'],
+    mkLook: ['Glass prism', 'Lens fin', 'Glowing core, second colour sleeve', 'Bigger, longer beams that split further', 'Gold trim, halo ring, four splits'],
     preview: { pattern: 'split' }, unlock: { level: 11, coins: 2500 },
   },
   {
@@ -200,8 +200,9 @@ export const WEAPON_DEFS = [
     ], { speed: 20.8, range: 33.8, pierce: 0, pellets: 1, holeMax: 6, mergeR: 2.4, mergeGrow: 1.08, mergeCap: 1.3, tankPull: 0.3 }),
     look: { mk: look([['#3b1a6e', '#ff4bd8', '#b44bff'], ['#431c7e', '#ff55dc', '#b44bff'], ['#4b1e8e', '#ff60df', '#c05bff'], ['#55209e', '#ff6de2', '#c96bff'], ['#5f22ae', '#ff7ae6', '#d47aff']]) },
     gunTint: ['#8a4dff', '#9450ff', '#9e54ff', '#a858ff', '#b25cff'], gunBody: '#1d1530',
+    hudColor: ['#c99bff', '#d29dff', '#dc9cfb', '#e79cf4', '#f3a0ee'], // HUD text: the dark Mk colours do not read on navy
     tracerLook: 'void',
-    strong: [{ id: 'grunt' }, { id: 'runner' }, { id: 'mothermurk' }, { id: 'tempestking' }],
+    strong: [{ id: 'runner' }, { id: 'shield', why: 'the crush goes straight through shields' }, { id: 'mothermurk' }, { id: 'tempestking' }],
     weak: [{ id: 'tank' }, { id: 'ironhorn' }],
     sfx: { fire: 'wpn_void_fire', hole: 'wpn_void_hole', pop: 'wpn_void_pop' },
     bars: { damage: 0.55, rate: 0.2, range: 0.45, special: 0.95, specialLabel: 'Black holes' },
@@ -228,6 +229,11 @@ export const REF_WEAPON = {
 
 /** Def for an id (weapons + the test reference), falling back to the starter. */
 export function weaponDef(id) { return WEAPON_BY_ID[id] || (id === 'ref' ? REF_WEAPON : WEAPON_BY_ID[DEFAULT_WEAPON]); }
+/** HUD/banner text colour for a Mk: def.hudColor when the Mk colour is too dark to read, else the Mk colour. */
+export function weaponUiColor(def, mk) {
+  const i = Math.max(1, Math.min(MAX_MK, mk | 0)) - 1;
+  return (def.hudColor && def.hudColor[i]) || def.look.mk[i].color;
+}
 /** Mk row of a def (clamped). */
 export function mkRow(def, mk) { return def.mk[Math.max(1, Math.min(MAX_MK, mk | 0)) - 1]; }
 

@@ -362,6 +362,7 @@ const PATTERNS = {
 
 // ---------------- heroes ----------------
 const ABILITY_EVERY = 4;
+const METEOR_Z = -1.7;   // meteor lands just ahead of the hero, inside the pedestal
 function heroDemo(ctx) {
   const { fx, content, hero, item, weapon, mk } = ctx;
   const rigH = content.rig, m = content.muzzle;
@@ -385,10 +386,10 @@ function heroDemo(ctx) {
       for (let i = 0; i < fx.n(10); i++) { const a = rnd(0, 6.28), r = rnd(1, 2.4); fx.spark(Math.cos(a) * r, 0.2, Math.sin(a) * r, 0, rnd(1.5, 2.5), 0, i % 2 ? '#ffffff' : '#7ff3ff', 0.09, 0.8, 1); }
     } else if (by === 'meteor') {
       const rock = new ctx.THREE.Mesh(part(new ctx.THREE.IcosahedronGeometry(0.45, 0), '#6a3a2a'), toonMaterial({ emissive: '#ff5a1f', emissiveIntensity: 0.6 }));
-      rock.position.set(0, 6, -2.6);
+      rock.position.set(0, 6, METEOR_Z);
       content.root.add(rock);
       extra = { obj: rock, kind: 'meteor', t: 0, dispose() { rock.geometry.dispose(); rock.material.dispose(); } };
-      fx.ring(0, 0.05, -2.6, 1.6, 1.7, '#ff7a1f', 0.7);
+      fx.ring(0, 0.05, METEOR_Z, 1.1, 1.2, '#ff7a1f', 0.7);
     } else if (by === 'whiteout') {
       fx.ring(0, 0.1, 0, 0.3, 3.4, '#e8fbff', 0.7);
       for (let i = 0; i < fx.n(18); i++) fx.spark(rnd(-3, 3), rnd(0.5, 3), rnd(-3, 2), rnd(-1.5, -0.5), rnd(-0.6, -0.2), 0, '#ffffff', 0.06, 1.2);
@@ -401,7 +402,8 @@ function heroDemo(ctx) {
       extra = { obj: ball, kind: 'bubble', t: 0, dispose() { ball.geometry.dispose(); ball.material.dispose(); } };
     } else if (by === 'fortress') {
       const f = buildFortress({ lod: 'high' });
-      f.root.position.set(1.6, 3, 0.4);
+      f.root.scale.setScalar(0.75);
+      f.root.position.set(0.9, 3, 1.0); // behind Bolt's shoulder, inside the pedestal
       content.root.add(f.root);
       extra = { obj: f.root, kind: 'fortress', t: 0, shots: 0, dispose() { f.dispose?.(); } };
     } else if (by === 'shockwave') {
@@ -421,10 +423,10 @@ function heroDemo(ctx) {
       } else if (!extra.boom) {
         extra.boom = true;
         o.visible = false;
-        fx.ring(0, 0.08, -2.6, 0.3, 3.2, '#ff7a1f', 0.6);
-        fx.ring(0, 0.08, -2.6, 0.2, 2.2, '#ffd34d', 0.45);
-        fx.burst(0, 0.3, -2.6, 22, '#ff7a1f', 4.5, 0.11, 0.7, 0.9);
-        fx.disc(0, -2.6, 1.5, '#3a2420', 1.6, { y: 0.03 });
+        fx.ring(0, 0.08, METEOR_Z, 0.3, 2.4, '#ff7a1f', 0.6);
+        fx.ring(0, 0.08, METEOR_Z, 0.2, 1.7, '#ffd34d', 0.45);
+        fx.burst(0, 0.3, METEOR_Z, 22, '#ff7a1f', 4.5, 0.11, 0.7, 0.9);
+        fx.disc(0, METEOR_Z, 0.85, '#c9672e', 1.0, { y: 0.03, fade: 0.7 }); // ember scorch, shrinks away
       } else if (u > 1.8) cleanup();
     } else if (extra.kind === 'bubble') {
       const k = u < 0.25 ? u / 0.25 : u > 1.8 ? Math.max(0, 1 - (u - 1.8) / 0.3) : 1;
@@ -435,11 +437,11 @@ function heroDemo(ctx) {
       if (o.position.y > 0) { o.position.y = Math.max(0, o.position.y - dt * 10); if (o.position.y === 0) { fx.ring(o.position.x, 0.05, o.position.z, 0.3, 1.6, '#ffd34d', 0.45); fx.burst(o.position.x, 0.2, o.position.z, 8, '#c8d0dc', 2); } }
       else if (u > 0.6 && extra.shots < 4 && u > 0.6 + extra.shots * 0.4) {
         extra.shots++;
-        const x = o.position.x, z = o.position.z - 0.9;
-        fx.burst(x, 1.0, z, 5, '#ffd25a', 1.6, 0.07, 0.25);
-        fx.arc(x, 1.0, z, x, 1.0, z - 3.5, '#ff9a3d', 0.07, 0.15);
+        const x = o.position.x, z = o.position.z - 0.68;
+        fx.burst(x, 0.75, z, 5, '#ffd25a', 1.6, 0.07, 0.25);
+        fx.arc(x, 0.75, z, x, 0.75, z - 3.5, '#ff9a3d', 0.07, 0.15);
       }
-      if (u > 2.6) o.scale.setScalar(Math.max(0.01, 1 - (u - 2.6) / 0.3));
+      if (u > 2.6) o.scale.setScalar(0.75 * Math.max(0.01, 1 - (u - 2.6) / 0.3));
       if (u > 2.9) cleanup();
     }
   };

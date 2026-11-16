@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-16 (round 5 data, see CHANGELOG.md)",
+ "generated": "2026-11-16 (round 6 data, see CHANGELOG.md)",
  "source": "scripts/balance/{matrices,campaign,distinct}.js + eval.mjs; snapshots.json; gauntlets.json",
  "runs": {
   "A": 315,
@@ -7,44 +7,250 @@
   "B": 270
  },
  "criteria": [
-  {"id":"A all win <= 4","pass":true,"detail":"315/315 cells win within 4; attempts 320; retries: pip/emberstorm L10 s2:2 pip/sugarrush L2 s1:2 pip/sugarrush L2 s2:3 pip/sugarrush L14 s3:2"},
-  {"id":"A-pro >=14/15 first, all <=2","pass":true,"detail":{"emberstorm":"15/15 first, 15 <=2","glacier":"15/15 first, 15 <=2","sugarrush":"15/15 first, 15 <=2","spectra":"15/15 first, 15 <=2","gearworks":"15/15 first, 15 <=2","thunderclap":"15/15 first, 15 <=2","voidsiphon":"15/15 first, 15 <=2"}},
-  {"id":"B all win <= 4","pass":true,"detail":"270/270 cells win within 4; attempts 278; retries: cinder/thunderclap L12 s3:2 cinder/thunderclap L15 s1:3 cinder/thunderclap L15 s2:2 rime/thunderclap L2 s1:2 bonbon/thunderclap L2 s1:2 vex/thunderclap L2 s1:2 vex/thunderclap L15 s1:2"},
-  {"id":"C all win <= 4","pass":true,"detail":"270/270 cells win within 4; attempts 273; retries: bonbon/sugarrush L2 s1:2 bonbon/sugarrush L2 s2:3"},
-  {"id":"D all win <= 4","pass":true,"detail":"336/336 cells win within 4; attempts 340; retries: cinder/thunderclap L15 s1:3 cinder/thunderclap L15 s2:2 vex/thunderclap L15 s1:2"},
-  {"id":"F novice L1-4 <= 5","pass":true,"detail":"28/28 cells win within 5; attempts 43; retries: pip/emberstorm L1 s1:2 pip/emberstorm L2 s1:3 pip/emberstorm L4 s1:5 pip/glacier L4 s1:2 pip/sugarrush L1 s1:2 pip/sugarrush L2 s1:4 pip/thunderclap L1 s1:2 pip/voidsiphon L1 s1:2 pip/voidsiphon L4 s1:2"},
-  {"id":"G crates always <= 4","pass":true,"detail":"252/252 cells win within 4; attempts 253; retries: pip/emberstorm L14 s1:2"},
-  {"id":"E pro 15/15 first try","pass":true,"detail":"1:1 2:1 3:1 4:1 5:1 6:1 7:1 8:1 9:1 10:1 11:1 12:1 13:1 14:1 15:1"},
-  {"id":"E casual <=3 L1-8, <=5 L9-15","pass":true,"detail":"1:1 2:1 3:1 4:1 5:1 6:1 7:1 8:1 9:1 10:1 11:1 12:1 13:1 14:1 15:1"},
-  {"id":"E novice clears L1-4","pass":true,"detail":"1:2 2:1 3:1 4:2 5:1 6:1 7:1 8:1 9:1 10:2 11:1 12:3 13:1 14:1 15:1"},
-  {"id":"spread: attempts within 25%","pass":true,"detail":{"median":45,"emberstorm":46,"glacier":45,"sugarrush":49,"spectra":45,"gearworks":45,"thunderclap":45,"voidsiphon":45}},
-  {"id":"spread: single best <= 6/15","pass":true,"detail":{"emberstorm":0,"glacier":0,"sugarrush":2,"spectra":1,"gearworks":2,"thunderclap":1,"voidsiphon":0}},
-  {"id":"favours beat others >= 10/15","pass":false,"detail":"9/15 L1:n(1/111 vs 1/111) L2:Y(1/367 vs 1.2/405) L3:Y(1/600 vs 1/597) L4:Y(1/681 vs 1/635) L5:Y(1/817 vs 1/730) L6:Y(1/992 vs 1/987) L7:n(1/999 vs 1/999) L8:n(1/999 vs 1/999) L9:Y(1/999 vs 1/997) L10:Y(1/725 vs 1.08/819) L11:Y(1/998 vs 1/976) L12:n(1/917 vs 1/961) L13:Y(1/885 vs 1/782) L14:n(1.11/807 vs 1/999) L15:n(1/964 vs 1/980)"},
-  {"id":"info: favours incl. boss seconds","pass":null,"detail":"11/15"},
-  {"id":"heroes: ability used >= 2/level","pass":false,"detail":{"pip":1.13,"cinder":2.02,"rime":1.07,"bonbon":0.89,"bolt":2.02,"vex":0.85}},
-  {"id":"heroes: Vex starts +6","pass":true,"detail":"deltas 6"},
-  {"id":"heroes: Bonbon payout +25%","pass":true,"detail":"bonbon 1.25 vs pip 1 (paid / result coins)"},
-  {"id":"heroes: none > 1.5x median attempts","pass":true,"detail":{"median":46,"pip":45,"cinder":49,"rime":46,"bonbon":46,"bolt":45,"vex":47}},
-  {"id":"heroes: arena squad <= 1.5x median","pass":true,"detail":{"median":778.5,"pip":792,"cinder":769,"rime":772,"bonbon":777,"bolt":780,"vex":853}},
-  {"id":"heroes: ability <= 35% of kills","pass":true,"detail":{"pip":0,"cinder":0,"rime":0,"bonbon":0,"bolt":0.02,"vex":0}},
-  {"id":"heroes: every ability effect > 0","pass":true,"detail":{"rally":910,"meteorKills":92,"whiteoutFrozen":4495,"shieldBlocked":43,"fortressKills":1519,"shockwavePushed":1519}},
-  {"id":"gauntlets: weapons strong/weak","pass":false,"detail":"15 ok; failing: emberstorm strong grunt #4, glacier strong shield #4, glacier weak tank #3, sugarrush strong bomber #5, voidsiphon strong grunt #5"},
-  {"id":"gauntlets: heroes strong/weak","pass":true,"detail":"14 ok; failing: none"},
-  {"id":"bosses: Spectra fastest >= 4/5","pass":true,"detail":"5/5"},
-  {"id":"bosses: Ember slowest/2nd >= 3","pass":true,"detail":"5/5"},
-  {"id":"bosses: Gearworks top 2 Ironhorn","pass":true,"detail":"spectra:6 gearworks:6.2 sugarrush:8.7 voidsiphon:9.1 thunderclap:9.4 emberstorm:11.3 glacier:13.5"},
-  {"id":"bosses: Thunder bottom 2 Tempest","pass":true,"detail":"spectra:7.1 voidsiphon:9.2 glacier:9.7 gearworks:10.4 sugarrush:11.3 thunderclap:12.3 emberstorm:12.6"},
-  {"id":"bosses: all killed within 75 s","pass":true,"detail":"max 13.5 s"},
-  {"id":"determinism: A-pro Low = High = rerun","pass":true,"detail":"low / high / high"}
+  {
+   "id": "A all win <= 4",
+   "pass": true,
+   "detail": "315/315 cells win within 4; attempts 320; retries: pip/emberstorm L10 s2:2 pip/sugarrush L2 s1:2 pip/sugarrush L2 s2:3 pip/sugarrush L14 s3:2"
+  },
+  {
+   "id": "A-pro >=14/15 first, all <=2",
+   "pass": true,
+   "detail": {
+    "emberstorm": "15/15 first, 15 <=2",
+    "glacier": "15/15 first, 15 <=2",
+    "sugarrush": "15/15 first, 15 <=2",
+    "spectra": "15/15 first, 15 <=2",
+    "gearworks": "15/15 first, 15 <=2",
+    "thunderclap": "15/15 first, 15 <=2",
+    "voidsiphon": "15/15 first, 15 <=2"
+   }
+  },
+  {
+   "id": "B all win <= 4",
+   "pass": true,
+   "detail": "270/270 cells win within 4; attempts 278; retries: cinder/thunderclap L12 s3:2 cinder/thunderclap L15 s1:3 cinder/thunderclap L15 s2:2 rime/thunderclap L2 s1:2 bonbon/thunderclap L2 s1:2 vex/thunderclap L2 s1:2 vex/thunderclap L15 s1:2"
+  },
+  {
+   "id": "C all win <= 4",
+   "pass": true,
+   "detail": "270/270 cells win within 4; attempts 273; retries: bonbon/sugarrush L2 s1:2 bonbon/sugarrush L2 s2:3"
+  },
+  {
+   "id": "D all win <= 4",
+   "pass": true,
+   "detail": "336/336 cells win within 4; attempts 340; retries: cinder/thunderclap L15 s1:3 cinder/thunderclap L15 s2:2 vex/thunderclap L15 s1:2"
+  },
+  {
+   "id": "F novice L1-4 <= 5",
+   "pass": true,
+   "detail": "28/28 cells win within 5; attempts 41; retries: pip/emberstorm L1 s1:2 pip/emberstorm L2 s1:3 pip/emberstorm L4 s1:3 pip/glacier L4 s1:2 pip/sugarrush L1 s1:2 pip/sugarrush L2 s1:4 pip/thunderclap L1 s1:2 pip/voidsiphon L1 s1:2 pip/voidsiphon L4 s1:2"
+  },
+  {
+   "id": "G crates always <= 4",
+   "pass": true,
+   "detail": "252/252 cells win within 4; attempts 253; retries: pip/emberstorm L14 s1:2"
+  },
+  {
+   "id": "E pro 15/15 first try",
+   "pass": true,
+   "detail": "1:1 2:1 3:1 4:1 5:1 6:1 7:1 8:1 9:1 10:1 11:1 12:1 13:1 14:1 15:1"
+  },
+  {
+   "id": "E casual <=3 L1-8, <=5 L9-15",
+   "pass": true,
+   "detail": "1:1 2:1 3:1 4:1 5:1 6:1 7:1 8:1 9:1 10:1 11:1 12:1 13:1 14:1 15:1"
+  },
+  {
+   "id": "E novice clears L1-4",
+   "pass": true,
+   "detail": "1:2 2:1 3:1 4:2 5:1 6:1 7:1 8:1 9:1 10:2 11:1 12:3 13:1 14:1 15:1"
+  },
+  {
+   "id": "spread: attempts within 25%",
+   "pass": true,
+   "detail": {
+    "median": 45,
+    "emberstorm": 46,
+    "glacier": 45,
+    "sugarrush": 49,
+    "spectra": 45,
+    "gearworks": 45,
+    "thunderclap": 45,
+    "voidsiphon": 45
+   }
+  },
+  {
+   "id": "spread: single best <= 6/15",
+   "pass": true,
+   "detail": {
+    "emberstorm": 0,
+    "glacier": 0,
+    "sugarrush": 2,
+    "spectra": 1,
+    "gearworks": 2,
+    "thunderclap": 1,
+    "voidsiphon": 0
+   }
+  },
+  {
+   "id": "favours beat others >= 10/15",
+   "pass": false,
+   "detail": "9/15 L1:n(1/111 vs 1/111) L2:Y(1/367 vs 1.2/405) L3:Y(1/600 vs 1/597) L4:Y(1/681 vs 1/635) L5:Y(1/817 vs 1/730) L6:Y(1/992 vs 1/986) L7:n(1/999 vs 1/999) L8:n(1/999 vs 1/999) L9:Y(1/999 vs 1/997) L10:Y(1/725 vs 1.08/792) L11:Y(1/998 vs 1/977) L12:n(1/919 vs 1/961) L13:Y(1/885 vs 1/801) L14:n(1.11/806 vs 1/999) L15:n(1/964 vs 1/981)"
+  },
+  {
+   "id": "info: favours incl. boss seconds",
+   "pass": null,
+   "detail": "11/15"
+  },
+  {
+   "id": "heroes: ability used >= 2/level",
+   "pass": false,
+   "detail": {
+    "pip": 1.13,
+    "cinder": 1.98,
+    "rime": 1,
+    "bonbon": 0.85,
+    "bolt": 2.02,
+    "vex": 0.85
+   }
+  },
+  {
+   "id": "heroes: Vex starts +6",
+   "pass": true,
+   "detail": "deltas 6"
+  },
+  {
+   "id": "heroes: Bonbon payout +25%",
+   "pass": true,
+   "detail": "bonbon 1.25 vs pip 1 (paid / result coins)"
+  },
+  {
+   "id": "heroes: none > 1.5x median attempts",
+   "pass": true,
+   "detail": {
+    "median": 46,
+    "pip": 45,
+    "cinder": 49,
+    "rime": 46,
+    "bonbon": 46,
+    "bolt": 45,
+    "vex": 47
+   }
+  },
+  {
+   "id": "heroes: arena squad <= 1.5x median",
+   "pass": true,
+   "detail": {
+    "median": 778.5,
+    "pip": 792,
+    "cinder": 769,
+    "rime": 772,
+    "bonbon": 777,
+    "bolt": 780,
+    "vex": 853
+   }
+  },
+  {
+   "id": "heroes: ability <= 35% of kills",
+   "pass": true,
+   "detail": {
+    "pip": 0,
+    "cinder": 0,
+    "rime": 0,
+    "bonbon": 0,
+    "bolt": 0.02,
+    "vex": 0
+   }
+  },
+  {
+   "id": "heroes: every ability effect > 0",
+   "pass": true,
+   "detail": {
+    "rally": 910,
+    "meteorKills": 92,
+    "whiteoutFrozen": 4495,
+    "shieldBlocked": 43,
+    "fortressKills": 1519,
+    "shockwavePushed": 1519
+   }
+  },
+  {
+   "id": "gauntlets: weapons strong/weak",
+   "pass": true,
+   "detail": "17 ok; failing: none"
+  },
+  {
+   "id": "gauntlets: heroes strong/weak",
+   "pass": true,
+   "detail": "14 ok; failing: none"
+  },
+  {
+   "id": "bosses: Spectra fastest >= 4/5",
+   "pass": true,
+   "detail": "5/5"
+  },
+  {
+   "id": "bosses: Ember slowest/2nd >= 3",
+   "pass": true,
+   "detail": "5/5"
+  },
+  {
+   "id": "bosses: Gearworks top 2 Ironhorn",
+   "pass": true,
+   "detail": "spectra:6 gearworks:6.2 sugarrush:8.7 voidsiphon:9.1 thunderclap:9.4 emberstorm:11.3 glacier:13.5"
+  },
+  {
+   "id": "bosses: Thunder bottom 2 Tempest",
+   "pass": true,
+   "detail": "spectra:7.1 voidsiphon:9.2 glacier:9.7 gearworks:10.4 sugarrush:11.3 thunderclap:12.3 emberstorm:12.6"
+  },
+  {
+   "id": "bosses: all killed within 75 s",
+   "pass": true,
+   "detail": "max 13.5 s"
+  },
+  {
+   "id": "determinism: A-pro Low = High = rerun",
+   "pass": true,
+   "detail": "low / high / high"
+  }
  ],
  "matrixA_perWeapon": {
-  "emberstorm": {"attempts":46,"meanArena":778,"meanBossSec":16.7},
-  "glacier": {"attempts":45,"meanArena":804,"meanBossSec":11.6},
-  "sugarrush": {"attempts":49,"meanArena":819,"meanBossSec":12.1},
-  "spectra": {"attempts":45,"meanArena":799,"meanBossSec":7.7},
-  "gearworks": {"attempts":45,"meanArena":803,"meanBossSec":10.6},
-  "thunderclap": {"attempts":45,"meanArena":792,"meanBossSec":11.3},
-  "voidsiphon": {"attempts":45,"meanArena":763,"meanBossSec":11.4}
+  "emberstorm": {
+   "attempts": 46,
+   "meanArena": 777,
+   "meanBossSec": 17.1
+  },
+  "glacier": {
+   "attempts": 45,
+   "meanArena": 804,
+   "meanBossSec": 11.6
+  },
+  "sugarrush": {
+   "attempts": 49,
+   "meanArena": 819,
+   "meanBossSec": 12.1
+  },
+  "spectra": {
+   "attempts": 45,
+   "meanArena": 799,
+   "meanBossSec": 7.7
+  },
+  "gearworks": {
+   "attempts": 45,
+   "meanArena": 803,
+   "meanBossSec": 10.6
+  },
+  "thunderclap": {
+   "attempts": 45,
+   "meanArena": 792,
+   "meanBossSec": 11.3
+  },
+  "voidsiphon": {
+   "attempts": 45,
+   "meanArena": 763,
+   "meanBossSec": 11.4
+  }
  },
  "gauntletT": {
   "grunt": 0.908,
@@ -54,24 +260,929 @@
   "bomber": 400
  },
  "weaponGauntlets": {
-  "grunt": {"emberstorm":{"lost":1.7,"clear":6.6,"start":60,"wins":3,"runs":[2,1,2]},"glacier":{"lost":13.3,"clear":6.8,"start":60,"wins":3,"runs":[14,22,4]},"sugarrush":{"lost":0,"clear":7.5,"start":60,"wins":3,"runs":[0,0,0]},"spectra":{"lost":8.3,"clear":6.8,"start":60,"wins":3,"runs":[12,7,6]},"gearworks":{"lost":0,"clear":5.9,"start":60,"wins":3,"runs":[0,0,0]},"thunderclap":{"lost":0,"clear":4.8,"start":60,"wins":3,"runs":[0,0,0]},"voidsiphon":{"lost":1.7,"clear":7.3,"start":60,"wins":3,"runs":[0,5,0]}},
-  "runner": {"emberstorm":{"lost":3.7,"clear":20.3,"start":60,"wins":3,"runs":[3,4,4]},"glacier":{"lost":0,"clear":19.9,"start":60,"wins":3,"runs":[0,0,0]},"sugarrush":{"lost":45.7,"clear":20.9,"start":60,"wins":3,"runs":[48,41,48]},"spectra":{"lost":0.7,"clear":20,"start":60,"wins":3,"runs":[2,0,0]},"gearworks":{"lost":1.3,"clear":20.1,"start":60,"wins":3,"runs":[2,1,1]},"thunderclap":{"lost":0,"clear":20,"start":60,"wins":3,"runs":[0,0,0]},"voidsiphon":{"lost":0,"clear":19.3,"start":60,"wins":3,"runs":[0,0,0]}},
-  "shield": {"emberstorm":{"lost":34.7,"clear":15,"start":60,"wins":3,"runs":[34,35,35]},"glacier":{"lost":2.3,"clear":15.7,"start":60,"wins":3,"runs":[1,1,5]},"sugarrush":{"lost":0.3,"clear":14.8,"start":60,"wins":3,"runs":[1,0,0]},"spectra":{"lost":9.3,"clear":15,"start":60,"wins":3,"runs":[10,10,8]},"gearworks":{"lost":0,"clear":14.5,"start":60,"wins":3,"runs":[0,0,0]},"thunderclap":{"lost":13,"clear":14.8,"start":60,"wins":3,"runs":[14,10,15]},"voidsiphon":{"lost":0,"clear":13.9,"start":60,"wins":3,"runs":[0,0,0]}},
-  "tank": {"emberstorm":{"lost":38,"clear":15.5,"start":60,"wins":3,"runs":[42,42,30]},"glacier":{"lost":5,"clear":15.9,"start":60,"wins":3,"runs":[0,9,6]},"sugarrush":{"lost":33,"clear":15.8,"start":60,"wins":3,"runs":[30,36,33]},"spectra":{"lost":4,"clear":15,"start":60,"wins":3,"runs":[3,2,7]},"gearworks":{"lost":0,"clear":14.6,"start":60,"wins":3,"runs":[0,0,0]},"thunderclap":{"lost":8,"clear":15.2,"start":60,"wins":3,"runs":[8,7,9]},"voidsiphon":{"lost":34.3,"clear":15.4,"start":60,"wins":3,"runs":[39,31,33]}},
-  "bomber": {"emberstorm":{"lost":18.7,"clear":17.3,"start":60,"wins":3,"runs":[18,20,18]},"glacier":{"lost":52.7,"clear":19.4,"start":60,"wins":3,"runs":[50,50,58]},"sugarrush":{"lost":24.7,"clear":17.8,"start":60,"wins":3,"runs":[30,22,22]},"spectra":{"lost":18.7,"clear":17.3,"start":60,"wins":3,"runs":[18,20,18]},"gearworks":{"lost":18.7,"clear":17.3,"start":60,"wins":3,"runs":[18,20,18]},"thunderclap":{"lost":18.7,"clear":17.3,"start":60,"wins":3,"runs":[18,20,18]},"voidsiphon":{"lost":25,"clear":17.7,"start":60,"wins":3,"runs":[24,25,26]}}
+  "grunt": {
+   "emberstorm": {
+    "lost": 0,
+    "clear": 6.5,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     0,
+     0,
+     0
+    ]
+   },
+   "glacier": {
+    "lost": 13.3,
+    "clear": 6.8,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     14,
+     22,
+     4
+    ]
+   },
+   "sugarrush": {
+    "lost": 0,
+    "clear": 7.5,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     0,
+     0,
+     0
+    ]
+   },
+   "spectra": {
+    "lost": 8.3,
+    "clear": 6.8,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     12,
+     7,
+     6
+    ]
+   },
+   "gearworks": {
+    "lost": 0,
+    "clear": 5.9,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     0,
+     0,
+     0
+    ]
+   },
+   "thunderclap": {
+    "lost": 0,
+    "clear": 4.8,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     0,
+     0,
+     0
+    ]
+   },
+   "voidsiphon": {
+    "lost": 1.7,
+    "clear": 7.3,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     0,
+     5,
+     0
+    ]
+   }
+  },
+  "runner": {
+   "emberstorm": {
+    "lost": 3.7,
+    "clear": 20.3,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     3,
+     4,
+     4
+    ]
+   },
+   "glacier": {
+    "lost": 0,
+    "clear": 19.9,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     0,
+     0,
+     0
+    ]
+   },
+   "sugarrush": {
+    "lost": 45.7,
+    "clear": 20.9,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     48,
+     41,
+     48
+    ]
+   },
+   "spectra": {
+    "lost": 0.7,
+    "clear": 20,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     2,
+     0,
+     0
+    ]
+   },
+   "gearworks": {
+    "lost": 1.3,
+    "clear": 20.1,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     2,
+     1,
+     1
+    ]
+   },
+   "thunderclap": {
+    "lost": 0,
+    "clear": 20,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     0,
+     0,
+     0
+    ]
+   },
+   "voidsiphon": {
+    "lost": 0,
+    "clear": 19.3,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     0,
+     0,
+     0
+    ]
+   }
+  },
+  "shield": {
+   "emberstorm": {
+    "lost": 34.7,
+    "clear": 15,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     34,
+     35,
+     35
+    ]
+   },
+   "glacier": {
+    "lost": 2.3,
+    "clear": 15.7,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     1,
+     1,
+     5
+    ]
+   },
+   "sugarrush": {
+    "lost": 0.3,
+    "clear": 14.8,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     1,
+     0,
+     0
+    ]
+   },
+   "spectra": {
+    "lost": 9.3,
+    "clear": 15,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     10,
+     10,
+     8
+    ]
+   },
+   "gearworks": {
+    "lost": 0,
+    "clear": 14.5,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     0,
+     0,
+     0
+    ]
+   },
+   "thunderclap": {
+    "lost": 13,
+    "clear": 14.8,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     14,
+     10,
+     15
+    ]
+   },
+   "voidsiphon": {
+    "lost": 0,
+    "clear": 13.9,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     0,
+     0,
+     0
+    ]
+   }
+  },
+  "tank": {
+   "emberstorm": {
+    "lost": 38,
+    "clear": 15.5,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     42,
+     42,
+     30
+    ]
+   },
+   "glacier": {
+    "lost": 5,
+    "clear": 15.9,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     0,
+     9,
+     6
+    ]
+   },
+   "sugarrush": {
+    "lost": 33,
+    "clear": 15.8,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     30,
+     36,
+     33
+    ]
+   },
+   "spectra": {
+    "lost": 4,
+    "clear": 15,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     3,
+     2,
+     7
+    ]
+   },
+   "gearworks": {
+    "lost": 0,
+    "clear": 14.6,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     0,
+     0,
+     0
+    ]
+   },
+   "thunderclap": {
+    "lost": 8,
+    "clear": 15.2,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     8,
+     7,
+     9
+    ]
+   },
+   "voidsiphon": {
+    "lost": 34.3,
+    "clear": 15.4,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     39,
+     31,
+     33
+    ]
+   }
+  },
+  "bomber": {
+   "emberstorm": {
+    "lost": 18.7,
+    "clear": 17.3,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     18,
+     20,
+     18
+    ]
+   },
+   "glacier": {
+    "lost": 52.7,
+    "clear": 19.4,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     50,
+     50,
+     58
+    ]
+   },
+   "sugarrush": {
+    "lost": 24.7,
+    "clear": 17.8,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     30,
+     22,
+     22
+    ]
+   },
+   "spectra": {
+    "lost": 18.7,
+    "clear": 17.3,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     18,
+     20,
+     18
+    ]
+   },
+   "gearworks": {
+    "lost": 18.7,
+    "clear": 17.3,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     18,
+     20,
+     18
+    ]
+   },
+   "thunderclap": {
+    "lost": 18.7,
+    "clear": 17.3,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     18,
+     20,
+     18
+    ]
+   },
+   "voidsiphon": {
+    "lost": 25,
+    "clear": 17.7,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     24,
+     25,
+     26
+    ]
+   }
+  }
  },
  "heroGauntlets": {
-  "grunt": {"pip":{"lost":0,"clear":4.8,"start":60,"wins":3,"runs":[0,0,0]},"cinder":{"lost":0,"clear":4.8,"start":60,"wins":3,"runs":[0,0,0]},"rime":{"lost":0,"clear":4.6,"start":60,"wins":3,"runs":[0,0,0]},"bonbon":{"lost":0,"clear":5,"start":60,"wins":3,"runs":[0,0,0]},"bolt":{"lost":0,"clear":4.9,"start":60,"wins":3,"runs":[0,0,0]},"vex":{"lost":0,"clear":5.2,"start":66,"wins":3,"runs":[0,0,0]}},
-  "runner": {"pip":{"lost":0,"clear":20,"start":60,"wins":3,"runs":[0,0,0]},"cinder":{"lost":0.3,"clear":20.1,"start":60,"wins":3,"runs":[1,0,0]},"rime":{"lost":0.7,"clear":20.1,"start":60,"wins":3,"runs":[2,0,0]},"bonbon":{"lost":3.7,"clear":20.2,"start":60,"wins":3,"runs":[2,2,7]},"bolt":{"lost":3,"clear":20.2,"start":60,"wins":3,"runs":[1,2,6]},"vex":{"lost":0,"clear":19.9,"start":66,"wins":3,"runs":[0,0,0]}},
-  "shield": {"pip":{"lost":13,"clear":14.8,"start":60,"wins":3,"runs":[14,10,15]},"cinder":{"lost":19.7,"clear":15,"start":60,"wins":3,"runs":[19,20,20]},"rime":{"lost":11,"clear":14.8,"start":60,"wins":3,"runs":[11,11,11]},"bonbon":{"lost":20,"clear":15,"start":60,"wins":3,"runs":[17,19,24]},"bolt":{"lost":20.3,"clear":15,"start":60,"wins":3,"runs":[21,19,21]},"vex":{"lost":6.3,"clear":14.9,"start":66,"wins":3,"runs":[6,6,7]}},
-  "tank": {"pip":{"lost":8,"clear":15.2,"start":60,"wins":3,"runs":[8,7,9]},"cinder":{"lost":14,"clear":15.5,"start":60,"wins":3,"runs":[14,17,11]},"rime":{"lost":10.7,"clear":15.4,"start":60,"wins":3,"runs":[11,9,12]},"bonbon":{"lost":16.3,"clear":15.5,"start":60,"wins":3,"runs":[15,18,16]},"bolt":{"lost":15.7,"clear":15.5,"start":60,"wins":3,"runs":[16,17,14]},"vex":{"lost":8.7,"clear":15.3,"start":66,"wins":3,"runs":[9,10,7]}},
-  "bomber": {"pip":{"lost":18.7,"clear":17.3,"start":60,"wins":3,"runs":[18,20,18]},"cinder":{"lost":20.7,"clear":17.3,"start":60,"wins":3,"runs":[21,20,21]},"rime":{"lost":22.7,"clear":17.3,"start":60,"wins":3,"runs":[27,22,19]},"bonbon":{"lost":21.7,"clear":17.5,"start":60,"wins":3,"runs":[20,22,23]},"bolt":{"lost":20.7,"clear":17.3,"start":60,"wins":3,"runs":[24,20,18]},"vex":{"lost":16.3,"clear":17.3,"start":66,"wins":3,"runs":[15,19,15]}}
+  "grunt": {
+   "pip": {
+    "lost": 0,
+    "clear": 4.8,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     0,
+     0,
+     0
+    ]
+   },
+   "cinder": {
+    "lost": 0,
+    "clear": 4.8,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     0,
+     0,
+     0
+    ]
+   },
+   "rime": {
+    "lost": 0,
+    "clear": 4.6,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     0,
+     0,
+     0
+    ]
+   },
+   "bonbon": {
+    "lost": 0,
+    "clear": 5,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     0,
+     0,
+     0
+    ]
+   },
+   "bolt": {
+    "lost": 0,
+    "clear": 4.9,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     0,
+     0,
+     0
+    ]
+   },
+   "vex": {
+    "lost": 0,
+    "clear": 5.2,
+    "start": 66,
+    "wins": 3,
+    "runs": [
+     0,
+     0,
+     0
+    ]
+   }
+  },
+  "runner": {
+   "pip": {
+    "lost": 0,
+    "clear": 20,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     0,
+     0,
+     0
+    ]
+   },
+   "cinder": {
+    "lost": 0.3,
+    "clear": 20.1,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     1,
+     0,
+     0
+    ]
+   },
+   "rime": {
+    "lost": 0.7,
+    "clear": 20.1,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     2,
+     0,
+     0
+    ]
+   },
+   "bonbon": {
+    "lost": 3.7,
+    "clear": 20.2,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     2,
+     2,
+     7
+    ]
+   },
+   "bolt": {
+    "lost": 3,
+    "clear": 20.2,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     1,
+     2,
+     6
+    ]
+   },
+   "vex": {
+    "lost": 0,
+    "clear": 19.9,
+    "start": 66,
+    "wins": 3,
+    "runs": [
+     0,
+     0,
+     0
+    ]
+   }
+  },
+  "shield": {
+   "pip": {
+    "lost": 13,
+    "clear": 14.8,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     14,
+     10,
+     15
+    ]
+   },
+   "cinder": {
+    "lost": 19.7,
+    "clear": 15,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     19,
+     20,
+     20
+    ]
+   },
+   "rime": {
+    "lost": 11,
+    "clear": 14.8,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     11,
+     11,
+     11
+    ]
+   },
+   "bonbon": {
+    "lost": 20,
+    "clear": 15,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     17,
+     19,
+     24
+    ]
+   },
+   "bolt": {
+    "lost": 20.3,
+    "clear": 15,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     21,
+     19,
+     21
+    ]
+   },
+   "vex": {
+    "lost": 6.3,
+    "clear": 14.9,
+    "start": 66,
+    "wins": 3,
+    "runs": [
+     6,
+     6,
+     7
+    ]
+   }
+  },
+  "tank": {
+   "pip": {
+    "lost": 8,
+    "clear": 15.2,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     8,
+     7,
+     9
+    ]
+   },
+   "cinder": {
+    "lost": 14,
+    "clear": 15.5,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     14,
+     17,
+     11
+    ]
+   },
+   "rime": {
+    "lost": 10.7,
+    "clear": 15.4,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     11,
+     9,
+     12
+    ]
+   },
+   "bonbon": {
+    "lost": 16.3,
+    "clear": 15.5,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     15,
+     18,
+     16
+    ]
+   },
+   "bolt": {
+    "lost": 15.7,
+    "clear": 15.5,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     16,
+     17,
+     14
+    ]
+   },
+   "vex": {
+    "lost": 8.7,
+    "clear": 15.3,
+    "start": 66,
+    "wins": 3,
+    "runs": [
+     9,
+     10,
+     7
+    ]
+   }
+  },
+  "bomber": {
+   "pip": {
+    "lost": 18.7,
+    "clear": 17.3,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     18,
+     20,
+     18
+    ]
+   },
+   "cinder": {
+    "lost": 20.7,
+    "clear": 17.3,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     21,
+     20,
+     21
+    ]
+   },
+   "rime": {
+    "lost": 22.7,
+    "clear": 17.3,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     27,
+     22,
+     19
+    ]
+   },
+   "bonbon": {
+    "lost": 21.7,
+    "clear": 17.5,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     20,
+     22,
+     23
+    ]
+   },
+   "bolt": {
+    "lost": 20.7,
+    "clear": 17.3,
+    "start": 60,
+    "wins": 3,
+    "runs": [
+     24,
+     20,
+     18
+    ]
+   },
+   "vex": {
+    "lost": 16.3,
+    "clear": 17.3,
+    "start": 66,
+    "wins": 3,
+    "runs": [
+     15,
+     19,
+     15
+    ]
+   }
+  }
  },
  "bossSeconds": {
-  "grawlstone": {"emberstorm":{"sec":6.7,"left":0,"squad":80},"glacier":{"sec":5.3,"left":0,"squad":80},"sugarrush":{"sec":6.2,"left":0,"squad":80},"spectra":{"sec":4.6,"left":0,"squad":80},"gearworks":{"sec":5.3,"left":0,"squad":80},"thunderclap":{"sec":5.1,"left":0,"squad":80},"voidsiphon":{"sec":5.9,"left":0,"squad":80}},
-  "oculon": {"emberstorm":{"sec":9.5,"left":0,"squad":80},"glacier":{"sec":6.3,"left":0,"squad":80},"sugarrush":{"sec":9.3,"left":0,"squad":80},"spectra":{"sec":5.3,"left":0,"squad":80},"gearworks":{"sec":7.7,"left":0,"squad":76},"thunderclap":{"sec":6.7,"left":0,"squad":80},"voidsiphon":{"sec":7.6,"left":0,"squad":80}},
-  "mothermurk": {"emberstorm":{"sec":9.1,"left":0,"squad":80},"glacier":{"sec":8.3,"left":0,"squad":80},"sugarrush":{"sec":8.2,"left":0,"squad":80},"spectra":{"sec":6,"left":0,"squad":80},"gearworks":{"sec":8.1,"left":0,"squad":80},"thunderclap":{"sec":7.1,"left":0,"squad":80},"voidsiphon":{"sec":7.5,"left":0,"squad":80}},
-  "ironhorn": {"emberstorm":{"sec":11.3,"left":0,"squad":80},"glacier":{"sec":13.5,"left":0,"squad":80},"sugarrush":{"sec":8.7,"left":0,"squad":80},"spectra":{"sec":6,"left":0,"squad":80},"gearworks":{"sec":6.2,"left":0,"squad":80},"thunderclap":{"sec":9.4,"left":0,"squad":80},"voidsiphon":{"sec":9.1,"left":0,"squad":80}},
-  "tempestking": {"emberstorm":{"sec":12.6,"left":0,"squad":77},"glacier":{"sec":9.7,"left":0,"squad":80},"sugarrush":{"sec":11.3,"left":0,"squad":77},"spectra":{"sec":7.1,"left":0,"squad":80},"gearworks":{"sec":10.4,"left":0,"squad":80},"thunderclap":{"sec":12.3,"left":0,"squad":77},"voidsiphon":{"sec":9.2,"left":0,"squad":80}}
+  "grawlstone": {
+   "emberstorm": {
+    "sec": 6.7,
+    "left": 0,
+    "squad": 80
+   },
+   "glacier": {
+    "sec": 5.3,
+    "left": 0,
+    "squad": 80
+   },
+   "sugarrush": {
+    "sec": 6.2,
+    "left": 0,
+    "squad": 80
+   },
+   "spectra": {
+    "sec": 4.6,
+    "left": 0,
+    "squad": 80
+   },
+   "gearworks": {
+    "sec": 5.3,
+    "left": 0,
+    "squad": 80
+   },
+   "thunderclap": {
+    "sec": 5.1,
+    "left": 0,
+    "squad": 80
+   },
+   "voidsiphon": {
+    "sec": 5.9,
+    "left": 0,
+    "squad": 80
+   }
+  },
+  "oculon": {
+   "emberstorm": {
+    "sec": 9.5,
+    "left": 0,
+    "squad": 80
+   },
+   "glacier": {
+    "sec": 6.3,
+    "left": 0,
+    "squad": 80
+   },
+   "sugarrush": {
+    "sec": 9.3,
+    "left": 0,
+    "squad": 80
+   },
+   "spectra": {
+    "sec": 5.3,
+    "left": 0,
+    "squad": 80
+   },
+   "gearworks": {
+    "sec": 7.7,
+    "left": 0,
+    "squad": 76
+   },
+   "thunderclap": {
+    "sec": 6.7,
+    "left": 0,
+    "squad": 80
+   },
+   "voidsiphon": {
+    "sec": 7.6,
+    "left": 0,
+    "squad": 80
+   }
+  },
+  "mothermurk": {
+   "emberstorm": {
+    "sec": 9.1,
+    "left": 0,
+    "squad": 80
+   },
+   "glacier": {
+    "sec": 8.3,
+    "left": 0,
+    "squad": 80
+   },
+   "sugarrush": {
+    "sec": 8.2,
+    "left": 0,
+    "squad": 80
+   },
+   "spectra": {
+    "sec": 6,
+    "left": 0,
+    "squad": 80
+   },
+   "gearworks": {
+    "sec": 8.1,
+    "left": 0,
+    "squad": 80
+   },
+   "thunderclap": {
+    "sec": 7.1,
+    "left": 0,
+    "squad": 80
+   },
+   "voidsiphon": {
+    "sec": 7.5,
+    "left": 0,
+    "squad": 80
+   }
+  },
+  "ironhorn": {
+   "emberstorm": {
+    "sec": 11.3,
+    "left": 0,
+    "squad": 80
+   },
+   "glacier": {
+    "sec": 13.5,
+    "left": 0,
+    "squad": 80
+   },
+   "sugarrush": {
+    "sec": 8.7,
+    "left": 0,
+    "squad": 80
+   },
+   "spectra": {
+    "sec": 6,
+    "left": 0,
+    "squad": 80
+   },
+   "gearworks": {
+    "sec": 6.2,
+    "left": 0,
+    "squad": 80
+   },
+   "thunderclap": {
+    "sec": 9.4,
+    "left": 0,
+    "squad": 80
+   },
+   "voidsiphon": {
+    "sec": 9.1,
+    "left": 0,
+    "squad": 80
+   }
+  },
+  "tempestking": {
+   "emberstorm": {
+    "sec": 12.6,
+    "left": 0,
+    "squad": 77
+   },
+   "glacier": {
+    "sec": 9.7,
+    "left": 0,
+    "squad": 80
+   },
+   "sugarrush": {
+    "sec": 11.3,
+    "left": 0,
+    "squad": 77
+   },
+   "spectra": {
+    "sec": 7.1,
+    "left": 0,
+    "squad": 80
+   },
+   "gearworks": {
+    "sec": 10.4,
+    "left": 0,
+    "squad": 80
+   },
+   "thunderclap": {
+    "sec": 12.3,
+    "left": 0,
+    "squad": 77
+   },
+   "voidsiphon": {
+    "sec": 9.2,
+    "left": 0,
+    "squad": 80
+   }
+  }
  }
 }

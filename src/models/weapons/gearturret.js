@@ -1,5 +1,5 @@
 // Gearworks mini turret (SPEC2 §2.5): a squat steel tripod, a brass gear drum and a copper dome with a short
-// barrel. Two meshes (body + rotating head), one shared toon material, <= 400 triangles, shadow only on High
+// barrel. Two meshes (body + rotating head; on Low one merged mesh), one shared toon material, <= 400 triangles, shadow only on High
 // (helpers pools the visuals; the shadow flag follows the engine quality when one is built).
 // Contract: buildGearTurret({ lod }) -> { root, head, dispose(), animate(t, h) }.
 import * as THREE from 'three';
@@ -7,7 +7,7 @@ import { part, merge, G } from '../util.js';
 import { toonMaterial } from '../materials.js';
 import { registerWarm } from '../../game/warmup.js';
 
-let geo = null, headGeo = null, mat = null;
+let geo = null, headGeo = null, oneGeo = null, mat = null;
 
 function gearRing(R, r, teeth, y, color) {
   const parts = [part(G.cyl(r, r, 0.16, teeth), color, { p: [0, y, 0] })];
@@ -36,6 +36,9 @@ function geos() {
     part(G.cyl(0.075, 0.075, 0.05, 6), '#ffc531', { p: [0, 0.14, -0.44], r: [Math.PI / 2, 0, 0] }),
     part(G.sphere(0.05, 5, 3), '#ffefc0', { p: [0, 0.27, 0.05], bright: 1.3 }),
   ]);
+  // Low: body + head in one mesh (one draw call per turret instead of two); the head's origin, so it still aims
+  const under = geo.clone(); under.translate(0, -0.48, 0);
+  oneGeo = merge([under, headGeo.clone()]);
   mat = toonMaterial({ emissive: '#3a2a10', emissiveIntensity: 0.25 });
 }
 
@@ -50,8 +53,11 @@ export function buildGearTurret() {
   root.scale.setScalar(1.15);
   return {
     root, head,
-    /** helpers.sync: drum wobble + barrel recoil from the shot count (visual only). */
-    animate(t, h) { head.position.y = 0.48 + (h && h.recoil ? h.recoil * 0.04 : 0) + Math.sin(t * 9) * 0.008; },
+    /** helpers.sync: drum wobble + barrel recoil from the shot count (visual only); low = one merged mesh. */
+    animate(t, h, low = false) {
+      if (low !== (head.geometry === oneGeo)) { head.geometry = low ? oneGeo : headGeo; body.visible = !low; }
+      head.position.y = 0.48 + (low ? 0 : (h && h.recoil ? h.recoil * 0.04 : 0) + Math.sin(t * 9) * 0.008);
+    },
     dispose() {},
   };
 }

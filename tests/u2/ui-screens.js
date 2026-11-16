@@ -8,7 +8,7 @@ const { HERO_DEFS, HERO_DEF_BY_ID } = await import('/src/data/heroes.js');
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const fails = [];
 const txt = (name) => ui.screens[name].el.textContent.replace(/\s+/g, ' ');
-const has = (name, s, why) => { if (!txt(name).includes(s)) fails.push(`${name}: missing "${s}"${why ? ' (' + why + ')' : ''}`); };
+const has = (name, s, why) => { s = String(s).replace(/\s+/g, ' '); if (!txt(name).includes(s)) fails.push(`${name}: missing "${s}"${why ? ' (' + why + ')' : ''}`); };
 const W = (id) => WEAPON_BY_ID[id], H = (id) => HERO_DEF_BY_ID[id];
 
 g.save.reset();

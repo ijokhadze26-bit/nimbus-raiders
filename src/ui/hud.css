@@ -42,7 +42,7 @@
 }
 .hud-weapon .w-ico {
   width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-size: 28px; color: #fff;
-  background: radial-gradient(circle at 38% 32%, #fff 0%, var(--tc) 38%, color-mix(in srgb, var(--tc) 60%, #1b3a8a) 100%);
+  background: radial-gradient(circle at 38% 32%, #fff 0%, var(--ic, var(--tc)) 38%, color-mix(in srgb, var(--ic, var(--tc)) 60%, #1b3a8a) 100%);
   border: 3px solid #fff; box-shadow: 0 0 14px var(--tc);
 }
 .hud-weapon .w-ico .ico { filter: drop-shadow(0 2px 0 rgba(27, 58, 138, 0.8)); }

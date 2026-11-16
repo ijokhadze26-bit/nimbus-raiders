@@ -8,7 +8,7 @@ export const ELEMENTS = ['emberstorm', 'glacier', 'sugarrush', 'spectra', 'gearw
 
 //                 grunt runner tank  shield bomber
 export const VS = {
-  emberstorm: { grunt: 1.6, runner: 1.0, tank: 0.7, shield: 1.0, bomber: 1.6 },
+  emberstorm: { grunt: 1.8, runner: 1.0, tank: 0.7, shield: 1.0, bomber: 1.6 },
   glacier: { grunt: 0.9, runner: 1.6, tank: 0.5, shield: 1.0, bomber: 0.9 },
   sugarrush: { grunt: 1.5, runner: 0.6, tank: 0.8, shield: 1.6, bomber: 1.5 },
   spectra: { grunt: 0.8, runner: 1.0, tank: 1.7, shield: 0.9, bomber: 0.9 },

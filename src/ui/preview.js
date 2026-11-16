@@ -15,6 +15,7 @@ import { toonMaterial } from '../models/materials.js';
 import { part, merge, G } from '../models/util.js';
 import { buildHero } from '../models/heroes/index.js';
 import { buildHeroGunGeometry } from '../models/weapons/guns.js';
+import { buildDisplayGun } from '../models/weapons/displayguns.js';
 import { buildProjectileGeometry } from '../models/weapons/projectiles.js';
 import { buildMurklingGeometry } from '../models/murklings.js';
 import { weaponDef, MK_SCALE } from '../data/weapons.js';
@@ -22,7 +23,10 @@ import { heroDef } from '../data/heroes.js';
 import { paintColor, heroLook } from '../game/skins.js';
 import { createDemo } from './previewdemo.js';
 
-const SPIN = 0.35;           // turntable rad/s
+const SPIN = 0.35;           // turntable rad/s (heroes)
+// weapons swing side-on instead of a full turn (the gun never shows only its end): yaw = SIDE + SWING sin(t W)
+const SIDE = Math.PI / 2 - 0.3, SWING = 0.5, SWING_W = 0.45;
+const GUN_SCALE = 2.4;       // display gun is ~1.1 u long: ~2.6 u at Mk I, ~3.3 u at Mk V
 const BG = '#a9dcff';
 const MK_GLOW = [0.25, 0.3, 0.4, 0.45, 0.6];
 const CAP = { spark: 72, ring: 12, arc: 40, disc: 10, proj: 24 };
@@ -210,10 +214,14 @@ export function createPreview(ui) {
   }
 
   // ---------------- content ----------------
+  /** Display gun on the stand: detailed toon body + unlit glowing parts (cores, lenses, orbs). */
   function gunMesh(weaponId, mk) {
-    const mat = toonMaterial({ color: paintColor('factory', weaponId, mk), emissive: '#ffffff', emissiveIntensity: MK_GLOW[mk - 1] * 0.35 });
-    const mesh = new THREE.Mesh(buildHeroGunGeometry(weaponId, mk), mat);
-    return { mesh, mat };
+    const geo = buildDisplayGun(weaponId, mk);
+    const mat = toonMaterial({ emissive: '#ffffff', emissiveIntensity: 0.04 + MK_GLOW[mk - 1] * 0.08 });
+    const glowMat = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, fog: false });
+    const mesh = new THREE.Mesh(geo.body, mat);
+    mesh.add(new THREE.Mesh(geo.glow, glowMat));
+    return { mesh, mat, glowMat };
   }
 
   function buildContent(item) {
@@ -224,28 +232,28 @@ export function createPreview(ui) {
     if (item.kind === 'weapon') {
       const def = weaponDef(item.id), mk = item.mk || 3;
       const stand = new THREE.Mesh(g.stand, toonMaterial());
-      stand.position.set(0, 0, 1.5);
+      stand.position.set(0, 0, 1.9);
       c.mats.push(stand.material);
       c.root.add(stand);
       c.stand = stand;
       const pivot = new THREE.Group();
-      pivot.position.set(0, 0.9, 1.5);
-      const { mesh, mat } = gunMesh(def.id, mk);
-      mesh.rotation.x = Math.PI / 2;
-      mesh.scale.setScalar(2.9 * MK_SCALE[mk - 1] ** 0.5);
+      pivot.position.set(0, 0.9, 1.9);
+      const { mesh, mat, glowMat } = gunMesh(def.id, mk);
+      mesh.scale.setScalar(GUN_SCALE * MK_SCALE[mk - 1] ** 0.5);
       pivot.add(mesh);
       c.root.add(pivot);
-      c.mats.push(mat);
+      c.mats.push(mat, glowMat);
       c.gun = mesh; c.gunPivot = pivot;
       // sit the gun's box on the stand (bottom centre at the pivot); muzzle = the front (-Z) end, centre height
       if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
       mesh.updateMatrix();
       _box.copy(mesh.geometry.boundingBox).applyMatrix4(mesh.matrix);
-      const cx = (_box.min.x + _box.max.x) / 2, cz = (_box.min.z + _box.max.z) / 2;
-      mesh.position.set(-cx, -_box.min.y, -cz);
-      c.muzzle.set(0, (_box.max.y - _box.min.y) / 2, _box.min.z - cz).add(pivot.position);
+      // the grip (just behind the gun's origin) rests on the pole: no gap under a side-on gun
+      const cx = (_box.min.x + _box.max.x) / 2, gz = 0.12 * mesh.scale.z;
+      mesh.position.set(-cx, -_box.min.y, -gz);
+      c.muzzle.set(0, (_box.max.y - _box.min.y) / 2, _box.min.z - gz).add(pivot.position);
       const column = def.preview && def.preview.pattern === 'pierce';
-      const spots = column ? [[0, -0.6], [0, -1.7], [0, -2.8]] : [[-1.25, -1.5], [0.1, -2.3], [1.3, -1.3]];
+      const spots = column ? [[0, -1.0], [0, -1.95], [0, -2.9]] : [[-1.25, -1.5], [0.1, -2.3], [1.3, -1.3]];
       for (const [x, z] of spots) {
         const mat = toonMaterial({ emissive: '#ffffff', emissiveIntensity: 0 });
         const mesh = new THREE.Mesh(g.grunt, mat);
@@ -301,8 +309,9 @@ export function createPreview(ui) {
     if (content.rig) content.rig.root.traverse((o) => { if (o.isSprite || (o.material && o.material.blending === THREE.AdditiveBlending)) o.visible = !locked; });
     const hero = item.kind !== 'weapon';
     const tall = hero ? (content.rig.scale || 1.25) / 1.25 : 1;
-    P.view = hero ? { y: 1.3 * tall + 0.6, dist: 4.4 + 1.9 * tall, look: 0.8 * tall } : { y: 3.4, dist: 9.4, look: 0.55 };
-    table.rotation.y = hero ? Math.PI - 0.5 : -0.75;
+    P.view = hero ? { y: 1.3 * tall + 0.6, dist: 4.4 + 1.9 * tall, look: 0.8 * tall } : { y: 2.5, dist: 8.8, look: 0.85 };
+    table.rotation.y = hero ? Math.PI - 0.5 : SIDE;
+    P.spin = hero;
     frame();
     demo = createDemo({ THREE, fx, item, content, R: hero ? null : dummyRig(content, fx), weapon: weaponDef(weaponId), mk, hero: hero ? heroDef(item.kind === 'loadout' ? item.hero : item.id) : null, low, ui, table,
       flash: (c) => { try { el?.animate?.([{ backgroundColor: c }, { backgroundColor: 'rgba(255,255,255,0)' }], { duration: 550, easing: 'ease-out' }); } catch { /* optional */ } } });
@@ -335,7 +344,8 @@ export function createPreview(ui) {
     const dt = last ? Math.min(0.05, (now - last) / 1000) : 1 / 60;
     last = now;
     t += dt;
-    table.rotation.y += SPIN * dt;
+    if (P.spin) table.rotation.y += SPIN * dt;
+    else table.rotation.y = SIDE + SWING * Math.sin(t * SWING_W);
     if (demo) demo.update(dt, t);
     stepPools(dt);
     writePools();

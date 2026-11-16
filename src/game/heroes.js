@@ -114,10 +114,17 @@ export class HeroSystem {
     if (rig) { const dur = this.def.ability.duration || 0.6; rig.ability = ab.activeT > 0 ? 1 - ab.activeT / dur : 0; }
   }
 
+  /** False once the boss is beaten (its dying animation still counts as run.active). */
+  usable() {
+    const game = this.game, run = game.run;
+    if (!run || !run.active || game.state !== 'playing') return false;
+    return !(run.phase === 'boss' && game.boss && !game.boss.alive);
+  }
+
   /** Uses the ability when ready and the run is live. Returns true when it fired. */
   useAbility() {
-    const game = this.game, run = game.run, ab = this.ability;
-    if (!run || !run.active || !ab.ready || game.state !== 'playing') return false;
+    const game = this.game, ab = this.ability;
+    if (!ab.ready || !this.usable()) return false;
     const impl = this.abilities[ab.id];
     if (!impl || !impl.use(game, this, game.weapons.mk)) return false;
     ab.ready = false;

@@ -70,7 +70,7 @@ export function mountAbility(hud, mountEl) {
     el: btn,
     update() {
       const H = game.heroes, run = game.run;
-      const show = !!(run && run.active && game.state === 'playing' && !hud.hintOn && H);
+      const show = !!(run && run.active && game.state === 'playing' && !hud.hintOn && H && H.usable());
       if (show !== lastShow) { lastShow = show; btn.style.display = show ? '' : 'none'; if (!show) dropPill(); }
       if (pill) {
         const left = pill.dur - (game.time - pill.start);

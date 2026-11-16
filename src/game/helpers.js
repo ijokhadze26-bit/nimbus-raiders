@@ -243,6 +243,7 @@ export class Helpers {
       v.cannon.position.z = -0.05 + h.recoil * 0.22;
       v.body.position.y = Math.abs(Math.sin(this.time * 14)) * 0.03;
     }
+    const low = !!(this.game.engine && this.game.engine.quality === 'low');
     for (const h of this.roadList) {
       const v = h.v;
       v.root.position.set(h.x, 0, h.z);
@@ -250,7 +251,7 @@ export class Helpers {
       v.root.scale.setScalar(easeBack(h.spawn) * h.scale * fade);
       if (v.cannon) { v.cannon.rotation.y = h.yaw; v.cannon.position.z = -0.05 + h.recoil * 0.22; }
       else if (v.head) v.head.rotation.y = h.yaw;
-      if (v.model && v.model.animate) v.model.animate(this.time, h);
+      if (v.model && v.model.animate) v.model.animate(this.time, h, low);
     }
   }
 

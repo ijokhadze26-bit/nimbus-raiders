@@ -161,6 +161,41 @@ Void Siphon boss damage re-measured (Grawlstone, Mk III, 30 raiders, squad invul
 181.2 (ratio 1.00). Spectra 1.00, Glacier 1.00, Sugar Rush 0.99, Emberstorm 0.99, Gearworks 1.10 (mini turrets),
 Thunderclap 1.15 (Pip's favourite +15%).
 
+## Round 6 (fix pass after review): Emberstorm on floods, strong / weak lists match the gauntlets
+
+Review found five weapon gauntlet cells that contradict the Armory (`results.json` round 5). The grunt, shield and
+bomber cells are reach- or saturation-limited, so only one could be moved with a knob:
+- `VS.emberstorm.grunt` 1.6 -> 1.8 (knob 1). Emberstorm on the 400-grunt flood: lost 1.7 / 6.6 s (#4) -> 0 / 6.5 s
+  (#3). Tried 2.0 (0 / 6.2 s, but matrix F failed: novice Emberstorm L4 s1 not won in 5) and 2.2 (0.3 lost).
+- Probes that did not move a rank (reverted): `VS.voidsiphon.grunt` 1.6 -> 2.0 (Void #5 -> #4, clear 7.1 s is
+  orb-flight limited), `VS.glacier.shield` 1.0 -> 1.3 (2.3 -> 2.7 lost), `VS.sugarrush.bomber` 1.5 -> 1.9 (24.7 lost
+  both: the bomber gauntlet saturates), `VS.sugarrush.grunt` 1.5 -> 2.1 (7.5 s both: lob limited).
+- List edits instead (data only; no gameplay change): Glacier strong drops Shieldbearer (#4) and weak swaps Bulwark
+  (#3 best) for Fizzbomb (#7, "one shard at a time cannot stop a Fizzbomb pack"); Sugar Rush strong drops Murkling
+  (now #4 behind Emberstorm) and Fizzbomb (#5) and keeps Shieldbearer; Void Siphon strong swaps Murkling (#5) for
+  Shieldbearer (#1, "the crush goes straight through shields").
+- Also in this pass (not balance data, but they change runs): an ability can no longer be used while a beaten boss
+  plays its death animation (`HeroSystem.usable()`).
+
+| criterion | round 5 | round 6 |
+|---|---|---|
+| A attempts | 320 | 320 (Emberstorm L10 s2: 2) |
+| F attempts | 43 | 41 (Emberstorm L4 s1: 3) |
+| B / C / D / G | 278 / 273 / 340 / 253 | 278 / 273 / 340 / 253 |
+| E | pass | pass (unchanged) |
+| spread | median 45, max 49 | median 45, max 49 (Sugar Rush), Emberstorm 46 |
+| single best | max 2 | max 2 |
+| favours >= 10/15 | FAIL 9/15 | FAIL 9/15 (11/15 with boss seconds) |
+| abilities >= 2 / level | FAIL | FAIL (pip 1.13, cinder 1.98, rime 1.0, bonbon 0.85, bolt 2.02, vex 0.85) |
+| weapon gauntlets | FAIL, 5 failing | PASS 17 ok, none failing |
+| hero gauntlets | PASS 14/14 | PASS 14/14 |
+| bosses | PASS | PASS (unchanged) |
+| determinism | PASS | PASS |
+
+What the gauntlets and matrices say, plainly: with the snapshot upgrades every weapon wins every level (pro bot first
+try everywhere, casual 315/315 cells). The weapon pick changes how fast a fight goes and how many raiders are lost,
+not whether a level can be won.
+
 ## Not met (needs code or a spec decision)
 
 - Favours: every cell now wins first try, and arena squads sit at the 999 cap on L7-L9 and for most weapons on L14,

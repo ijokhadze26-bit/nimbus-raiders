@@ -205,7 +205,9 @@ export class Bullets {
       if (n >= mesh.userData.cap) continue;
       // grow-in over the first 0.6u so bullets don't pop out of the guns
       const g = b.dist < 0.6 ? 0.4 + b.dist : 1;
-      XF[0] = b.x; XF[1] = b.y; XF[2] = b.z; XF[3] = b.ang; XF[4] = b.roll; XF[5] = b.sx * g; XF[6] = b.sy * g; XF[7] = b.sz * g;
+      // a stretched beam (Spectra: centred, unit length) grows from where it was fired, never trailing behind it
+      const zl = b.sz > b.sx * 2 ? Math.min(b.sz * g, Math.max(b.sx * g, b.dist * 2)) : b.sz * g;
+      XF[0] = b.x; XF[1] = b.y; XF[2] = b.z; XF[3] = b.ang; XF[4] = b.roll; XF[5] = b.sx * g; XF[6] = b.sy * g; XF[7] = zl;
       writeXfYawRoll(mesh.instanceMatrix.array, n);
     }
     for (let s = 0; s < meshes.length; s++) {

@@ -59,7 +59,7 @@ export const HERO_DEFS = [
     ability: { id: 'whiteout', name: 'Whiteout', cd: 30, duration: 4, ahead: 75, frozenMul: 1.25,
       text: 'Freezes every enemy on screen for 4 s. Frozen enemies take +25% damage; the boss stops attacking.' },
     favourite: 'glacier', unlock: { level: 6, coins: 1100 },
-    strong: [{ id: 'grunt', why: 'Long Sight: +20% range starts on floods early' }, { id: 'shield', why: '+10% damage wears shield lines down' }, { id: 'oculon', why: 'Whiteout pauses boss attacks; +20% range' }],
+    strong: [{ id: 'grunt', why: 'Long Sight: +20% range hits floods sooner' }, { id: 'shield', why: '+10% damage wears shield lines down' }, { id: 'oculon', why: 'Whiteout pauses boss attacks; +20% range' }],
     weak: [{ id: 'bomber', why: 'Guard 2 is thin against Fizzbomb blasts' }],
     raider: { body: '#e8f6ff', helmet: '#9fc8e8', visor: '#4dc3ff', pack: '#6f9bff' }, raiderTell: 'hood', scale: 1.15,
     look: { coat: '#e8f6ff', hood: '#9fc8e8', visor: '#4dc3ff', sash: '#6f9bff' },
