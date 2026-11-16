@@ -1,0 +1,24 @@
+{
+ "note": "SPEC2 §8.3 gauntlet toughness: hpMul = toughFor(T, 3). scripts/balance/calibrate.js: ref weapon, Pip, Mk III, squad 60, zero upgrades, casual bot seeds 1-3; T = the grid point whose ref loss is closest to 40% (largest T on a tie), bisected when a loss step jumps over the 30-50% band",
+ "T": {
+  "grunt": 0.908,
+  "runner": 10.954,
+  "shield": 36.342,
+  "tank": 17.374,
+  "bomber": 400
+ },
+ "refLost": {
+  "grunt": 22,
+  "runner": 24.7,
+  "shield": 27.3,
+  "tank": 25,
+  "bomber": 18.7
+ },
+ "refFrac": {
+  "grunt": 0.367,
+  "runner": 0.412,
+  "shield": 0.455,
+  "tank": 0.417,
+  "bomber": 0.312
+ }
+}

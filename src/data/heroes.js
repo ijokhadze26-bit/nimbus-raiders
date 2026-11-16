@@ -10,8 +10,9 @@ export const FAVOURITE_BONUS = 0.15;   // +15% damage with the favourite weapon 
 export const ABILITY_START = { level: 0.5, endless: 0.5, practice: 1 }; // starting charge by mode
 /** Info pages compute ability numbers for this squad (no shop upgrades) at the page's Mk. */
 export const ABILITY_REF = { raiders: 50, dmgMul: 1, mk: 3 };
-// bar scales (hero page): Health = health / 6, Speed = speed / 1.15, Damage = bonus / 0.25, Recharge = 20 / cd
-export const HERO_BAR_MAX = { health: 6, speed: 1.15, bonus: 0.25, recharge: 20 };
+// bar scales (hero page): Health = health / 6, Speed = speed / 1.15, Damage = bonus / 0.25, Recharge = 18 / cd
+// (18 s = the shortest recharge after balance, so the bars still tell the heroes apart)
+export const HERO_BAR_MAX = { health: 6, speed: 1.15, bonus: 0.25, recharge: 18 };
 
 export const HERO_DEFS = [
   {
@@ -24,7 +25,7 @@ export const HERO_DEFS = [
       text: 'Instantly adds 20% more raiders (at least 5, at most 40) and refills Guard.' },
     favourite: 'thunderclap', unlock: { level: 1, coins: 0, start: true },
     strong: [{ id: 'grunt', why: 'Steady Aim: +10% fire rate' }, { id: 'runner', why: 'Rally Call refills losses' }],
-    weak: [{ id: 'tank', why: 'no damage bonus' }],
+    weak: [{ id: 'tempestking', why: 'its favourite, Thunderclap, is weak against the storm lord' }],
     raider: null, raiderTell: null, scale: 1,
     look: { suit: '#2f6ff2', helmet: '#f8fbff', visor: '#1fd0c4', scarf: '#ff8a2b' },
     run: { freq: 11.5, bob: 0.07, lean: -0.14 },
@@ -37,7 +38,7 @@ export const HERO_DEFS = [
     health: 4, speed: 1.05, dmgBonus: 0, fireBonus: 0.25,
     passive: { name: 'Hot Hands', text: 'Emberstorm and Meteor Drop deal +25% damage; every burn finishes 20% sooner.',
       mods: { fireMul: 1.25, burnTimeMul: 0.8 } },
-    ability: { id: 'meteor', name: 'Meteor Drop', cd: 24, duration: 0.7, ahead: 18, fall: 0.7, radius: 5, k: 1.5, bossCap: 0.06,
+    ability: { id: 'meteor', name: 'Meteor Drop', cd: 18, duration: 0.7, ahead: 18, fall: 0.7, radius: 5, k: 1.5, bossCap: 0.06,
       burnFrac: 0.25, burnTime: 3, el: 'emberstorm',
       text: 'A flaming rock smashes a 5 m circle ahead, then the ground burns.' },
     favourite: 'emberstorm', unlock: { level: 4, coins: 700 },
@@ -58,8 +59,8 @@ export const HERO_DEFS = [
     ability: { id: 'whiteout', name: 'Whiteout', cd: 30, duration: 4, ahead: 75, frozenMul: 1.25,
       text: 'Freezes every enemy on screen for 4 s. Frozen enemies take +25% damage; the boss stops attacking.' },
     favourite: 'glacier', unlock: { level: 6, coins: 1100 },
-    strong: [{ id: 'runner', why: 'Whiteout stops dashers' }, { id: 'oculon', why: 'Whiteout pauses boss attacks; +20% range' }],
-    weak: [{ id: 'grunt', why: 'Guard 2 is thin against floods' }],
+    strong: [{ id: 'grunt', why: 'Long Sight: +20% range starts on floods early' }, { id: 'shield', why: '+10% damage wears shield lines down' }, { id: 'oculon', why: 'Whiteout pauses boss attacks; +20% range' }],
+    weak: [{ id: 'bomber', why: 'Guard 2 is thin against Fizzbomb blasts' }],
     raider: { body: '#e8f6ff', helmet: '#9fc8e8', visor: '#4dc3ff', pack: '#6f9bff' }, raiderTell: 'hood', scale: 1.15,
     look: { coat: '#e8f6ff', hood: '#9fc8e8', visor: '#4dc3ff', sash: '#6f9bff' },
     run: { freq: 9, bob: 0.03, lean: -0.08 },
@@ -74,7 +75,7 @@ export const HERO_DEFS = [
     ability: { id: 'sugarshield', name: 'Sugar Shield', cd: 26, duration: 5,
       text: 'The squad is invincible for 5 s. Enemies that touch it pop.' },
     favourite: 'sugarrush', unlock: { level: 8, coins: 1500 },
-    strong: [{ id: 'bomber', why: 'Sugar Shield blocks blasts' }, { id: 'shield', why: 'Sugar Shield pushes through shield lines' }],
+    strong: [{ id: 'mothermurk', why: 'Sugar Shield blocks the goo puddles while the squad keeps firing' }],
     weak: [{ id: 'tank', why: 'no damage bonus, small Guard' }],
     raider: { body: '#ff8ad8', helmet: '#fff0a0', visor: '#8affc8', pack: '#b48aff' }, raiderTell: 'buns', scale: 0.85,
     look: { hair: '#ff8ad8', mint: '#8affc8', pink: '#ff8ad8', bow: '#b48aff', shoes: '#fff0a0' },
@@ -88,11 +89,11 @@ export const HERO_DEFS = [
     health: 3, speed: 0.95, dmgBonus: 0, fireBonus: 0,
     passive: { name: 'Overclock', text: 'Road turrets and the Fortress last 60% longer; every turret fires 25% faster.',
       mods: { turretLifeMul: 1.6, turretRateMul: 1.25 } },
-    ability: { id: 'fortress', name: 'Deploy Fortress', cd: 28, duration: 12, life: 12, rate: 2.5, k: 0.3, minCount: 20, pierce: 3,
+    ability: { id: 'fortress', name: 'Deploy Fortress', cd: 20, duration: 12, life: 12, rate: 2.5, k: 0.3, minCount: 20, pierce: 3,
       side: 2.8, back: 1.5, shellScale: 1.5,
       text: 'Drops a big turret that rides with the squad for 12 s, firing piercing shells.' },
     favourite: 'gearworks', unlock: { level: 10, coins: 2000 },
-    strong: [{ id: 'tank', why: 'Fortress shells pierce 3' }, { id: 'ironhorn', why: 'turrets fire 25% faster' }],
+    strong: [{ id: 'bomber', why: 'turrets and the Fortress pop Fizzbomb packs early' }, { id: 'ironhorn', why: 'turrets fire 25% faster' }],
     weak: [{ id: 'runner', why: 'turrets drop behind fast rushes' }],
     raider: { body: '#ffb21f', helmet: '#ffd34d', visor: '#2fd6c8', pack: '#4b5672' }, raiderTell: 'brim', scale: 1,
     look: { hat: '#ffd34d', overalls: '#ffb21f', suit: '#4b5672', lamp: '#fff6c4' },
@@ -110,7 +111,7 @@ export const HERO_DEFS = [
       text: 'A shield slam knocks the whole horde back up to 18 m and stuns it.' },
     favourite: 'voidsiphon', unlock: { level: 12, coins: 2800 },
     strong: [{ id: 'tank', why: 'Shockwave knocks walls back' }, { id: 'bomber', why: 'Guard 6 eats blasts' }],
-    weak: [{ id: 'runner', why: 'slow dodge' }, { id: 'oculon', why: 'slow dodge' }],
+    weak: [{ id: 'grunt', why: 'only +5% damage: the slowest to clear big floods' }, { id: 'oculon', why: 'slow dodge' }],
     raider: { body: '#5a3fa8', helmet: '#2a2d3e', visor: '#ff3b4e', pack: '#ffc531' }, raiderTell: 'ridge', scale: 1.45,
     look: { armour: '#5a3fa8', plates: '#2a2d3e', trim: '#ffc531', visor: '#ff3b4e' },
     run: { freq: 7.5, bob: 0.05, lean: -0.06 },

@@ -9,11 +9,21 @@ const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../.
 const [out, nArg, query = ''] = process.argv.slice(2);
 const N = Number(nArg) || 4;
 const t0 = Date.now();
-const parts = await Promise.all(Array.from({ length: N }, (_, k) => new Promise((res) => {
-  const f = `${out}.shard${k}`;
-  const p = spawn(process.execPath, ['scripts/balance/run.mjs', 'scripts/balance/matrices.js', f, `${query ? query + '&' : ''}shard=${k}&of=${N}`], { cwd: root, stdio: ['ignore', 'inherit', 'inherit'] });
-  p.on('close', (code) => res({ code, f }));
-})));
+// A page now and then stops answering (idle Chrome, no CPU) while several dev servers start at once: a shard
+// that takes longer than LIMIT s is killed and started again (results are deterministic, so a retry is safe).
+const LIMIT = Number(process.env.SHARD_LIMIT || 420);
+function shard(k, attempt = 1) {
+  return new Promise((res) => {
+    const f = `${out}.shard${k}`;
+    const p = spawn(process.execPath, ['scripts/balance/run.mjs', 'scripts/balance/matrices.js', f, `${query ? query + '&' : ''}shard=${k}&of=${N}`], { cwd: root, stdio: ['ignore', 'inherit', 'inherit'], detached: true });
+    const timer = setTimeout(() => { try { process.kill(-p.pid, 'SIGKILL'); } catch { /* gone */ } }, LIMIT * 1000);
+    p.on('close', (code) => {
+      clearTimeout(timer);
+      if (code !== 0 && attempt < 3) { console.error(`shard ${k} failed or timed out (attempt ${attempt}), retrying`); res(shard(k, attempt + 1)); } else res({ code, f });
+    });
+  });
+}
+const parts = await Promise.all(Array.from({ length: N }, (_, k) => shard(k)));
 const merged = { t: { total: Math.round((Date.now() - t0) / 1000) } };
 for (const { code, f } of parts) {
   if (code) console.error('shard failed', f, code);
