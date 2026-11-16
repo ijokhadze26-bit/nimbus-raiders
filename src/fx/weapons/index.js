@@ -18,13 +18,16 @@ const TAU = Math.PI * 2;
 const rnd = (a, b) => a + Math.random() * (b - a);
 const STALE = 0.3; // s: fxq entries older than this (debug.simulate jumps) are dropped
 const PER_FRAME = { splash: 8, puddle: 3, freeze: 6, shatter: 6, frost: 4, ignite: 6, split: 6, hole: 4, turret: 2, bounce: 8 };
+// per-second budgets [High, Low] for recipes whose big translucent discs overdraw (a bundled Sugar Rush volley
+// lands hundreds of bombs a second; the per-frame cap alone grows with the frame rate). The first one always plays.
+const PER_SEC = { splash: [40, 14] };
 
 export function installWeaponFx(fx) {
   const g = fx.game, ev = g.events;
   const st = {
     lastFire: -10, weapon: '', mk: 1, arcBudget: 0, ringT: 0, now: 0, low: false, arcs: 0,
     acc: { ember: 0, flame: 0, smoke: 0, hole: 0, bubble: 0, speck: 0, gear: 0, sugar: 0, motes: 0 },
-    frame: {}, stats: { recipes: {}, particles: {} },
+    frame: {}, budget: {}, stats: { recipes: {}, particles: {} },
   };
   ev.on('weapon:fire', (p) => { st.lastFire = fx.now; st.weapon = p.weapon; st.mk = p.mk || 1; });
   ev.on('crate:take', (p) => crateBurst(fx, st, p));
@@ -50,6 +53,7 @@ export function installWeaponFx(fx) {
     }
     const f = st.frame, cap = PER_FRAME[e.kind] ?? 4;
     if ((f[e.kind] = (f[e.kind] || 0) + 1) > (st.low ? Math.ceil(cap / 2) : cap)) return;
+    if (PER_SEC[e.kind]) { if (!(st.budget[e.kind] >= 1)) return; st.budget[e.kind] -= 1; }
     play(fx, e);
     count(e.kind, n0);
   };
@@ -59,6 +63,10 @@ export function installWeaponFx(fx) {
     for (const k in st.frame) st.frame[k] = 0;
     const segRate = st.low ? 30 : 60;
     st.arcBudget = Math.min(segRate * 0.1, st.arcBudget + segRate * dt);
+    for (const k in PER_SEC) {
+      const rate = PER_SEC[k][st.low ? 1 : 0], b = st.budget[k];
+      st.budget[k] = Math.min(Math.max(1, rate * 0.25), (b === undefined ? 1 : b) + rate * dt);
+    }
     g.weapons.fxq.drain(onEntry);
   }
 
