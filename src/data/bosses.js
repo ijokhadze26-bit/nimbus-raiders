@@ -74,6 +74,38 @@ export const BOSSES = {
       { id: 'lightning', weight: 1, minPhase: 1, telegraph: 1.2, halfW: 1.25, count: 2, count2: 3, stagger: 0.45 },
     ],
   },
+  // update 3 bosses. `native`: the world skin they are built in (bossLook drops a level's matching skin, so the
+  // original model colours stay; another world's skin would still recolour them)
+  glacius: {
+    type: 'glacius', favours: ['emberstorm', 'spectra'], name: 'GLACIUS', subtitle: 'THE FROST GIANT', hp: 3400, native: 'frost',
+    distance: 27, hitbox: { halfW: 3.4, front: 2.0 }, hitY: 5.2, sway: 0.2,
+    enterTime: 1.0,
+    firstAttack: 0.4,
+    cooldown: [2.3, 3.2],
+    phase2Cadence: 1.35,
+    freezeRate: 0.45, freezeCap: 12,   // frozen-lane breaks per second: 1.2 + 0.45 x members inside, at most 12
+    attacks: [
+      { id: 'freeze', weight: 3, minPhase: 1, telegraph: 1.3, halfW: 1.3, halfW2: 1.45, count: 1, count2: 2, stagger: 0.6, life: 3.0 },
+      { id: 'icewall', weight: 2, minPhase: 1, telegraph: 1.2, halfW: 1.6, count: 1, count2: 2, stagger: 0.45, flight: 0.7, ahead: 2.6, reach: 1.4, hpFrac: 0.022, life: 5 },
+      { id: 'icicles', weight: 3, minPhase: 1, telegraph: 1.15, radius: 1.25, count: 3, count2: 5, stagger: 0.22, spread: 2.6 },
+      { id: 'pound', weight: 2, minPhase: 1, telegraph: 1.25, halfW: 1.4, count: 1, count2: 2, gap: 1.8, travel: 0.45 },
+    ],
+  },
+  gumdrop: {
+    type: 'gumdrop', favours: ['spectra', 'voidsiphon'], name: 'GUMDROP GOLIATH', subtitle: 'THE CHEWY GIANT', hp: 2400, native: 'candy',
+    distance: 24, hitbox: { halfW: 3.2, front: 2.8 }, hitY: 3.2, sway: 0.25,
+    enterTime: 1.0,
+    firstAttack: 0.4,
+    cooldown: [2.3, 3.2],
+    phase2Cadence: 1.3,
+    syrupSlow: 0.35,                   // sideways speed factor inside a syrup puddle
+    attacks: [
+      { id: 'bounce', weight: 3, minPhase: 1, telegraph: 1.3, radius: 2.4, radius2: 2.5, count: 1, count2: 2, air: 0.8, height: 7, back: 0.5, hold: 0.25, ahead: 1.5 },
+      { id: 'split', weight: 2, minPhase: 1, windup: 1.0, count: 14, perTier: 4, count2: 22, max: 46, hpPerTier: 0.6,
+        mix: { grunt: 0.6, runner: 0.4 }, mix2: { grunt: 0.5, runner: 0.35, bomber: 0.15 } },
+      { id: 'spit', weight: 2, minPhase: 1, telegraph: 1.1, radius: 1.4, count: 2, count2: 3, flight: 0.8, life: 5 },
+    ],
+  },
 };
 
 export function bossDef(type) { return BOSSES[type] || BOSSES.grawlstone; }
@@ -88,25 +120,18 @@ export function cadenceFor(def, tier = 1, phase = 1) {
 // (game/bosses/skins.js) and these pairs get their own name on the boss card + HP bar.
 export const BOSS_SKIN_NAMES = {
   'grawlstone:forge': { name: 'MAGMA GRAWLSTONE', subtitle: 'THE LAVA COLOSSUS' },
-  'grawlstone:frost': { name: 'GLACIUS', subtitle: 'THE FROST GIANT' },
-  'grawlstone:candy': { name: 'GUMDROP GOLIATH', subtitle: 'THE CHEWY GIANT' },
+  'grawlstone:frost': { name: 'FROZEN GRAWLSTONE', subtitle: 'THE ICEBOUND COLOSSUS' },
+  'grawlstone:candy': { name: 'SUGAR GRAWLSTONE', subtitle: 'THE ROCK CANDY COLOSSUS' },
   'ironhorn:frost': { name: 'FROSTHORN', subtitle: 'THE ICE RHINO' },
   'mothermurk:candy': { name: 'CANDY QUEEN', subtitle: 'RULER OF THE SWEETS' },
   'oculon:citadel': { name: 'OCULON', subtitle: 'THE CITADEL EYE' },
 };
 
-// Bosses whose own class lands in stage 2: until then they fight as a skinned Grawlstone under their own name.
-export const BOSS_STANDINS = {
-  glacius: { type: 'grawlstone', skin: 'frost', name: 'GLACIUS', subtitle: 'THE FROST GIANT' },
-  gumdrop: { type: 'grawlstone', skin: 'candy', name: 'GUMDROP GOLIATH', subtitle: 'THE CHEWY GIANT' },
-};
-
 /** Resolved look of a level boss cfg: { type (a real class), skin (or null), name, subtitle }. */
 export function bossLook(cfg = {}) {
-  const real = !!BOSSES[cfg.type];
-  const stand = real ? null : BOSS_STANDINS[cfg.type] || null;
-  const type = real ? cfg.type : stand ? stand.type : 'grawlstone';
-  const skin = cfg.skin || (stand && stand.skin) || null;
-  const named = stand || BOSS_SKIN_NAMES[type + ':' + skin] || BOSSES[type];
+  const type = BOSSES[cfg.type] ? cfg.type : 'grawlstone';
+  const def = BOSSES[type];
+  const skin = cfg.skin && cfg.skin !== def.native ? cfg.skin : null;
+  const named = BOSS_SKIN_NAMES[type + ':' + skin] || def;
   return { type, skin, name: named.name, subtitle: named.subtitle };
 }

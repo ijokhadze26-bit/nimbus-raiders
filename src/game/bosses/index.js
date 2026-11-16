@@ -5,6 +5,8 @@ import { Oculon } from './oculon.js';
 import { MotherMurk } from './mothermurk.js';
 import { Ironhorn } from './ironhorn.js';
 import { TempestKing } from './tempestking.js';
+import { Glacius } from './glacius.js';
+import { GumdropGoliath } from './gumdrop.js';
 import { BossEffects } from './effects.js';
 import { warmBoss } from '../warmup.js';
 import { bossLook } from '../../data/bosses.js';
@@ -16,6 +18,8 @@ export const BOSS_CLASSES = {
   mothermurk: MotherMurk,
   ironhorn: Ironhorn,
   tempestking: TempestKing,
+  glacius: Glacius,
+  gumdrop: GumdropGoliath,
 };
 
 export class Bosses {
@@ -43,10 +47,7 @@ export class Bosses {
     if (look.skin && m && m.root) prepare(m.root, look.skin);
   }
 
-  /**
-   * Spawns the level boss. Unknown types fall back to Grawlstone until their class exists (glacius /
-   * gumdrop fight as a frost / candy Grawlstone under their own name, see bossLook); cfg.skin recolours.
-   */
+  /** Spawns the level boss (unknown types fall back to Grawlstone); cfg.skin recolours, see bossLook. */
   spawn(cfg) {
     this.clear();
     const look = bossLook(cfg);

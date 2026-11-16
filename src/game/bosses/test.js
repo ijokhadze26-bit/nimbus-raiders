@@ -4,7 +4,7 @@
 import { bossDef } from '../../data/bosses.js';
 import { MAX_MK } from '../../data/weapons.js';
 
-const THEMES = { grawlstone: 'noon', oculon: 'sunset', mothermurk: 'dusk', ironhorn: 'dawn', tempestking: 'storm' };
+const THEMES = { grawlstone: 'noon', oculon: 'sunset', mothermurk: 'dusk', ironhorn: 'dawn', tempestking: 'storm', glacius: 'frost', gumdrop: 'candy' };
 
 export function bossTest(game, type, o = {}) {
   const d = bossDef(type);

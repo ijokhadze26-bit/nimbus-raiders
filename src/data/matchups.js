@@ -19,14 +19,14 @@ export const VS = {
 };
 
 export const BOSS_MUL = {
-  emberstorm: { grawlstone: 0.8, oculon: 0.6, mothermurk: 0.9, ironhorn: 0.6, tempestking: 0.75 },
-  glacier: { grawlstone: 1.0, oculon: 1.2, mothermurk: 0.9, ironhorn: 0.85, tempestking: 1.1 },
-  sugarrush: { grawlstone: 0.9, oculon: 0.6, mothermurk: 1.0, ironhorn: 0.85, tempestking: 0.85 },
-  spectra: { grawlstone: 1.35, oculon: 1.5, mothermurk: 1.2, ironhorn: 1.25, tempestking: 1.3 },
-  gearworks: { grawlstone: 1.0, oculon: 0.75, mothermurk: 0.9, ironhorn: 1.6, tempestking: 0.9 },
-  thunderclap: { grawlstone: 1.1, oculon: 1.0, mothermurk: 1.1, ironhorn: 1.3, tempestking: 0.7 },
-  voidsiphon: { grawlstone: 0.8, oculon: 0.9, mothermurk: 1.25, ironhorn: 0.7, tempestking: 1.2 },
-  neutral: { grawlstone: 1, oculon: 1, mothermurk: 1, ironhorn: 1, tempestking: 1 },
+  emberstorm: { grawlstone: 0.8, oculon: 0.6, mothermurk: 0.9, ironhorn: 0.6, tempestking: 0.75, glacius: 1.4, gumdrop: 1.0 },
+  glacier: { grawlstone: 1.0, oculon: 1.2, mothermurk: 0.9, ironhorn: 0.85, tempestking: 1.1, glacius: 0.6, gumdrop: 1.0 },
+  sugarrush: { grawlstone: 0.9, oculon: 0.6, mothermurk: 1.0, ironhorn: 0.85, tempestking: 0.85, glacius: 0.9, gumdrop: 0.7 },
+  spectra: { grawlstone: 1.35, oculon: 1.5, mothermurk: 1.2, ironhorn: 1.25, tempestking: 1.3, glacius: 1.3, gumdrop: 1.25 },
+  gearworks: { grawlstone: 1.0, oculon: 0.75, mothermurk: 0.9, ironhorn: 1.6, tempestking: 0.9, glacius: 1.1, gumdrop: 0.8 },
+  thunderclap: { grawlstone: 1.1, oculon: 1.0, mothermurk: 1.1, ironhorn: 1.3, tempestking: 0.7, glacius: 1.0, gumdrop: 1.1 },
+  voidsiphon: { grawlstone: 0.8, oculon: 0.9, mothermurk: 1.25, ironhorn: 0.7, tempestking: 1.2, glacius: 0.85, gumdrop: 1.3 },
+  neutral: { grawlstone: 1, oculon: 1, mothermurk: 1, ironhorn: 1, tempestking: 1, glacius: 1, gumdrop: 1 },
 };
 
 /** Shield hits one hit of this element removes (Sugar splash and Void crush bypass shields instead). */

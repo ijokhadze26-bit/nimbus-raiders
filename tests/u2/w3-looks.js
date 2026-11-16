@@ -1,8 +1,8 @@
 // Update 3 stage 1 world looks: the 8 world themes on High and Low (sky / sea / road / trim glow / weather /
 // fog follow the theme and switch back cleanly to a sky theme), the per-world Murkling skins (vertex colours
 // swapped in place, sky restores the original colours, types stay readable), boss skins (model recolour +
-// name on the card and HP bar, restore on an unskinned fight, glacius / gumdrop stand-ins), the world run
-// tracks (bindings pick the track, every track renders non-silent offline), the finish arch on a boss-less
+// name on the card and HP bar, restore on an unskinned fight; Glacius / Gumdrop Goliath keep their own colours
+// in their own world), the world run tracks (bindings pick the track, every track renders non-silent offline), the finish arch on a boss-less
 // finish level (visible at -length, crossing it wins with extra sparkles) and the world intro banner.
 // When run by the screenshot harness, window.__shot(name) saves a picture of each look.
 const g = window.__game, d = g.debug;
@@ -82,9 +82,9 @@ for (const [k, s] of Object.entries(MURKLING_SKINS)) {
 
 // ---- boss skins ----
 const BOSSES = [
-  ['grawlstone', 'forge', 'forge', 'MAGMA GRAWLSTONE'], ['grawlstone', 'frost', 'frost', 'GLACIUS'], ['grawlstone', 'candy', 'candy', 'GUMDROP GOLIATH'],
+  ['grawlstone', 'forge', 'forge', 'MAGMA GRAWLSTONE'], ['grawlstone', 'frost', 'frost', 'FROZEN GRAWLSTONE'], ['grawlstone', 'candy', 'candy', 'SUGAR GRAWLSTONE'],
   ['ironhorn', 'frost', 'frostDusk', 'FROSTHORN'], ['mothermurk', 'candy', 'candyDusk', 'CANDY QUEEN'], ['oculon', 'citadel', 'citadel', 'OCULON'],
-  ['glacius', null, 'frost', 'GLACIUS'], ['gumdrop', null, 'candy', 'GUMDROP GOLIATH'], ['grawlstone', null, 'noon', 'GRAWLSTONE'],
+  ['glacius', 'frost', 'frost', 'GLACIUS'], ['gumdrop', 'candy', 'candy', 'GUMDROP GOLIATH'], ['grawlstone', null, 'noon', 'GRAWLSTONE'],
 ];
 const colourSum = (root) => { let s = 0; root.traverse((o) => { const c = o.isMesh && o.material && o.material.vertexColors && o.geometry.attributes.color; if (c) for (let i = 0; i < c.array.length; i += 97) s += c.array[i]; }); return Math.round(s * 1000) / 1000; };
 const origSum = {};

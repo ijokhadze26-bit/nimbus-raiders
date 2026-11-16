@@ -137,6 +137,7 @@ export class Hud {
     this.el.classList.toggle('endless', endless);
     this.el.classList.remove('boss-phase');
     this.prog = this.progTarget = 0; this.progW = -1;
+    this.setEndIcon(!!(run && run.def && run.def.finish && !run.boss && !endless));
     this.coins = -1;
     this.hideBoss(true);
     for (const k of [...this.powers.keys()]) this.hidePower(k);
@@ -148,6 +149,15 @@ export class Hud {
     this.compact = null; this.faded = null;
     this.banner.classList.add('hidden');
     this.showWorldBanner(run, p);
+  }
+
+  /** End of the progress bar: a boss skull, or a finish flag on boss-less levels (update 3, def.finish). */
+  setEndIcon(flag) {
+    const ico = this.progEl.querySelector('.hud-boss-ico'), want = flag ? 'flag' : 'skull';
+    if (ico.dataset.end === want) return;
+    ico.dataset.end = want;
+    ico.innerHTML = icon(want);
+    ico.classList.toggle('finish', flag);
   }
 
   /** Campaign level start: world number + name and the level name, 2 s CSS animation, never blocks input. */
