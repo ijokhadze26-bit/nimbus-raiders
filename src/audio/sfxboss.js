@@ -1,6 +1,6 @@
 // Boss + telegraph sound effects (merged into SFX by sfxdefs.js).
 import { tone, noise, bell, mtof, softClipCurve } from './synth.js';
-import { brass, crash, kick } from './instruments.js';
+import { brass, crash, kick, riser } from './instruments.js';
 
 /** Detuned-saw growl with pitch/filter arcs through a soft clipper. */
 function roar(c, d, t, p, len = 1.5, f0 = 78) {
@@ -113,4 +113,41 @@ export const BOSS_SFX = {
     [84, 88, 91, 96].forEach((m, i) => bell(c, d, tb + 0.15 + i * 0.07, { f: mtof(m), ratio: 2, index: 1, peak: 0.07, decay: 0.6, pan: (i - 1.5) * 0.3 }));
     return tb + 1.4;
   }, gap: 1, max: 1, pri: 2, vol: 0.95, vary: 0 },
+  // ---------------- update 3 ----------------
+  rage: { fn(c, d, t, p) { // RAGE at 25%: deep roar over a sub boom and a hissing heat burst
+    tone(c, d, t, { type: 'sine', f: 55 * p, f2: 32, glide: 0.8, peak: 0.7, decay: 0.9 });
+    noise(c, d, t, { type: 'highpass', f: 1800, f2: 600, fT: 0.6, peak: 0.18, decay: 0.6 });
+    crash(c, d, t + 0.05, 0.5);
+    return roar(c, d, t + 0.08, p, 1.5, 58);
+  }, gap: 1.2, max: 1, pri: 3, vol: 0.95, vary: 0.5 },
+  safeAlarm: { fn(c, d, t, p, o) { // SAFE SPOT warning: two-tone siren + riser across the warning time
+    const dur = Math.max(1.2, Math.min(3, o.duration || 2));
+    riser(c, d, t, dur, 0.6);
+    let end = t;
+    for (let i = 0; i < 4; i++) {
+      const tt = t + i * dur / 4.4;
+      tone(c, d, tt, { type: 'square', f: 660 * p, lp: 2400, peak: 0.16, decay: 0.12, sus: 0.6, dur: dur / 9, rel: 0.04 });
+      end = tone(c, d, tt + dur / 8.8, { type: 'square', f: 880 * p, lp: 2400, peak: 0.16, decay: 0.12, sus: 0.6, dur: dur / 9, rel: 0.04 });
+    }
+    return end;
+  }, gap: 1, max: 1, pri: 2, vol: 0.85, vary: 0 },
+  safeBlast: { fn(c, d, t, p) { // the arena blast around the safe spot
+    noise(c, d, t, { type: 'lowpass', f: 6000, f2: 250, fT: 0.5, peak: 0.55, decay: 0.6 });
+    crash(c, d, t, 0.7);
+    return rumble(c, d, t, p * 0.9, 1.1);
+  }, gap: 0.5, max: 1, pri: 3, vol: 0.9, vary: 0.5 },
+  embers: { fn(c, d, t, p) { // ember / magma impact: crackling sizzle + thump
+    noise(c, d, t, { type: 'bandpass', f: 2600, q: 1.5, peak: 0.22, decay: 0.35 });
+    noise(c, d, t + 0.02, { pink: true, type: 'lowpass', f: 1200, f2: 200, fT: 0.3, peak: 0.3, decay: 0.3 });
+    return tone(c, d, t, { type: 'sine', f: 110 * p, f2: 50, glide: 0.25, peak: 0.35, decay: 0.3 });
+  }, gap: 0.09, max: 3, pri: 1, vol: 0.75, vary: 1.5 },
+  freeze: { fn(c, d, t, p) { // freeze lane: glassy crack + shimmering bells
+    noise(c, d, t, { type: 'highpass', f: 4000, peak: 0.35, decay: 0.12 });
+    [2637, 3136, 3951].forEach((f, i) => bell(c, d, t + 0.03 + i * 0.04, { f: f * p, ratio: 2.76, index: 1.2, peak: 0.07, decay: 0.5, pan: (i - 1) * 0.4 }));
+    return tone(c, d, t, { type: 'sine', f: 160 * p, f2: 70, glide: 0.3, peak: 0.25, decay: 0.35 });
+  }, gap: 0.15, max: 2, pri: 2, vol: 0.85, vary: 1 },
+  cane: { fn(c, d, t, p) { // candy cane lands: sugary crack + boing
+    noise(c, d, t, { type: 'bandpass', f: 3000, q: 3, peak: 0.18, decay: 0.08 });
+    return tone(c, d, t, { type: 'triangle', f: 520 * p, f2: 260 * p, glide: 0.18, peak: 0.2, decay: 0.22, vib: { rate: 22, depth: 30, delay: 0 } });
+  }, gap: 0.08, max: 3, pri: 1, vol: 0.8, vary: 1.5 },
 };

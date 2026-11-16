@@ -4,6 +4,7 @@
 // posed in sync(). Everything is built once per game and reused; clear() hides it all between fights.
 import * as THREE from 'three';
 import { glowTexture } from '../../models/materials.js';
+import { ExtraFx } from './effectsx.js';
 
 const ADD = { transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending, fog: false };
 // normal-blended glow: keeps its colour on the bright road / sky where additive washes out to white
@@ -14,7 +15,7 @@ const discGeo = new THREE.CircleGeometry(1, 40).rotateX(-Math.PI / 2);
 const stripGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 const crestGeo = new THREE.TorusGeometry(1, 0.3, 6, 18, Math.PI);
 
-let boltGeos = null, puddleTex = null;
+let boltGeos = null, puddleTex = null, syrupTex = null;
 
 const BOLT_H = 18;
 /** Zigzag lightning path (BOLT_H tall) as merged boxes; thick = glow shell, thin = hot core. */
@@ -45,7 +46,13 @@ function boltGeometry(seed, w) {
   return out;
 }
 
-function makePuddleTexture() {
+// puddle looks: goo (Mother Murk) and syrup (Candy Queen): [outer, inner, shine] fills + rim colour
+const PUDDLE_LOOK = {
+  goo: { fills: ['rgba(60,140,40,0.95)', 'rgba(126,236,88,0.95)', 'rgba(220,255,190,0.85)'], rim: '#c8ff7a' },
+  syrup: { fills: ['rgba(170,52,20,0.95)', 'rgba(255,128,64,0.92)', 'rgba(255,236,200,0.9)'], rim: '#ffb07a' },
+};
+
+function makePuddleTexture(look = PUDDLE_LOOK.goo) {
   const c = document.createElement('canvas');
   c.width = c.height = 128;
   const g = c.getContext('2d');
@@ -59,9 +66,9 @@ function makePuddleTexture() {
       g.beginPath(); g.arc(Math.cos(a) * d, Math.sin(a) * d, 13 + (i % 4) * 3, 0, Math.PI * 2); g.fill();
     }
   };
-  blob('rgba(60,140,40,0.95)');
-  g.scale(0.84, 0.84); blob('rgba(126,236,88,0.95)'); g.setTransform(1, 0, 0, 1, 64, 64);
-  g.fillStyle = 'rgba(220,255,190,0.85)';
+  blob(look.fills[0]);
+  g.scale(0.84, 0.84); blob(look.fills[1]); g.setTransform(1, 0, 0, 1, 64, 64);
+  g.fillStyle = look.fills[2];
   [[-18, -14, 7], [14, 10, 5], [-6, 20, 4], [22, -16, 3.5], [2, -2, 3]].forEach(([x, y, r]) => { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); });
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
@@ -75,6 +82,8 @@ export class BossEffects {
     this.beam = null;
     if (!boltGeos) boltGeos = [1, 2, 3, 4].map((k) => [boltGeometry(k, 0.42), boltGeometry(k, 0.13)]);
     puddleTex = puddleTex || makePuddleTexture();
+    syrupTex = syrupTex || makePuddleTexture(PUDDLE_LOOK.syrup);
+    this.x = new ExtraFx(game);   // update 3: lava / frost strips, drops, canes, gumballs, rage aura
   }
 
   pool(list, make) {
@@ -140,7 +149,8 @@ export class BossEffects {
   }
 
   // ---------------- goo puddles (slow zones) ----------------
-  puddle(x, z, r, life) {
+  /** look: 'goo' (default) | 'syrup' (Candy Queen). */
+  puddle(x, z, r, life, look = 'goo') {
     const o = this.pool(this.puddles, () => {
       const mesh = new THREE.Mesh(discGeo, new THREE.MeshBasicMaterial({ map: puddleTex, transparent: true, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
       const rim = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: '#c8ff7a', transparent: true, depthWrite: false, toneMapped: false }));
@@ -148,6 +158,8 @@ export class BossEffects {
       return { mesh, rim };
     });
     Object.assign(o, { x, z, r, life, spin: Math.random() * 6 });
+    o.mesh.material.map = look === 'syrup' ? syrupTex : puddleTex;
+    o.rim.material.color.set(PUDDLE_LOOK[look] ? PUDDLE_LOOK[look].rim : PUDDLE_LOOK.goo.rim);
     this.addTo(o.mesh); this.addTo(o.rim);
     return o;
   }
@@ -221,10 +233,12 @@ export class BossEffects {
     }
     if (this.beam && this.beam.on) this.beam.k = Math.min(1, this.beam.k + dt * 8);
     else if (this.beam) this.beam.k = Math.max(0, this.beam.k - dt * 6);
+    this.x.update(dt);
   }
 
   sync() {
     const time = this.game.time;
+    this.x.sync();
     for (const o of this.orbs) {
       o.core.visible = o.halo.visible = o.tail.visible = o.active;
       if (!o.active) continue;
@@ -317,5 +331,6 @@ export class BossEffects {
     for (const o of this.puddles) { scene.remove(o.mesh); scene.remove(o.rim); }
     for (const o of this.crests) scene.remove(o.mesh);
     if (this.beam) { scene.remove(this.beam.sheet); scene.remove(this.beam.line); scene.remove(this.beam.burn); }
+    this.x.clear();
   }
 }

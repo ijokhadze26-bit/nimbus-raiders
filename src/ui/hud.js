@@ -13,6 +13,7 @@ import { fmt } from './ui.js';
 import { WORLDS } from '../data/worlds.js';
 import { isCampaign } from '../game/worldlook.js';
 import { mountHazardHint } from './hudhazard.js';
+import { mountBossAlerts } from './hudboss.js';
 
 const _v = new THREE.Vector3();
 
@@ -75,6 +76,7 @@ export class Hud {
     this.bossName = this.bossBar.querySelector('.boss-name .n');
     this.bossFill = this.bossBar.querySelector('.boss-fill');
     this.bossLag = this.bossBar.querySelector('.boss-lag');
+    this.bossAlerts = mountBossAlerts(this); // update 3: RAGE!, PHASE n, safe-spot call, bar marks
     this.card = el('div', 'boss-card hidden');
     root.appendChild(this.card);
     this.banner = el('div', 'tier-banner hidden');

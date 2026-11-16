@@ -174,30 +174,44 @@ export class Autopilot {
     return out;
   }
 
-  /** Candidate x that keeps the most members out of the marked areas. */
+  /**
+   * Candidate x that keeps the most members out of the marked areas. Update 3 SAFE SPOT (kind 'safe'): contains()
+   * is true outside its circle, so the same count steers the blob into it; the circle's exact centre is scored
+   * too (the 0.4 u grid can straddle a small circle).
+   */
   dodge(list) {
     const game = this.game;
-    const squad = game.squad, L = squad.leader, T = game.telegraph;
-    const ms = squad.members;
-    const stride = Math.max(1, Math.floor(ms.length / 90));
+    const L = game.squad.leader;
     const bossX = game.boss ? game.boss.x : 0;
     let best = null, bestScore = Infinity;
     for (const cx of CAND) {
-      const dx = cx - L.x;
-      let loss = 0;
-      for (const h of list) {
-        if (h.done) continue;
-        const pad = 0.45;
-        if (T.contains(h, L.x + dx, L.z, pad)) loss += 3;
-        for (let i = 0; i < ms.length; i += stride) {
-          const m = ms[i];
-          if (T.contains(h, m.tx + dx, m.tz, pad)) loss += stride;
-        }
-      }
-      const score = loss * 10 + Math.abs(dx) * 0.6 + Math.abs(cx - bossX) * 0.25;
+      const score = this.dodgeLoss(list, cx - L.x) * 10 + Math.abs(cx - L.x) * 0.6 + Math.abs(cx - bossX) * 0.25;
+      if (score < bestScore) { bestScore = score; best = cx; }
+    }
+    for (const h of list) {
+      if (h.kind !== 'safe' || h.done) continue;
+      const cx = Math.max(-TARGET_CLAMP, Math.min(TARGET_CLAMP, h.x));
+      const score = this.dodgeLoss(list, cx - L.x) * 10 + Math.abs(cx - L.x) * 0.6 + Math.abs(cx - bossX) * 0.25;
       if (score < bestScore) { bestScore = score; best = cx; }
     }
     return best;
+  }
+
+  /** Members (sampled; Pip counts 3) left inside the marked areas when the formation shifts by dx. */
+  dodgeLoss(list, dx) {
+    const squad = this.game.squad, L = squad.leader, T = this.game.telegraph, ms = squad.members;
+    const stride = Math.max(1, Math.floor(ms.length / 90));
+    let loss = 0;
+    for (const h of list) {
+      if (h.done) continue;
+      const pad = 0.45;
+      if (T.contains(h, L.x + dx, L.z, pad)) loss += 3;
+      for (let i = 0; i < ms.length; i += stride) {
+        const m = ms[i];
+        if (T.contains(h, m.tx + dx, m.tz, pad)) loss += stride;
+      }
+    }
+    return loss;
   }
 
   gateGoal() {

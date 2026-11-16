@@ -2,6 +2,15 @@
 // Attack cooldowns are divided by cadenceFor(tier, phase). Every damaging attack telegraphs >= 0.9 s.
 // Tier 1 bosses (early levels) pause longer between attacks so a small squad can learn the dodge; by tier 5
 // the cadence matches the old tuning, endless tiers 6-7 go beyond it.
+// Update 3 (stage 2): RAGE below 25% hp for every boss (attacks RAGE.cadence x as often, red glow, RAGE! flash);
+// SAFE SPOT step (attacks.safeSpot) queued at every phase change of a world boss (cfg.mini falsy); `phases` =
+// hp fractions where the next phase starts (default [0.5]); Ironhorn `lava` (forge world: charges leave lava,
+// stomps rain embers; frost skin: frost trails), Mother Murk `candy` (Candy Queen: jelly brood, syrup, canes),
+// Tempest King 3 phases with attacks from every world (rotate / rotate2 / rotate3).
+
+export const RAGE = { at: 0.25, cadence: 1.6, warnCut: 0.1 };
+// safe spot: radius range (grows with the squad), warning >= 1.8 s, max share of the squad lost when nobody moves
+export const SAFE_SPOT = { r0: 1.8, r1: 2.4, telegraph: 2.2, maxLoss: 0.35 };
 
 export const BOSSES = {
   grawlstone: {
@@ -43,6 +52,13 @@ export const BOSSES = {
       // puddles land inside a big blob whatever it does: fewer, smaller ones keep the queen a DPS race, not a wipe
       { id: 'puddle', weight: 3, minPhase: 1, telegraph: 1.1, radius: 1.45, count: 1, count2: 2, life: 5.5, flight: 0.8 },
     ],
+    // Candy Queen (skin 'candy'): jelly brood instead of goo Murklings, syrup puddles, candy-cane volleys
+    candy: [
+      { id: 'summon', weight: 3, minPhase: 1, windup: 1.1, count: 18, perTier: 7, count2: 26, max: 54, hpPerTier: 0.75,
+        mix: { grunt: 0.65, runner: 0.35 }, mix2: { grunt: 0.45, runner: 0.3, bomber: 0.1, shield: 0.15 } },
+      { id: 'puddle', weight: 2, minPhase: 1, telegraph: 1.1, radius: 1.5, count: 1, count2: 2, life: 6, flight: 0.8 },
+      { id: 'cane', weight: 3, minPhase: 1, telegraph: 1.15, radius: 1.05, count: 4, count2: 6, flight: 0.75, stagger: 0.14, spread: 2.8 },
+    ],
   },
   ironhorn: {
     type: 'ironhorn', favours: ['gearworks', 'thunderclap'], name: 'IRONHORN', subtitle: 'THE MECH RHINO', hp: 3000,
@@ -57,30 +73,45 @@ export const BOSSES = {
       { id: 'double', weight: 2, minPhase: 2, telegraph: 1.4, speed: 32, back: 24 },
       { id: 'feint', weight: 2, minPhase: 2, telegraph: 1.4, switchAt: 0.7, speed: 32, back: 24 },
     ],
+    // forge (L20) / cfg.lava: every charge leaves a burning strip along its track; the stomp rains embers.
+    // frost skin (FROSTHORN, L25): the same trails as frost (members in them freeze and shatter)
+    lava: { halfW: 0.7, life: 3.2, rate: 5, embers: 3, embers2: 4, emberR: 1.0, emberWarn: 1.15 },
   },
   tempestking: {
     type: 'tempestking', favours: ['spectra', 'voidsiphon'], name: 'TEMPEST KING', subtitle: 'LORD OF THE STORM', hp: 5200,
     distance: 28, hitbox: { halfW: 3.8, front: 2.4 }, hitY: 5.2, sway: 0.25,
     enterTime: 1.5,
     firstAttack: 0.4,
-    cooldown: [1.82, 2.6],
-    phase2Cadence: 1.5,
+    cooldown: [1.7, 2.45],
+    // update 3: three phases (100-66 storm, 66-33 + forge / frost, 33-0 + candy / sky), rage at 25%
+    phases: [0.66, 0.33],
+    safeGuard: 0.3,                    // damage taken while his safe-spot step runs (storm shield)
+    phase2Cadence: 1.4,
+    phase3Cadence: 1.15,
     rotate: ['lightning', 'slam', 'orb', 'summon'],
+    rotate2: ['embers', 'lightning', 'freeze', 'orb', 'slam', 'summon'],
+    rotate3: ['gumball', 'embers', 'grawl', 'freeze', 'lightning', 'summon', 'orb'],
     attacks: [
       { id: 'slam', weight: 1, minPhase: 1, telegraph: 1.15, radius: 2.2, count: 1, count2: 2, stagger: 0.55 },
       { id: 'orb', weight: 1, minPhase: 1, telegraph: 1.15, radius: 1.35, count: 4, count2: 6, flight: 0.7, stagger: 0.16, spread: 2.6 },
       { id: 'summon', weight: 1, minPhase: 1, windup: 1.0, count: 22, perTier: 6, count2: 32, max: 60, hpPerTier: 0.75,
         mix: { grunt: 0.7, runner: 0.3 }, mix2: { grunt: 0.52, runner: 0.25, bomber: 0.08, shield: 0.15 } },
       { id: 'lightning', weight: 1, minPhase: 1, telegraph: 1.2, halfW: 1.25, count: 2, count2: 3, stagger: 0.45 },
+      // phase 2: Volcanic Forge ember rain + Frozen Peaks freeze lane
+      { id: 'embers', weight: 1, minPhase: 2, telegraph: 1.15, radius: 1.0, count: 5, count2: 7, stagger: 0.12, spread: 3.0 },
+      { id: 'freeze', weight: 1, minPhase: 2, telegraph: 1.2, halfW: 1.3, life: 2.8, rate: 7 },
+      // phase 3: Candy Kingdom rolling gumball + Sky Bridge Grawlstone rock slam
+      { id: 'gumball', weight: 1, minPhase: 3, telegraph: 1.5, launch: 0.75, halfW: 1.5, hp: 0 },
+      { id: 'grawl', weight: 1, minPhase: 3, telegraph: 1.15, radius: 2.3, count: 2, gap: 0.55 },
     ],
   },
 };
 
 export function bossDef(type) { return BOSSES[type] || BOSSES.grawlstone; }
 
-/** Cooldown divisor from level boss tier (1..5) and fight phase (1|2). */
+/** Cooldown divisor from level boss tier (1..5) and fight phase (1|2|3). */
 export function cadenceFor(def, tier = 1, phase = 1) {
-  return (1 + 0.2 * (Math.max(1, tier) - 1)) * (phase === 2 ? def.phase2Cadence : 1);
+  return (1 + 0.2 * (Math.max(1, tier) - 1)) * (phase >= 2 ? def.phase2Cadence : 1) * (phase >= 3 ? def.phase3Cadence || 1 : 1);
 }
 
 // ---------------- update 3: world skins ----------------

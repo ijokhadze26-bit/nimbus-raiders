@@ -9,6 +9,8 @@ import { runTrackFor } from './tracks.js';
 
 const POP_PITCH = { grunt: 1, runner: 1.28, tank: 0.68, shield: 0.88, bomber: 1.1 };
 const BOSS_ATTACK = { slam: 'slam', roll: 'rumble', orb: 'orb', orbs: 'orb', volley: 'orb', summon: 'summon', puddle: 'summon', charge: 'charge', lightning: 'lightning', strike: 'lightning' };
+// update 3 (bosses-upgrade): its own statement so other builders' additions to the map above do not conflict
+Object.assign(BOSS_ATTACK, { safespot: 'safeBlast', embers: 'embers', freeze: 'freeze', cane: 'cane' });
 
 export function bindAudio(audio, game) {
   const ev = game.events;
@@ -153,6 +155,8 @@ export function bindAudio(audio, game) {
     fx('warn', { duration: p.duration }); dip(0.3, 0.25);
   });
   on('hazard:sfx', (p) => { if (p.sfx) fx(p.sfx, p.opts); });
+  on('boss:rage', () => { fx('rage'); dip(0.4, 1.0); });             // update 3: RAGE at 25%
+  on('boss:safespot', (p) => fx('safeAlarm', { duration: p.duration }));
   on('boss:attack', (p) => { fx(BOSS_ATTACK[p.attack] || 'slam'); if (p.attack === 'slam') dip(0.3, 0.3); });
   on('boss:defeated', () => {
     if (audio.music) audio.music.stop(1.0);
