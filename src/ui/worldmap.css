@@ -1,0 +1,216 @@
+/* World map (update 3): 5 themed world bands on one vertical scroll, world chips, level / boss nodes. */
+.screen-map { background: #140d36; }
+.map-scroll {
+  position: absolute; inset: 0; z-index: 0; overflow-y: auto; overflow-x: hidden; touch-action: pan-y; -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; overscroll-behavior: contain;
+  padding-top: var(--safe-t); /* notch: the top bar moves down by the inset, so does the top of the map */
+}
+.map-scroll::-webkit-scrollbar { display: none; }
+.map-inner { position: relative; width: 100%; touch-action: pan-y; background: linear-gradient(180deg, #140d36 0 50%, #f3fbff 50% 100%); }
+
+/* ---------- world bands ---------- */
+.wm-band { position: absolute; left: 0; right: 0; overflow: hidden; }
+.wm-band.w-sky { background: linear-gradient(0deg, #f3fbff 0%, #c4e8ff 18%, #8dd0ff 45%, #5aa8f2 75%, #3a86e4 100%); }
+.wm-band.w-forge { background: linear-gradient(0deg, #ff7a2b 0%, #c23a18 8%, #7a1e14 30%, #4a1410 64%, #2c0c0b 100%); }
+.wm-band.w-frost { background: linear-gradient(0deg, #f4fbff 0%, #d6f1ff 22%, #a6dcf6 50%, #79b4e4 80%, #5a86c8 100%); }
+.wm-band.w-candy { background: linear-gradient(0deg, #ffe6f5 0%, #ffc0e6 25%, #ff9fd8 50%, #e195f0 78%, #b98aff 100%); }
+.wm-band.w-citadel { background: linear-gradient(0deg, #4f3d9e 0%, #35287a 30%, #221a58 62%, #140d36 100%); }
+.wm-decor { position: absolute; inset: 0; pointer-events: none; }
+.wm-decor > * { position: absolute; }
+.wm-dec { height: auto; overflow: visible; }
+.wm-seam { left: 0; bottom: 0; display: block; }
+/* a locked world keeps its colours but its scenery is muted (static filter, painted once); the seam is left as is */
+.wm-band.w-locked .wm-decor > :not(.wm-seam) { filter: saturate(0.45) brightness(0.88); }
+.wm-band:not(.near) .anim { animation-play-state: paused; }
+
+/* sky: clouds + floating islands */
+.wm-cloud {
+  width: calc(190px * var(--s)); height: calc(54px * var(--s)); border-radius: 999px; background: #fff;
+  box-shadow: inset 0 -8px 0 rgba(160, 200, 240, 0.55);
+}
+.wm-cloud::before, .wm-cloud::after { content: ''; position: absolute; background: inherit; border-radius: 50%; }
+.wm-cloud::before { width: 44%; height: 150%; left: 14%; bottom: 30%; }
+.wm-cloud::after { width: 34%; height: 120%; left: 48%; bottom: 36%; }
+.wm-cloud.anim { animation: wm-drift var(--d) ease-in-out infinite alternate; }
+@keyframes wm-drift { from { translate: -14px 0; } to { translate: 18px 0; } }
+.wm-island { width: calc(80px * var(--s)); height: calc(64px * var(--s)); }
+.wm-island::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 34%; border-radius: 50%; background: linear-gradient(180deg, #8fe57a, #4fb85a); box-shadow: 0 3px 0 #3a8f45; z-index: 1; }
+.wm-island::after { content: ''; position: absolute; left: 12%; right: 12%; top: 16%; bottom: 0; background: linear-gradient(180deg, #c9a77f, #8f7563); clip-path: polygon(0 0, 100% 0, 62% 100%, 46% 82%); }
+
+/* forge: volcano glow, embers */
+.wm-glow { border-radius: 50%; background: radial-gradient(closest-side, rgba(255, 190, 60, 0.85), rgba(255, 90, 20, 0)); }
+.wm-glow.anim { animation: wm-pulse 2.4s ease-in-out infinite alternate; }
+@keyframes wm-pulse { from { opacity: 0.45; } to { opacity: 1; } }
+.wm-ember { width: calc(5px * var(--z)); height: calc(5px * var(--z)); border-radius: 50%; background: #ffc04a; box-shadow: 0 0 6px 2px rgba(255, 120, 30, 0.75); }
+/* frost: snow dots */
+.wm-snow { width: calc(6px * var(--z)); height: calc(6px * var(--z)); border-radius: 50%; background: #fff; box-shadow: 0 0 3px rgba(255, 255, 255, 0.9); }
+/* candy: sprinkles */
+.wm-sprinkle { width: 14px; height: 5px; border-radius: 3px; background: var(--c); box-shadow: 0 1px 0 rgba(142, 23, 99, 0.4); }
+/* citadel: storm clouds, lightning, sparks */
+.wm-cloud.wm-storm { background: #4b3f86; box-shadow: inset 0 -8px 0 rgba(20, 13, 54, 0.45); }
+.wm-bolt { filter: drop-shadow(0 0 8px rgba(255, 230, 120, 0.9)); opacity: 0; }
+.wm-bolt.anim { animation: wm-flash var(--d) linear var(--o) infinite; }
+@keyframes wm-flash { 0%, 86%, 100% { opacity: 0; } 88% { opacity: 1; } 90% { opacity: 0.2; } 93% { opacity: 1; } 96% { opacity: 0; } }
+.wm-spark { width: calc(3px * var(--z)); height: calc(3px * var(--z)); border-radius: 50%; background: #e8dcff; box-shadow: 0 0 5px #c9b0ff; }
+@media (prefers-reduced-motion: reduce) { .wm-band .anim { animation: none; } .wm-bolt { opacity: 0.8; } }
+
+/* ---------- world banner (the gate at each world's entrance) ---------- */
+.wm-banner {
+  position: absolute; left: 50%; transform: translateX(-50%); z-index: 4; width: min(292px, 80%);
+  display: flex; flex-direction: column; align-items: center; padding: 8px 12px 10px; border-radius: 20px; text-align: center; pointer-events: none;
+  background: linear-gradient(180deg, var(--c1), var(--c2)); border: 3px solid var(--c3); box-shadow: 0 6px 0 var(--c3), 0 12px 18px rgba(8, 26, 80, 0.35);
+}
+.wm-banner::before, .wm-banner::after {
+  content: ''; position: absolute; top: 22px; width: 30px; height: 46px; z-index: -1;
+  background: var(--c2); border: 3px solid var(--c3); filter: brightness(0.8);
+}
+.wm-banner::before { left: -22px; clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 35% 50%); border-radius: 6px 0 0 6px; }
+.wm-banner::after { right: -22px; clip-path: polygon(0 0, 100% 0, 65% 50%, 100% 100%, 0 100%); border-radius: 0 6px 6px 0; }
+.wm-bn-tag, .wm-bn-name { color: #fff; paint-order: stroke fill; white-space: nowrap; }
+.wm-bn-tag { font-size: 14px; letter-spacing: 3px; -webkit-text-stroke: 3.5px var(--c3); }
+.wm-bn-name { font-size: clamp(22px, 7.4cqw, 30px); line-height: 1.05; letter-spacing: 0.5px; -webkit-text-stroke: 6px var(--c3); text-shadow: 0 3px 0 var(--c3); }
+.wm-bn-sub {
+  margin-top: 6px; display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 4px 12px 5px; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.95); border: 2px solid var(--c3); color: var(--outline); font-size: 15px; white-space: nowrap;
+}
+.wm-bn-sub b { font-weight: 400; overflow: hidden; text-overflow: ellipsis; }
+.wm-bn-sub .ico { flex-shrink: 0; font-size: 19px; color: #ffc531; stroke: var(--outline); stroke-width: 1.6px; paint-order: stroke; }
+.wm-bn-sub.lk { background: #262b4c; border-color: #0f1230; color: #fff; font-size: 13px; letter-spacing: 0.5px; }
+.wm-bn-sub.lk .ico { stroke: none; font-size: 18px; }
+.wm-band.w-locked .wm-banner { filter: saturate(0.55); }
+
+/* ---------- road ---------- */
+.map-path { position: absolute; left: 0; top: 0; z-index: 1; pointer-events: none; overflow: visible; }
+.map-path path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.map-path .p-shadow { stroke: rgba(14, 36, 100, 0.3); stroke-width: 30; transform: translateY(7px); }
+.map-path .p-base { stroke: #ffffff; stroke-width: 24; }
+.map-path .p-done { stroke: #ffc531; stroke-width: 24; }
+.map-path .p-dash { stroke: rgba(27, 58, 138, 0.28); stroke-width: 5; stroke-dasharray: 1 16; }
+
+/* ---------- nodes ---------- */
+.map-node {
+  --ring: #59c1ff; --d1: #74d4ff; --d2: #2f8cff; --d3: #143f9a; --sz: 72px;
+  position: absolute; width: var(--sz); height: var(--sz); margin: calc(var(--sz) / -2) 0 0 calc(var(--sz) / -2); padding: 0; border: 0; background: none; cursor: pointer; z-index: 3;
+}
+.map-node.k-mini { --sz: 84px; }
+.map-node.k-boss { --sz: 104px; --d1: #ff8f8f; --d2: #ff3b4e; --d3: #8e0f22; }
+.map-node .disc {
+  position: absolute; inset: 0; border-radius: 50%; display: grid; place-items: center;
+  background: radial-gradient(circle at 36% 28%, rgba(255, 255, 255, 0.85) 0 12%, transparent 13%), linear-gradient(180deg, var(--d1), var(--d2));
+  border: 5px solid #fff; box-shadow: 0 0 0 4px var(--ring), 0 0 0 7px var(--d3), 0 8px 0 7px rgba(14, 36, 100, 0.45);
+  transition: transform 0.1s ease;
+}
+.map-node:active .disc { transform: translateY(4px) scale(0.95); }
+.map-node .num { font-size: 32px; -webkit-text-stroke: 5px var(--d3); paint-order: stroke fill; text-shadow: 0 3px 0 var(--d3); }
+.map-node.k-mini .num { font-size: 36px; }
+.map-node .lock { display: none; font-size: 32px; }
+.map-node .stars { position: absolute; left: 50%; bottom: -22px; transform: translateX(-50%); display: flex; gap: 0; z-index: 3; }
+.map-node .stars .ico { font-size: 24px; color: #8a98bf; stroke: var(--outline); stroke-width: 1.8px; paint-order: stroke; }
+.map-node .stars .s2 { translate: 0 5px; font-size: 26px; }
+.map-node[data-stars="1"] .s1, .map-node[data-stars="2"] .s1, .map-node[data-stars="2"] .s2, .map-node[data-stars="3"] .ico { color: #ffc531; }
+.map-node:not(.done) .stars { display: none; }
+.map-node.done { --d1: #ffe36b; --d2: #ffae1a; --d3: #a85400; }
+.map-node.current { --d1: #8af07a; --d2: #2fbf4f; --d3: #17702d; z-index: 4; }
+.map-node.k-boss.current { --d1: #ff8f8f; --d2: #ff3b4e; --d3: #8e0f22; }
+.map-node.current .disc { animation: node-bounce 1.2s ease-in-out infinite; }
+.map-node.current::after {
+  content: ''; position: absolute; inset: -12px; border-radius: 50%; border: 4px solid rgba(255, 255, 255, 0.9);
+  animation: node-ring 1.6s ease-out infinite; pointer-events: none;
+}
+.map-node.locked { --d1: #d7deec; --d2: #a3afc8; --d3: #5d6a89; --ring: #c3cde0; }
+.map-node.locked .num { display: none; }
+.map-node.locked .lock { display: block; }
+.map-node.nope .disc { animation: nope 0.35s ease; }
+.map-node.soon .disc { opacity: 0.85; }
+.map-node.soon .stars { display: none; }
+/* boss: crowned horned skull, the level number on a tag */
+.map-node .wm-skull { width: 66%; height: 66%; margin-top: -6px; filter: drop-shadow(0 3px 0 rgba(60, 8, 20, 0.45)); }
+.map-node.k-boss .num {
+  position: absolute; left: 50%; bottom: -10px; transform: translateX(-50%); min-width: 38px; padding: 1px 8px 3px; border-radius: 999px;
+  font-size: 19px; line-height: 1.1; background: var(--d3); border: 3px solid #fff; -webkit-text-stroke: 3px var(--d3); text-shadow: none;
+}
+.map-node.k-boss.locked .lock { position: absolute; left: 50%; bottom: -14px; transform: translateX(-50%); font-size: 30px; }
+.map-node.k-boss.locked .wm-skull, .map-node.k-boss.locked .wm-crown { filter: grayscale(1) brightness(0.95); opacity: 0.85; }
+.map-node .wm-crown { position: absolute; left: 50%; top: -26px; width: 58px; height: 29px; margin-left: -29px; z-index: 2; filter: drop-shadow(0 3px 0 rgba(14, 36, 100, 0.35)); }
+.map-node.k-boss.current .wm-crown { animation: node-bounce 1.2s ease-in-out infinite; }
+/* mini-boss badge */
+.map-node .wm-mini { position: absolute; right: -8px; top: -8px; width: 32px; height: 32px; z-index: 2; filter: drop-shadow(0 2px 0 rgba(14, 36, 100, 0.4)); }
+.map-node.locked .wm-mini { filter: grayscale(1); }
+/* Pip stands on the current node */
+.map-node .pip { position: absolute; left: 50%; top: -58px; width: 52px; height: 52px; margin-left: -26px; z-index: 3; animation: pip-bob 1.2s ease-in-out infinite; pointer-events: none; }
+.map-node.k-boss .pip { top: -86px; }
+.map-node .pip svg { width: 100%; height: 100%; filter: drop-shadow(0 3px 0 rgba(14, 36, 100, 0.35)); }
+@keyframes node-bounce { 0%, 100% { translate: 0 0; } 50% { translate: 0 -5px; } }
+@keyframes node-ring { from { scale: 0.8; opacity: 1; } to { scale: 1.4; opacity: 0; } }
+@keyframes pip-bob { 0%, 100% { translate: 0 0; } 50% { translate: 0 -8px; } }
+@keyframes nope { 0%, 100% { translate: 0; } 25% { translate: -7px 0; } 75% { translate: 7px 0; } }
+
+/* ---------- labels ---------- */
+.map-label {
+  position: absolute; transform: translateY(-50%); z-index: 3; display: flex; flex-direction: column; align-items: flex-start; gap: 0;
+  padding: 5px 12px 6px; border-radius: 14px; background: rgba(255, 255, 255, 0.95); border: 3px solid var(--outline);
+  box-shadow: 0 4px 0 var(--outline); pointer-events: none; max-width: 42%;
+}
+.map-label:not(.right) { align-items: flex-end; }
+.map-label .n { font-size: 12px; letter-spacing: 1px; color: var(--blue); white-space: nowrap; }
+.map-label .t { font-size: 16px; color: var(--outline); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.map-label.locked { filter: saturate(0.4) brightness(0.92); }
+.map-label .t.soon { font-size: 13px; letter-spacing: 1px; color: #5d6a89; }
+.map-label.k-boss { background: linear-gradient(180deg, #ff8f8f, #ff3b4e); border-color: #8e0f22; box-shadow: 0 4px 0 #8e0f22; }
+.map-label.k-mini { background: linear-gradient(180deg, #c99bff, #8a4dff); border-color: #48208f; box-shadow: 0 4px 0 #48208f; }
+.map-label.k-boss .n, .map-label.k-mini .n { color: #fff3b8; }
+.map-label.k-boss .t, .map-label.k-mini .t { color: #fff; font-size: 17px; -webkit-text-stroke: 3.5px #5a0a18; paint-order: stroke fill; }
+.map-label.k-mini .t { -webkit-text-stroke-color: #2e1270; }
+/* long boss names (TEMPEST KING beside a centred node) wrap to two lines instead of an ellipsis */
+.map-label.k-boss .t:not(.soon), .map-label.k-mini .t:not(.soon) { white-space: normal; line-height: 1.05; overflow-wrap: anywhere; }
+.map-label.k-boss:not(.right) .t, .map-label.k-mini:not(.right) .t { text-align: right; }
+.map-label.k-boss .t.soon, .map-label.k-mini .t.soon { font-size: 12px; -webkit-text-stroke-width: 3px; }
+
+/* ---------- chrome: top bar, world chips, fades, PLAY ---------- */
+.screen-map .topbar { padding-bottom: 12px; }
+.wm-chips {
+  position: absolute; z-index: 3; top: calc(var(--safe-t) + 80px); left: calc(var(--safe-l) + 10px); right: calc(var(--safe-r) + 10px);
+  display: flex; gap: 4px; padding: 4px; border-radius: 18px; background: rgba(10, 28, 80, 0.5); border: 3px solid rgba(255, 255, 255, 0.85);
+}
+.wm-chip {
+  position: relative; flex: 1; min-width: 0; min-height: 50px; padding: 3px 2px 4px; border: 0; border-radius: 13px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; opacity: 0.8;
+  background: linear-gradient(180deg, var(--c1), var(--c2)); box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.18), 0 3px 0 var(--c3);
+  transition: transform 0.08s ease, opacity 0.15s ease;
+}
+.wm-chip .g { display: grid; place-items: center; }
+.wm-chip .g .ico { font-size: 22px; filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.25)); }
+.wm-chip .t { font-size: 12px; letter-spacing: 0.4px; color: #fff; -webkit-text-stroke: 3px var(--c3); paint-order: stroke fill; white-space: nowrap; }
+.wm-chip .l { display: none; position: absolute; top: -7px; right: -5px; }
+.wm-chip .l .ico { font-size: 20px; filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.4)); }
+.wm-chip.on { opacity: 1; box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.18), 0 3px 0 var(--c3), 0 0 0 3px #fff; }
+.wm-chip.locked { filter: grayscale(0.85); }
+.wm-chip.locked .l { display: block; }
+.wm-chip:active { transform: scale(0.94); }
+.wm-chip:focus-visible { outline: 3px solid #ffe36b; }
+.map-fade {
+  position: absolute; left: 0; right: 0; top: 0; height: calc(var(--safe-t) + 168px); z-index: 2; pointer-events: none;
+  background: linear-gradient(180deg, rgba(12, 16, 60, 0.88), rgba(12, 16, 60, 0.7) 62%, rgba(12, 16, 60, 0));
+}
+.map-footer {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; display: flex; justify-content: center;
+  padding: 40px 16px calc(var(--safe-b) + 26px); pointer-events: none;
+  background: linear-gradient(0deg, rgba(14, 40, 110, 0.55), rgba(14, 40, 110, 0));
+}
+.map-footer .btn { pointer-events: auto; }
+/* "WORLD 2 · LEVEL 14" under PLAY (map footer + title) */
+.btn .col .sub.wl { letter-spacing: 1px; font-size: 14px; }
+
+/* loadout: world name + what ends the level */
+.lo-world { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.lo-wname {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 400 13px/1.1 var(--font-display); letter-spacing: 1px;
+  color: var(--wc, #fff); -webkit-text-stroke: 3px var(--outline); paint-order: stroke fill;
+}
+.lo-tag {
+  flex-shrink: 0; padding: 2px 9px 3px; border-radius: 999px; font: 400 12px/1.1 var(--font-display); letter-spacing: 1px; color: #fff;
+  border: 2px solid #fff; -webkit-text-stroke: 2.5px var(--tc); paint-order: stroke fill; background: var(--tb); box-shadow: 0 2px 0 var(--tc);
+}
+.lo-tag.t-boss { --tb: #ff3b4e; --tc: #8e0f22; }
+.lo-tag.t-mini { --tb: #8a4dff; --tc: #48208f; }
+.lo-tag.t-rush { --tb: #ffae1a; --tc: #a85400; }
