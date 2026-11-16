@@ -8,6 +8,8 @@
 //   - it is released `delay` s after the previous wave broke (<= 25% of it left, or PREV_MAX s after it
 //     engaged), then charges at x speed; road running out / the arena / a long hold release it early
 //   - release emits 'horde:rush' (+ a small "INCOMING!" HUD line for big rushes, at most every 8 s)
+//   - a hidden gate's screen (event `gateAt`) keeps all its waves in front of the gate (fitScreen) and its held
+//     wave stands there instead of walking back, so the gate is uncovered by shooting through (gates.js reveal)
 import { WAVES } from '../data/enemies.js';
 
 export const HOLD_AT = 40;
@@ -45,8 +47,22 @@ export function splitCounts(plan, n) {
   return out;
 }
 
+/** stand: a hidden gate's screen (ev.gateAt) - its held wave stands in front of the gate instead of walking back. */
 export function makeWave(k, n, spec, prev, ev) {
-  return { k, n, alive: 0, go: k === 0, engaged: false, locked: false, goT: 0, wait: 0, holdT: 0, delay: spec.delay ?? 1.6, speed: spec.speed ?? 1, prev, rush: !!ev.rush, last: false, at: ev.at };
+  return { k, n, alive: 0, go: k === 0, engaged: false, locked: false, goT: 0, wait: 0, holdT: 0, delay: spec.delay ?? 1.6, speed: spec.speed ?? 1, prev, rush: !!ev.rush, last: false, at: ev.at, stand: ev.gateAt != null };
+}
+
+const SCREEN_GAP = 1.2; // a screen's back row stays this far in front of its gate
+/**
+ * Hidden gate screen (event `gateAt`, data/harder.js): the waves are laid out one behind the other, so the rush
+ * sub-blob would stand on (or past) the gate row and the gate would be screened by the probe only. Shifts the
+ * enemies placed since index n0 toward the squad so the back row (z `back`) stays in front of the gate.
+ */
+export function fitScreen(list, n0, back, ev) {
+  if (ev.gateAt == null) return;
+  const dz = -ev.gateAt + SCREEN_GAP - back;
+  if (dz <= 0) return;
+  for (let i = n0; i < list.length; i++) list[i].z += dz;
 }
 
 /** Once per step (before the enemy loop): release held waves; drop finished ones. */

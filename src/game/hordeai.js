@@ -250,7 +250,7 @@ function lob(h, e) {
   s.z1 = m.z - h.fwd * s.T; // where that member will be when it lands
   s.r = S.r; s.t = 0;
   s.kills = e.elite ? ELITE.spitKills : S.kills;
-  s.zone.x = s.x1; s.zone.z = s.z1; s.zone.r = s.r;
+  s.zone.x = s.x1; s.zone.z = s.z1; s.zone.r = s.r; s.zone.cap = s.kills; // the autopilot weighs it as <= kills members
   h.shots.push(s);
   h.aiStats.spits++;
   e.glow = 1;

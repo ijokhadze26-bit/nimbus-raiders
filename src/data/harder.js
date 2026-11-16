@@ -23,7 +23,7 @@ export function newTypeShares(wi, p, intro = false) {
   const s = {};
   if (wi < 0) return s;
   const k = (intro ? 0.5 : 1) * (wi === 3 ? 1.3 : 1);
-  if (p > 0.2) s.blaster = (0.025 + 0.01 * wi + 0.03 * p) * k;
+  if (p > 0.2) s.blaster = (0.015 + 0.006 * wi + 0.018 * p) * k; // a burst kills 8 (a Fizzbomb 4): x0.6 at integration
   if (p > 0.3) s.healer = (0.018 + 0.004 * wi) * k;
   if (wi >= 1 && p > 0.25) s.sniper = (0.012 + 0.014 * p) * k;
   if (wi >= 1 && p > 0.35) s.spawner = (0.005 + 0.002 * wi) * k;
@@ -134,7 +134,8 @@ function hidePass(def, r, wi, intro) {
     const good = worth(row.L) >= worth(row.R) ? 'L' : 'R';
     const lane = r.chance(0.6) ? good : good === 'L' ? 'R' : 'L';
     const count = Math.min(60, Math.round((14 + 46 * p) * (1 + 0.12 * wi)));
-    def.events.push(horde(at - SCREEN_DZ, count, { ...SCREEN_MIX }, lane, { screen: true }));
+    // gateAt: horde.js keeps every wave of the screen in front of this row, and its held rush stands its ground
+    def.events.push(horde(at - SCREEN_DZ, count, { ...SCREEN_MIX }, lane, { screen: true, gateAt: at }));
     row[lane].hidden = true;
     placed++;
   }

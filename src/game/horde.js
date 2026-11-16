@@ -13,7 +13,7 @@ import { hasHit } from './bullets.js';
 import { HIT } from '../config.js';
 import * as ops from './hordeops.js';
 import * as AI from './hordeai.js';
-import { planFor, splitCounts, makeWave, updateWaves, waveInfo, HOLD_AT } from './hordewaves.js';
+import { planFor, splitCounts, makeWave, updateWaves, waveInfo, fitScreen, HOLD_AT } from './hordewaves.js';
 import { Rng } from '../core/rng.js';
 
 export const ALIVE = 0, DYING = 1, SWELL = AI.SWELL;
@@ -122,21 +122,25 @@ export class Horde {
     for (let i = types.length - 1; i > 0; i--) { const j = rng.int(0, i); const t = types[i]; types[i] = types[j]; types[j] = t; }
     const elite = eliteFlags(ev, types);
     const plan = split ? planFor(this.game, ev) : null;
+    const n0 = this.list.length;
+    let back;
     if (!plan) {
-      this.layout(types, elite, 0, types.length, cx, width, -ev.at + (ev.depth ? ev.depth / 2 : Math.sqrt(count) * 0.32), hpMul, null);
+      back = this.layout(types, elite, 0, types.length, cx, width, -ev.at + (ev.depth ? ev.depth / 2 : Math.sqrt(count) * 0.32), hpMul, null);
     } else {
       const counts = splitCounts(plan, types.length);
       let z = -ev.at + Math.sqrt(counts[0]) * 0.32, start = 0, prev = null;
       for (let k = 0; k < counts.length; k++) {
         const w = makeWave(k, counts[k], plan[k], prev, ev);
         w.last = k === counts.length - 1;
-        z = this.layout(types, elite, start, start + counts[k], cx, width, z, hpMul, w) - WAVE_GAP;
+        back = this.layout(types, elite, start, start + counts[k], cx, width, z, hpMul, w);
+        z = back - WAVE_GAP;
         start += counts[k];
         this.waves.push(w);
         prev = w;
       }
       this.waveStats.split++;
     }
+    fitScreen(this.list, n0, back, ev); // a hidden gate's screen (every wave) stays in front of its gate
     this.game.events.emit('horde:incoming', { count });
   }
 
@@ -237,7 +241,7 @@ export class Horde {
       const w = e.wave;
       if (w && !w.go) { // a held wave waits at the edge of view (keeps its distance to the squad)
         if (!w.locked && ahead < HOLD_AT) w.locked = true;
-        if (w.locked && e.freezeT <= 0) e.z += dLz;
+        if (w.locked && e.freezeT <= 0 && !w.stand) e.z += dLz; // a gate screen stands its ground
       } else if (!e.charging && ahead < AGGRO) { e.charging = true; if (w) w.engaged = true; }
       if (e.charging && e.freezeT <= 0) { // frozen: no charge, sway or step
         const d = e.def;

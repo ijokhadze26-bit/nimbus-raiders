@@ -5,11 +5,12 @@
 // is tested against each hazard; power tokens (and coins when idle) are grabbed when the path is safe.
 // Update 3 world hazards: their telegraphs (flagged `hazard`) are not dodged as boss attacks; the squad keeps out
 // of game.hazards.danger zones instead (same hard filter as blades / gaps, zones may carry pad / shift / w, and
-// look: lined up for only this late, e.g. a bridge whose danger is at its far end).
+// look: lined up for only this late, e.g. a bridge whose danger is at its far end; cap: a zone that kills at
+// most cap members, e.g. a Spitling goo shot, never outweighs a gap or a blade).
 // Skill profiles (balance tests): 'pro' plays perfectly; 'casual' / 'novice' react late, misjudge close gate
 // calls, often judge a gate by its current number, dodge telegraphs late (or not at all), wobble and clip
 // hazard edges. Their randomness comes from the bot's own seeded rng (one seed per run), never game.rng.
-import { applyGate, predictGate } from './gates.js';
+import { applyGate, predictGate, REVEAL_HITS } from './gates.js';
 import { Rng } from '../core/rng.js';
 import { ALIVE } from './horde.js';
 import { TARGET_CLAMP, MEMBER_CLAMP } from '../config.js';
@@ -233,7 +234,8 @@ export class Autopilot {
       if (g.state !== 'live') continue;
       // the squad lines up with its gate GATE_ALIGN u before it at the latest: count only the shots it will
       // surely put into the gate from then on (hordes / barrels may claim the bullets before that)
-      const hits = naive ? 0 : bulletsPerSec * Math.max(0, Math.min(t, GATE_ALIGN / speed) - 0.5) * 0.8;
+      let hits = naive ? 0 : bulletsPerSec * Math.max(0, Math.min(t, GATE_ALIGN / speed) - 0.5) * 0.8;
+      if (g.hidden) hits = Math.max(0, hits - (REVEAL_HITS - g.revealHits)); // a hidden gate takes no raise hits yet
       const pred = predictGate(g, hits);
       let score = applyGate(g, count, pred.value, pred.rung);
       if (g === this.choice) score *= 1.08; // hysteresis
@@ -285,6 +287,7 @@ export class Autopilot {
     let mass = 0, near = Infinity, heads = 0;
     for (const e of h.list) {
       if (e.state !== ALIVE || e.z < zFar || e.z > zNear) continue;
+      if (e.wave && !e.wave.go) continue; // a held wave (hordewaves.js) is not coming yet: judge the engaged ones
       const m = e.hp + (e.shield || 0);
       mass += m;
       types[e.type]++; heads++;
@@ -389,6 +392,7 @@ export class Autopilot {
     let loss = 0;
     if (!squad.pipGone && inX(cx) && L.z > far - pad) loss += 3;
     for (let i = 0; i < ms.length; i += stride) if (ms[i].tz > far - pad && inX(clampX(ms[i].tx + dx))) loss += stride;
+    if (zn.cap != null && loss > zn.cap) loss = zn.cap; // a zone that kills at most cap members (Spitling goo)
     return loss * w;
   }
 

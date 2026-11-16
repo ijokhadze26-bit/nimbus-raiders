@@ -299,7 +299,7 @@ class HeroFx {
       this.rally.left -= dt;
       if (this.rally.left <= 0) {
         const ms = g.squad.members, n = Math.min(this.rally.n, ms.length), vz = this.vz;
-        for (let i = 0, k = B.n(Math.min(n, 24)); i < k; i++) {
+        for (let i = 0, k = n > 0 ? B.n(Math.min(n, 24)) : 0; i < k; i++) { // (squad may be gone by now)
           const mm = ms[ms.length - 1 - Math.floor(Math.random() * n)];
           P.spawn(STAR, mm.x, 1.0, mm.z, 0, 1.2, vz, 0.5, 0.45, 0.1, pick(0x7fe0ff, 0xffffff), 1, 0.4);
         }
