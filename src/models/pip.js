@@ -119,6 +119,7 @@ export function buildPip(skin = {}) {
     scale: PIP_SCALE,
     muzzle: { x: 0.32 / PIP_SCALE, y: 0.9 / PIP_SCALE, z: -0.75 / PIP_SCALE },
     handSocket: arms[1],
+    abilityDuration: 0.6,   // Rally Call pose length (s) that `ability` 0..1 spans
     /** t = time (s), run = 0..1 run blend, vx = sideways speed, cheer = 0..1 celebration, ability = 0..1 pose */
     animate(t, run, vx = 0, cheer = 0, ability = 0) {
       if (ability > 0) cheer = Math.max(cheer, Math.sin(Math.min(1, ability) * Math.PI));

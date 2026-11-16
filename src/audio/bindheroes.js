@@ -1,6 +1,5 @@
-// Hero sound bindings (SPEC2 §3.8). FOUNDATION STUB (owned by the HEROES builder): plays def.sfx.ability on
-// ability:use, .ready on ability:ready, .guard on hero:guard and .select on loadout:change / run start.
-// Returns its unsubscribe functions.
+// Hero sound bindings (SPEC2 §3.8): plays def.sfx.ability on ability:use, .ready on ability:ready, .guard on
+// hero:guard and .select on loadout:change (menus) / run start. Returns its unsubscribe functions.
 import { heroDef } from '../data/heroes.js';
 
 export function bindHeroes(audio, game) {
