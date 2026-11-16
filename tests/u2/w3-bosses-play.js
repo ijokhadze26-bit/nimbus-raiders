@@ -1,19 +1,26 @@
 // @smoke --seconds 0 --shots 0
-// Update 3 stage 2 "bosses-upgrade" quick autopilot check (slow, ~minutes): the boss levels L5, L10, L20, L40,
-// L45, L50 stay winnable with the upgraded bosses (rage, safe spots, lava Ironhorn, Candy Queen, 3-phase Tempest
-// King). Shop state per level comes from a casual campaign with the foundation-campaign upgrade rule (Pip +
-// Thunderclap); then 'pro' and 'casual' play each level with two loadouts (Pip + Thunderclap, Cinder + Emberstorm),
-// up to 3 seeds each. Pass = every (level, profile, loadout) wins within 3 tries. Reports fight seconds, the
-// squad left, boss hp left on losses, and how often the safe spot / rage happened.
+// Update 3 stage 2 "bosses-upgrade" quick autopilot check (slow, ~1 min): every boss / mini level (L5, L10, L15,
+// L20, L25 Frosthorn trails, L30 Glacius stand-in with rage + safe spot, L35, L40, L45, L50) stays winnable with
+// the upgraded bosses (rage, safe spots, lava Ironhorn, Candy Queen, 3-phase Tempest King). Shop state per level
+// comes from a casual campaign with the foundation-campaign upgrade rule (Pip + Thunderclap); then 'pro' and
+// 'casual' play each level with two loadouts (Pip + Thunderclap, Cinder + Emberstorm), up to 3 seeds each.
+// Pass = every (level, profile, loadout) wins within 3 tries. Reports per try: arena squad > squad left / fight
+// seconds, safe spots (s) and rages (r); per level the mean share of the arena squad kept; per profile the share
+// of the squad each safe-spot blast took. window.__bpGuard overrides the Tempest King's storm shield (safeGuard).
 const g = window.__game, d = g.debug;
 g.loop.stop();
 const { upgradeCost } = await import('/src/data/shop.js');
-const CHECK = window.__bpLevels || [5, 10, 20, 40, 45, 50];
+const CHECK = window.__bpLevels || [5, 10, 15, 20, 25, 30, 35, 40, 45, 50];
+const BD = await import('/src/data/bosses.js');
+const tk = BD.bossDef('tempestking'), guard0 = tk.safeGuard;
+if (window.__bpGuard != null) tk.safeGuard = window.__bpGuard;
 const LOADOUTS = window.__bpLoadouts || [['pip', 'thunderclap'], ['cinder', 'emberstorm']];
 const last = Math.max(...CHECK);
-let bossT0 = null, safes = 0, rages = 0, sq0 = 0;
+let bossT0 = null, safes = 0, rages = 0, sq0 = 0, safeN0 = 0, curProf = null;
+const safeLoss = {}; // profile -> [share of the squad each safe-spot blast took]
 g.events.on('run:phase', (p) => { if (p.phase === 'boss') { bossT0 = g.run.time; sq0 = g.squad.count; } });
-g.events.on('boss:safespot', () => safes++);
+g.events.on('boss:safespot', () => { safes++; safeN0 = g.squad.count; });
+g.events.on('boss:attack', (p) => { if (p.attack === 'safespot' && safeN0 > 0 && curProf) (safeLoss[curProf] = safeLoss[curProf] || []).push((safeN0 - g.squad.count) / safeN0); });
 g.events.on('boss:rage', () => rages++);
 const buy = () => {
   for (let k = 0; k < 60; k++) {
@@ -53,6 +60,7 @@ for (const id of CHECK) {
       d.setLoadout(hero, weapon, { save: true });
       const tries = [];
       let won = false;
+      curProf = prof;
       for (let k = 0; k < 3 && (!won || window.__bpAll); k++) {
         const r = play(prof, 7000 + id * 13 + k * 101 + (hero === 'pip' ? 0 : 50), id);
         tries.push(r.win ? `W${r.sq0}>${r.squad}/${r.sec}s s${r.safes}r${r.rages}` : `L${r.sq0}>${r.left != null ? 'b' + r.left + '%' : 'run'}/${r.sec}s s${r.safes}r${r.rages}`);
@@ -66,7 +74,10 @@ for (const id of CHECK) {
 }
 g.save.reset();
 d.setAutopilot(false);
+tk.safeGuard = guard0;
 // share of the arena squad kept per level (mean over every try): L50 should be the hardest fight
 const kept = {};
 for (const id of CHECK) { const l = stat.filter((x) => x.id === id); kept[id] = Math.round(l.reduce((a, x) => a + x.kept, 0) / l.length * 100) + '%'; }
-return { pass: fails.length === 0, fails, camp, kept, ups: snap, rows };
+const safe = {};
+for (const [p, l] of Object.entries(safeLoss)) safe[p] = { blasts: l.length, meanLoss: Math.round(l.reduce((a, x) => a + x, 0) / l.length * 100) + '%', maxLoss: Math.round(Math.max(...l) * 100) + '%' };
+return { pass: fails.length === 0, fails, camp, kept, safe, guard: tk.safeGuard, ups: snap, rows };

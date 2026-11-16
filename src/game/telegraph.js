@@ -95,13 +95,20 @@ const wallGeo = new THREE.CylinderGeometry(1, 1, 1, 48, 1, true).translate(0, 0.
 const ringGeo = new THREE.RingGeometry(0.9, 1, 56).rotateX(-Math.PI / 2);
 // safe spot: the red sheet covers the road (x within ROAD_HW) from SAFE_FAR ahead of the hole to SAFE_NEAR behind
 const ROAD_HW = 5.3, SAFE_FAR = 16, SAFE_NEAR = 9;
+/** Half-width of the safe-spot sheet: attacks.safeSpot keeps |x| + r inside it (minus a margin). */
+export const SAFE_HW = ROAD_HW;
 const SAFE_COLOR = '#3dff8a', DANGER_COLOR = '#ff2a3a';
 
-/** Road rectangle with a round hole of radius r at local (hx, 0) (group sits at x = 0, z = hole z). */
+/**
+ * Road rectangle with a round hole of radius r at local (hx, 0) (group sits at x = 0, z = hole z). The hole must
+ * stay inside the outer contour (earcut drops or mangles a hole that crosses it), so the sheet widens past the road
+ * edge for a hole that would touch it (safeSpot keeps holes inside SAFE_HW; this is the safety net).
+ */
 function safeSheet(hx, r) {
+  const hw = Math.max(ROAD_HW, Math.abs(hx) + r + 0.15);
   const sh = new THREE.Shape();
   // shape is drawn in (x, -z) and rotated flat, so +y here is -z (toward the boss)
-  sh.moveTo(-ROAD_HW, -SAFE_NEAR); sh.lineTo(ROAD_HW, -SAFE_NEAR); sh.lineTo(ROAD_HW, SAFE_FAR); sh.lineTo(-ROAD_HW, SAFE_FAR); sh.lineTo(-ROAD_HW, -SAFE_NEAR);
+  sh.moveTo(-hw, -SAFE_NEAR); sh.lineTo(hw, -SAFE_NEAR); sh.lineTo(hw, SAFE_FAR); sh.lineTo(-hw, SAFE_FAR); sh.lineTo(-hw, -SAFE_NEAR);
   const hole = new THREE.Path();
   hole.absarc(hx, 0, r, 0, Math.PI * 2, true);
   sh.holes.push(hole);
@@ -111,6 +118,21 @@ function safeSheet(hx, r) {
   for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) / 2.2, p.getZ(i) / 2.2);
   return g;
 }
+
+/** Triangle area of a flat (rotated) safe sheet geometry (tests: rectangle minus the hole). */
+export function sheetArea(geo) {
+  const p = geo.attributes.position, idx = geo.index;
+  const n = idx ? idx.count : p.count;
+  let a = 0;
+  for (let i = 0; i < n; i += 3) {
+    const i0 = idx ? idx.getX(i) : i, i1 = idx ? idx.getX(i + 1) : i + 1, i2 = idx ? idx.getX(i + 2) : i + 2;
+    const ax = p.getX(i1) - p.getX(i0), az = p.getZ(i1) - p.getZ(i0), bx = p.getX(i2) - p.getX(i0), bz = p.getZ(i2) - p.getZ(i0);
+    a += Math.abs(ax * bz - az * bx) / 2;
+  }
+  return a;
+}
+/** Sheet half-width for a hole at hx with radius r (matches safeSheet). */
+export const sheetHalfW = (hx, r) => Math.max(ROAD_HW, Math.abs(hx) + r + 0.15);
 
 export class Telegraph {
   init(game) {
@@ -160,7 +182,7 @@ export class Telegraph {
       const wall = new THREE.Mesh(wallGeo, mat({ map: beamTex, side: THREE.DoubleSide, opacity: 0.85 }));
       const top = new THREE.Mesh(ringGeo, mat({ opacity: 0.9, side: THREE.DoubleSide }));
       group.add(sheet, roof, disc, ring, wall, top);
-      v = { group, sheet, roof, disc, ring, wall, top, tex, hx: 0, r: 2 };
+      v = { group, sheet, roof, disc, ring, wall, top, tex, hx: 0, r: 2, parts: [disc, ring, wall, top] };
     } else {
       const tex = stripeTex.clone();
       tex.needsUpdate = true;
@@ -194,7 +216,7 @@ export class Telegraph {
       const v = h.v;
       if (v.hx !== h.x || v.r !== h.r) { v.sheet.geometry.dispose(); v.sheet.geometry = v.roof.geometry = safeSheet(h.x, h.r); v.hx = h.x; v.r = h.r; }
       const sc = h.safeColor || SAFE_COLOR;
-      for (const m of [v.disc, v.ring, v.wall, v.top]) m.material.color.set(sc);
+      for (const m of v.parts) m.material.color.set(sc);
     }
     this.game.scene.add(h.v.group);
     this.list.push(h);
@@ -271,7 +293,7 @@ export class Telegraph {
         v.roof.material.opacity = (after > 0 ? 0.45 : 0.1 + 0.16 * p + 0.06 * pulse) * fade * Math.min(1, h.t / 0.2);
         if (after > 0) v.sheet.material.color.setRGB(1, 0.85, 0.8); else v.sheet.material.color.set(h.color || DANGER_COLOR);
         const pop = Math.min(1, h.t / 0.2);
-        for (const m of [v.disc, v.ring, v.wall, v.top]) m.position.x = h.x;
+        for (let k = 0; k < v.parts.length; k++) v.parts[k].position.x = h.x;
         v.disc.scale.setScalar(h.r * pop);
         v.disc.material.opacity = (0.7 + 0.3 * pulse) * fade;
         v.ring.scale.setScalar(h.r * pop * (1 + 0.04 * pulse));

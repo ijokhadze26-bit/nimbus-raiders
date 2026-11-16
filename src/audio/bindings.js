@@ -8,8 +8,9 @@ import { bindHeroes } from './bindheroes.js';
 import { runTrackFor } from './tracks.js';
 
 const POP_PITCH = { grunt: 1, runner: 1.28, tank: 0.68, shield: 0.88, bomber: 1.1 };
-const BOSS_ATTACK = { slam: 'slam', roll: 'rumble', orb: 'orb', orbs: 'orb', volley: 'orb', summon: 'summon', puddle: 'summon', charge: 'charge', lightning: 'lightning', strike: 'lightning' ,
-  safespot: 'safeBlast', embers: 'embers', freeze: 'freeze', cane: 'cane', gumball: 'rumble' }; // update 3 (bosses-upgrade)
+const BOSS_ATTACK = { slam: 'slam', roll: 'rumble', orb: 'orb', orbs: 'orb', volley: 'orb', summon: 'summon', puddle: 'summon', charge: 'charge', lightning: 'lightning', strike: 'lightning' };
+// update 3 (bosses-upgrade): its own statement so other builders' additions to the map above do not conflict
+Object.assign(BOSS_ATTACK, { safespot: 'safeBlast', embers: 'embers', freeze: 'freeze', cane: 'cane' });
 
 export function bindAudio(audio, game) {
   const ev = game.events;

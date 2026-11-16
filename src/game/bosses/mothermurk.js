@@ -3,7 +3,8 @@
 // arc out of her crown onto red warning circles: members under a blob die, and a sticky green puddle
 // stays behind that slows the squad's sideways movement. Entrance: rises out of a goo pool. Death: melts.
 // Update 3 - CANDY QUEEN (skin 'candy', L40): a candy-flavoured attack table (def.candy): the JELLY BROOD summon
-// (pink burst; the Candy Kingdom's jelly Murklings), SYRUP puddles (caramel, slow the squad like goo) and a
+// (pink burst; each minion wears a wobbling see-through jelly shell and pops in a candy splat, effectsx.coat),
+// SYRUP puddles (caramel, slow the squad like goo) and a
 // CANDY-CANE VOLLEY (spinning canes arc out of her crown onto pink circles).
 import * as THREE from 'three';
 import { BaseBoss } from './base.js';
@@ -83,7 +84,11 @@ export class MotherMurk extends BaseBoss {
       count, mix: p2 ? spec.mix2 : spec.mix, windup: this.warnTime(spec.windup), width: 8.4, ahead: 5, color: this.candy ? '#ff7ad1' : undefined,
       hpMul: 1 + (this.tier - 1) * (spec.hpPerTier || 0) + (p2 ? 0.5 : 0),
       onWindup(f) { self.pose.swell = f; },
-      onSpawn() { self.pose.swell = 0; self.pose.squash = 1; },
+      onSpawn(a, b) {
+        self.pose.swell = 0; self.pose.squash = 1;
+        // Candy Queen: the brood comes out coated in wobbling see-through jelly (pink / mint / lemon / grape)
+        if (self.candy && self.effects.x) { const L = self.game.horde.list; for (let i = a; i < b; i++) self.effects.x.coat(L[i], i); }
+      },
     });
   }
 

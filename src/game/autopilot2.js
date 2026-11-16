@@ -127,7 +127,16 @@ function countAhead(game, near, far, halfW = Infinity, tankOnly = false) {
 function onSquad(game, list) {
   const T = game.telegraph, L = game.squad.leader;
   if (!list || !list.length || !T) return false;
-  for (const h of list) if (!h.done && T.contains(h, L.x, L.z, 0.45)) return true;
+  // a safe spot (update 3) marks everything outside its circle: the dodge walks into it, it is not a reason to fire
+  for (const h of list) if (!h.done && h.kind !== 'safe' && T.contains(h, L.x, L.z, 0.45)) return true;
+  return false;
+}
+
+/** A safe-spot blast lands within `soon` s while Pip is still outside the circle (shield it if the hero can). */
+function safeMissed(game, soon) {
+  const T = game.telegraph, L = game.squad.leader;
+  if (!T) return false;
+  for (const h of T.active) if (h.kind === 'safe' && !h.done && !h.fired && T.remaining(h) < soon && T.contains(h, L.x, L.z, 0)) return true;
   return false;
 }
 
@@ -140,7 +149,7 @@ export function abilityWanted(game) {
     case 'rally': return sq.count < 15 || sq.count < 0.6 * run.stats.maxSquad || bossStart;
     case 'meteor': return !!boss && boss.targetable || countAhead(game, 12, 24, 3) >= 25;
     case 'whiteout': return countAhead(game, 0, 12) >= 20 || (!!boss && onSquad(game, game.telegraph.active));
-    case 'sugarshield': return countAhead(game, 0, 6) >= 10 || (!!boss && onSquad(game, boss.dangerZones));
+    case 'sugarshield': return countAhead(game, 0, 6) >= 10 || (!!boss && (onSquad(game, boss.dangerZones) || safeMissed(game, 0.6)));
     case 'fortress': return bossStart || countAhead(game, 0, 30) >= 40;
     case 'shockwave': return countAhead(game, 0, 8) >= 15 || countAhead(game, 0, 6, Infinity, true) > 0;
     default: return false;

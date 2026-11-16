@@ -1,12 +1,19 @@
 // Update 3 boss attack visuals (pooled, owned by BossEffects as effects.x): glowing lava / frost strips left on
 // the road (Ironhorn's charges, the Tempest King's frozen lanes), objects dropping from the sky (embers, rocks,
-// icicles), spinning candy canes on an arc (Candy Queen), rolling giant gumballs and a red rage aura sprite.
+// icicles), spinning candy canes on an arc (Candy Queen), rolling giant gumballs, a red rage aura sprite and the
+// Candy Queen's JELLY BROOD coats (one instanced see-through wobbling jelly shell over each summoned minion, in
+// pink / mint / lemon / grape, that pops in a candy splat when the minion dies).
 // Logic positions advance in update(dt) (deterministic, no game rng); meshes are posed in sync(). One mesh per
 // object, no lights, no shadow casters; Low quality skips the extra sparkle particles.
 import * as THREE from 'three';
 import { glowTexture, toonMaterial } from '../../models/materials.js';
 import { part, merge, G } from '../../models/util.js';
 import { registerWarm } from '../warmup.js';
+import { writeYawMatrix } from '../../core/pool.js';
+
+const BROOD_CAP = 120;
+const BROOD_COLORS = ['#ff6ad0', '#4dffc4', '#ffe14a', '#b77aff'].map((c) => new THREE.Color(c));
+const BROOD_SPLAT = [0xff6ad0, 0x4dffc4, 0xffe14a, 0xb77aff];
 
 const SOFT = { transparent: true, depthWrite: false, toneMapped: false, fog: false };
 const ADD = { ...SOFT, blending: THREE.AdditiveBlending };
@@ -46,7 +53,18 @@ function stripTexture(kind) {
   return t;
 }
 
-let caneGeo = null, gumGeo = null, rockGeo = null, emberGeo = null, iceGeo = null, solidMat = null;
+let caneGeo = null, gumGeo = null, rockGeo = null, emberGeo = null, iceGeo = null, solidMat = null, jellyGeo = null;
+/** Jelly shell: a squashed dome, bright on top (a candy highlight) and darker at the base (vertex colours). */
+function jellyGeometry() {
+  const g = merge([part(G.sphere(1, 12, 8), '#ffffff', { p: [0, 0.82, 0], s: [1, 0.86, 1] }), part(G.sphere(0.24, 6, 4), '#ffffff', { p: [-0.36, 1.28, 0.5] })]);
+  const p = g.attributes.position, c = g.attributes.color;
+  for (let i = 0; i < p.count; i++) {
+    const hl = Math.hypot(p.getX(i) + 0.36, p.getY(i) - 1.28, p.getZ(i) - 0.5) < 0.3; // the highlight bead
+    const k = hl ? 1.6 : 0.55 + 0.5 * Math.max(0, Math.min(1, p.getY(i) / 1.6));
+    c.setXYZ(i, c.getX(i) * k, c.getY(i) * k, c.getZ(i) * k);
+  }
+  return g;
+}
 function shapes() {
   if (caneGeo) return;
   // candy cane: striped shaft + hook (alternating red / white bands, vertex colours)
@@ -73,6 +91,7 @@ export class ExtraFx {
   constructor(game) {
     this.game = game;
     this.strips = []; this.drops = []; this.canes = []; this.gums = []; this.auras = [];
+    this.brood = []; this.broodFree = []; this.jellies = null;
     shapes();
   }
 
@@ -161,6 +180,29 @@ export class ExtraFx {
     return this.rageAura;
   }
 
+  // ---------------- jelly brood (Candy Queen) ----------------
+  /** The instanced jelly-shell mesh (built once, one draw call for every brood minion). */
+  jellyMesh() {
+    if (!this.jellies) {
+      jellyGeo = jellyGeo || jellyGeometry();
+      const m = new THREE.InstancedMesh(jellyGeo, new THREE.MeshBasicMaterial({ vertexColors: true, ...SOFT, opacity: 0.55 }), BROOD_CAP);
+      m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      m.setColorAt(0, BROOD_COLORS[0]);
+      m.frustumCulled = false; m.count = 0; m.renderOrder = 3;
+      this.jellies = m;
+    }
+    return this.jellies;
+  }
+
+  /** Coats a freshly summoned Murkling (horde enemy object) in jelly; k picks the colour. */
+  coat(e, k) {
+    if (this.brood.length >= BROOD_CAP) return;
+    const o = this.broodFree.pop() || { e: null, ph: 0, k: 0 };
+    o.e = e; o.ph = e.ph; o.k = ((k % 4) + 4) % 4;
+    this.brood.push(o);
+    this.addTo(this.jellyMesh());
+  }
+
   /** Strip covering (x, z) (or null). */
   stripAt(x, z, kind) {
     for (const o of this.strips) {
@@ -238,6 +280,7 @@ export class ExtraFx {
       o.mesh.rotation.set(o.roll, 0, 0);
       o.mesh.scale.setScalar(o.r);
     }
+    if (this.jellies) this.syncBrood(time, B);
     const a = this.rageAura;
     if (a) {
       a.s.visible = a.k > 0.01;
@@ -250,8 +293,34 @@ export class ExtraFx {
     }
   }
 
+  /** Poses the jelly shells over the live brood; a minion that died pops in a candy splat (High only). */
+  syncBrood(time, B) {
+    const m = this.jellies, arr = m.instanceMatrix.array, list = this.brood;
+    let n = 0;
+    for (let i = list.length - 1; i >= 0; i--) {
+      const o = list[i], e = o.e;
+      if (e.state !== 0 || e.ph !== o.ph) {
+        // died (same spawn, now dying) -> splat; a recycled enemy object (new ph) just loses its coat
+        if (B && e.ph === o.ph) B.sparkle(e.x, 0.6, e.z, BROOD_SPLAT[o.k], 7, 1.1, 0, 2.2);
+        list[i] = list[list.length - 1]; list.pop(); o.e = null; this.broodFree.push(o);
+        continue;
+      }
+      const r = (e.def ? e.def.r : 0.4) * 1.45;
+      const w = Math.sin(time * 8 + o.ph * 3);
+      const hop = Math.abs(Math.sin(time * 6 + o.ph)) * 0.16;
+      writeYawMatrix(arr, n, e.x, hop, e.z, Math.sin(time * 1.3 + o.ph) * 0.4, r * (1 + 0.1 * w), r * (1 - 0.12 * w), r * (1 + 0.1 * w));
+      m.setColorAt(n, BROOD_COLORS[o.k]);
+      n++;
+    }
+    m.count = n;
+    if (n) { m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; }
+    m.visible = n > 0;
+  }
+
   clear() {
     for (const list of [this.strips, this.drops, this.canes, this.gums]) for (const o of list) o.active = false;
+    for (const o of this.brood) { o.e = null; this.broodFree.push(o); }
+    this.brood.length = 0;
     if (this.rageAura) { this.rageAura.on = false; this.rageAura.k = 0; }
     this.sync();
     const scene = this.game.scene;
@@ -260,6 +329,7 @@ export class ExtraFx {
     for (const o of this.canes) scene.remove(o.mesh);
     for (const o of this.gums) scene.remove(o.mesh);
     if (this.rageAura) scene.remove(this.rageAura.s);
+    if (this.jellies) { this.jellies.count = 0; scene.remove(this.jellies); }
   }
 }
 
@@ -271,5 +341,7 @@ registerWarm((game) => {
   x.drop('ember', 0, -10, 1); x.drop('rock', 1, -10, 1); x.drop('ice', -1, -10, 1);
   x.cane(0, 2, -10, 0, -12, 1); x.gumball(0, -10, 1);
   x.aura().on = true; x.update(0.5); x.sync();
-  return { objects: [], done: () => x.clear() };
+  const jm = x.jellyMesh();
+  jm.count = 1;
+  return { objects: [jm], done: () => { jm.count = 0; x.clear(); } };
 });

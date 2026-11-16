@@ -253,7 +253,8 @@ export class BaseBoss {
     this.onRage();
   }
 
-  kill() { if (this.alive) { if (this.state === 'enter') { this.state = 'fight'; this.y = 0; this.z = this.homeZ; } this.damage(this.hp + 1); } }
+  /** Instant kill (debug / tests): bypasses the storm-shield guard. */
+  kill() { if (this.alive) { if (this.state === 'enter') { this.state = 'fight'; this.y = 0; this.z = this.homeZ; } this.guardMul = 1; this.damage(this.hp + 1); } }
 
   die() {
     if (!this.alive) return;

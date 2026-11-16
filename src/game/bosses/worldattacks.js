@@ -82,7 +82,10 @@ export function freezeLane(boss, o) {
   };
 }
 
-/** o: { halfW, telegraph, launch }. The gumball reaches the blob centre as the warning ends. */
+/**
+ * o: { halfW, telegraph, launch }. The gumball's kill edge reaches the front of the blob as the warning ends, and
+ * it kills nothing before then (the warning is never shorter than 0.9 s).
+ */
 export function gumballRoll(boss, o) {
   const game = boss.game, T = game.telegraph, fx = boss.effects;
   const c = boss.squadCenter();
@@ -92,19 +95,21 @@ export function gumballRoll(boss, o) {
   const dur = boss.warnTime(o.telegraph);
   const launch = Math.min(o.launch, dur - 0.3);
   const mark = T.lane(cx - hw, cx + hw, zNear, zFar, dur, { attack: 'gumball', color: '#ff3aa8' });
-  const speed = (c.z - zFar) / Math.max(0.3, dur - launch);
+  const br = hw * 0.95;
+  const speed = Math.max(1, (c.z - c.r - br * 0.6) - zFar) / Math.max(0.3, dur - launch);
   let t = 0, ball = null, lastZ = zFar;
   return {
     update(dt) {
       t += dt;
       if (!ball && t >= launch) {
-        ball = fx.x.gumball(cx, zFar, hw * 0.95);
+        ball = fx.x.gumball(cx, zFar, br);
         ball.vz = speed;
         game.events.emit('boss:attack', { attack: 'roll', pos: { x: cx, y: 0, z: zFar } });
       }
       if (ball && ball.active) {
         ball.z += ball.vz * dt;
         const z = ball.z;
+        if (t < dur) return false; // still the warning: the sweep starts as it ends (covers the path rolled so far)
         if (z > lastZ) boss.killInBox(cx, hw, lastZ - ball.r * 0.6, z + ball.r * 0.6);
         lastZ = z;
         if (z > zNear + 6) ball.active = false;

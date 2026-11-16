@@ -7,6 +7,7 @@
 //   safeSpot(boss, o)    update 3: the whole arena glows red except one glowing safe circle (>= 1.8 s); then a
 //                        blast hits everyone outside it (at most SAFE_SPOT.maxLoss of the squad, never a wipe)
 import { SAFE_SPOT } from '../../data/bosses.js';
+import { SAFE_HW } from '../telegraph.js';
 
 export const clampX = (x, lim = 4.2) => Math.max(-lim, Math.min(lim, x));
 
@@ -152,7 +153,8 @@ export function strikes(boss, o) {
 
 /**
  * Summon: a >= 0.9 s green swelling burst (boss:telegraph 'summon'), then a Murkling wave spawns from the
- * boss body and charges the squad. o: { count, mix, windup, width, lane, ahead, hpMul, color, onWindup(f), onSpawn() }.
+ * boss body and charges the squad. o: { count, mix, windup, width, lane, ahead, hpMul, color, onWindup(f),
+ * onSpawn(before, after) (horde.list indices of the new wave) }.
  */
 export function summon(boss, o) {
   const game = boss.game, fx = boss.effects;
@@ -171,17 +173,19 @@ export function summon(boss, o) {
       if (!spawned && t >= windup) {
         spawned = true;
         const h = game.horde;
+        let before = 0, after = 0;
         if (h && h.spawnWave) {
-          const before = h.list.length;
+          before = h.list.length;
           h.spawnWave({ at: -(boss.z + (o.ahead ?? 3.2)), count: o.count, mix: o.mix, lane: o.lane || 'both', width: o.width ?? 8.6 });
           // the queen's brood is tougher at higher tiers (toughness only; looks and contact rules unchanged)
           if (o.hpMul > 1) for (let i = before; i < h.list.length; i++) h.list[i].hp *= o.hpMul;
+          after = h.list.length;
         }
         fx.ring(boss.x, boss.z + 3, 7, { color, life: 0.6 });
         fx.glow(boss.x, 2.5, boss.z + 3, color, 10, 0.5);
         game.events.emit('boss:attack', { attack: 'summon', pos: { x: boss.x, y: 0, z: boss.z + 3 } });
         game.events.emit('fx:shake', { amount: 0.45 });
-        if (o.onSpawn) o.onSpawn();
+        if (o.onSpawn) o.onSpawn(before, after); // the new minions are game.horde.list[before .. after - 1]
       }
       return spawned && t >= windup + (o.tail ?? 0.7);
     },
@@ -220,7 +224,8 @@ export function safeSpot(boss, o = {}) {
   boss.safeQueued = false; // a boss that starts its own safe spot consumes the one BaseBoss queued at the phase change
   const c0 = boss.squadCenter();
   const r = Math.min(SAFE_SPOT.r1, Math.max(SAFE_SPOT.r0, SAFE_SPOT.r0 + (c0.r - 1) * 0.2));
-  const lim = 3.3;
+  // the circle stays inside the red sheet (a hole crossing the sheet edge would not be cut out)
+  const lim = Math.min(3.3, SAFE_HW - r - 0.1);
   const zones = boss.dangerZones;
   const clear = (x) => !zones.some((zn) => T.contains(zn, x, c0.z, r * 0.6));
   // candidates across the road, away from the squad, not on a lava / frost strip

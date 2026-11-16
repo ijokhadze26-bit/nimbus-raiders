@@ -6,6 +6,9 @@
 // + magma-stomp embers (frost trails as Frosthorn, nothing in the sky), lava strips burn members standing in them
 // (rate-limited), the Candy Queen's jelly brood / syrup / candy canes, and the Tempest King's 3 phases (PHASE n
 // banner, forge + frost attacks in phase 2, candy + sky attacks in phase 3, a safe spot at each change, bar marks).
+// Review fixes: the safe circle always stays inside the red sheet and the sheet's hole is really cut out (triangle
+// area = sheet - circle), the gumball kills nothing before its warning ends (even at the 0.9 s floor), kill()
+// works through the storm shield, and the Candy Queen's brood wears jelly coats.
 // Runs on High and Low. When run by the screenshot harness, window.__shot(name) saves pictures of each look.
 const g = window.__game, d = g.debug;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -18,6 +21,8 @@ const shot = async (name, wait = 380, keep = '') => {
   g.sync(1 / 60); g.engine.render(); await window.__shot(name);
 };
 const { RAGE, SAFE_SPOT } = await import('/src/data/bosses.js');
+const { sheetArea, sheetHalfW, SAFE_HW } = await import('/src/game/telegraph.js');
+const { safeSpot } = await import('/src/game/bosses/attacks.js');
 g.loop.stop();
 d.setAutopilot(false);
 d.setLoadout('pip', 'thunderclap');
@@ -63,7 +68,8 @@ for (const q of ['high', 'low']) {
     // warnings never under 0.9 s, even raging and deep into the soft enrage
     b.t = 75;
     let minWarn = 9, n = 0;
-    step(10, () => { for (const h of g.telegraph.active) { if (h.t < 0.05) n++; minWarn = Math.min(minWarn, h.duration); } });
+    // (troops topped up: a wiped squad would end the run and leave a result screen over the next pictures)
+    step(10, () => { if (g.squad.count < 15) d.give('troops', 30); for (const h of g.telegraph.active) { if (h.t < 0.05) n++; minWarn = Math.min(minWarn, h.duration); } });
     if (n > 0 && minWarn < 0.9) fails.push(`${type}/${q}: a ${minWarn.toFixed(2)} s warning while raging`);
     info[`rage-${type}-${q}`] = { ratio: Math.round(ratio * 100) / 100, minWarn: Math.round(minWarn * 100) / 100, warnings: n };
   }
@@ -81,6 +87,7 @@ for (const q of ['high', 'low']) {
     if (!mark) { fails.push(`safe/${q}: no safe telegraph`); return null; }
     c = b.squadCenter(); before = g.squad.count;
     const r = { x: mark.x, r: mark.r, dur: mark.duration, dx: Math.abs(mark.x - c.x), hud: false };
+    if (Math.abs(mark.x) + mark.r > SAFE_HW - 0.05) fails.push(`safe/${q}: circle x ${mark.x} r ${mark.r} crosses the sheet edge`);
     b.cooldown = 99;
     step(0.5); r.hud = hudOn('.safe-call');
     return { b, mark, before, r };
@@ -106,6 +113,60 @@ for (const q of ['high', 'low']) {
     }
     const sh = safeRun(false, true);
     if (sh) { const ls = finish(sh); if (ls !== 0) fails.push(`safe/${q}: shielded squad lost ${ls}`); }
+  }
+  // the red sheet's hole is really cut out (triangulated area = sheet - circle), also at the road edge
+  {
+    const bad = [];
+    for (const [x, r] of [[-3.3, 2.4], [-3.0, 2.35], [-3.3, 2.1], [3.0, 2.4], [3.3, 2.4], [0, 1.8], [-2.8, 2.4], [2.9, 2.1]]) {
+      const h = g.telegraph.safe(x, -60, r, 2);
+      const a = sheetArea(h.v.sheet.geometry), want = 2 * sheetHalfW(x, r) * 25 - Math.PI * r * r;
+      if (Math.abs(a - want) / want > 0.01) bad.push(`${x}/${r}: ${a.toFixed(1)} vs ${want.toFixed(1)}`);
+      g.telegraph.cancel(h);
+    }
+    g.telegraph.update(0);
+    if (bad.length) fails.push(`safe sheet/${q}: hole not cut ${bad.join(', ')}`);
+    // every picked spot keeps |x| + r inside the sheet (squad on the left, the middle and the right)
+    const b = arena({ type: 'tempestking', hp: 100000, tier: 6 }, 'citadel', 5, 160);
+    b.cooldown = 99;
+    let worst = 0;
+    for (let k = 0; k < 30; k++) {
+      g.squad.leader.x = [-4, -2, 0, 2, 4][k % 5];
+      for (const m of g.squad.members) m.x = g.squad.leader.x;
+      const a = safeSpot(b);
+      worst = Math.max(worst, Math.abs(a.mark.x) + a.mark.r);
+      a.cancel();
+    }
+    g.telegraph.update(0);
+    if (worst > SAFE_HW - 0.05) fails.push(`safe/${q}: a spot reaches ${worst.toFixed(2)} (sheet half-width ${SAFE_HW})`);
+    info[`safe-edge-${q}`] = Math.round(worst * 100) / 100;
+  }
+  // kill() works through the Tempest King's storm shield (guardMul < 1 during his safe-spot step)
+  {
+    const b = arena({ type: 'tempestking', hp: 100000, tier: 6 }, 'citadel', 5, 60);
+    b.cooldown = 99; b.attack = null;
+    b.damage(35000); b.cooldown = 0;
+    for (let i = 0; i < 60 && !(b.attack && b.attack.safe); i++) g.step(1 / 30);
+    g.step(1 / 30);
+    const guard = b.guardMul;
+    b.kill();
+    if (!(guard < 1) || b.alive) fails.push(`storm shield/${q}: guard ${guard}, alive after kill() ${b.alive}`);
+    step(2.5);
+  }
+  // the gumball kills nothing before its lane warning ends, even raging deep into the soft enrage (0.9 s floor)
+  {
+    const b = arena({ type: 'tempestking', hp: 100000, tier: 6 }, 'citadelNight', 5, 160);
+    b.cooldown = 99; b.attack = null;
+    b.damage(b.hp - 20000);                  // phase 3 + rage
+    b.safeQueued = false; b.cooldown = 99;
+    b.t = 75;
+    b.attack = b.startAttack('gumball', b.def.attacks.find((a) => a.id === 'gumball'));
+    const mark = g.telegraph.active.find((h) => h.kind === 'lane' && h.attack === 'gumball');
+    const n0 = g.squad.count;
+    let early = 0;
+    for (let i = 0; i < 120 && b.attack; i++) { g.step(1 / 30); b.cooldown = 99; if (mark && !mark.fired) early = Math.max(early, n0 - g.squad.count); }
+    const lost = n0 - g.squad.count;
+    if (!mark || mark.duration > 0.95 || early > 0 || lost <= 0) fails.push(`gumball/${q}: warn ${mark && mark.duration.toFixed(2)} s, ${early} died before it ended, ${lost} in all`);
+    info[`gumball-${q}`] = { warn: mark && Math.round(mark.duration * 100) / 100, early, lost };
   }
   // minis never dodge-step
   {
@@ -163,20 +224,25 @@ for (const q of ['high', 'low']) {
     const r = {};
     for (const id of ['cane', 'puddle', 'summon']) {
       b.attack = b.startAttack(id, b.attackList().find((a) => a.id === id));
-      let canes = 0, syrup = 0, en0 = g.horde.count, en = 0, shotTaken = false;
+      let canes = 0, syrup = 0, en0 = g.horde.count, en = 0, shotTaken = false, coats = 0, jellyShot = false;
       for (let i = 0; i < 100; i++) {
         g.step(1 / 30);
         if (!b.attack) b.cooldown = 99;
         canes = Math.max(canes, b.effects.x.canes.filter((o) => o.active).length);
         syrup = Math.max(syrup, b.effects.puddles.filter((p) => p.active && p.rim.material.color.getHexString() === 'ffb07a').length);
         en = Math.max(en, g.horde.count - en0);
+        coats = Math.max(coats, b.effects.x.brood.length);
+        if (id === 'summon' && i === 50) { g.sync(1 / 30); const jm = b.effects.x.jellies; if (!jm || jm.count !== b.effects.x.brood.length || !jm.visible) fails.push(`candy/${q}: ${jm && jm.count} jelly coats drawn for ${b.effects.x.brood.length}`); }
+        if (!jellyShot && q === 'high' && id === 'summon' && coats >= 10 && i > 40) { jellyShot = true; g.sync(1 / 30); await shot('candy-queen-jelly-brood', 40); }
         if (!shotTaken && q === 'high' && id === 'cane' && canes >= 3) { shotTaken = true; g.sync(1 / 30); await shot('candy-queen-canes', 40); }
       }
-      r[id] = { canes, syrup, enemies: en };
+      r[id] = { canes, syrup, enemies: en, coats };
     }
     if (!r.cane.canes) fails.push(`candy/${q}: no candy canes`);
     if (!r.puddle.syrup) fails.push(`candy/${q}: no syrup puddle`);
     if (!r.summon.enemies) fails.push(`candy/${q}: no jelly brood`);
+    if (r.summon.coats < Math.min(10, r.summon.enemies)) fails.push(`candy/${q}: ${r.summon.coats} jelly coats for ${r.summon.enemies} minions`);
+    if (r.cane.coats || r.puddle.coats) fails.push(`candy/${q}: jelly coats outside the summon`);
     info[`candy-${q}`] = r;
     if (q === 'high') { step(0.6); await shot('candy-queen', 60); }
   }
