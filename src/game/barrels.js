@@ -4,6 +4,10 @@
 // Update 2: bullets chip barrels with b.bdmg (tracers carry the weapon-independent barrel damage; main
 // projectiles are absorbed with bdmg 0); damage(barrel, d) is the non-bullet path (Meteor Drop). A weapon
 // barrel raises the Mk (display = the current weapon's gun at the next Mk; +25 coins at Mk V).
+// Update 3 stage 3: CURSED barrels (reward kind 'cursed', curse 'troops' | 'mk'): a purple skull drum whose
+// display looks like treasure ('???') and flickers into a skull now and then; shooting it open costs troops
+// (at least its amount or 15% of the squad, never the last member; the shield / hero guards absorb it) or one
+// weapon Mk. Running into it costs one member like any barrel, without the curse.
 import { LANES, MEMBER_CLAMP, HIT } from '../config.js';
 import { MAX_MK } from '../data/weapons.js';
 import { buildBarrelVisual, buildRewardDisplay, BARREL_R } from '../models/barrel.js';
@@ -14,6 +18,9 @@ const SPAWN_AHEAD = 110;
 const HIT_HALF = 0.95;
 const FLY_TIME = 0.45;
 const HP_LABEL = { fill: '#e8213a', stroke: '#5e0412', strokeWidth: 12, size: 104, shadow: false, y: 0.55 };
+const HP_LABEL_CURSED = { ...HP_LABEL, fill: '#8a2be2', stroke: '#2b0a52' };
+const TELL_PERIOD = 2.6, TELL_ON = 0.38; // cursed display: skull shows for TELL_ON s every TELL_PERIOD s
+export const CURSE_SHARE = 0.15;
 let nextId = 1;
 
 export class Barrels {
@@ -21,6 +28,7 @@ export class Barrels {
     this.game = game;
     this.live = [];
     this.pool = [];
+    this.cpool = [];        // cursed drum visuals
     this.displays = new Map(); // key -> [display]
     this.events = [];
     this.cursor = 0;
@@ -46,7 +54,7 @@ export class Barrels {
     const k = b.reward.kind;
     if (k === 'weapon') return 'weapon:' + this.game.weapons.id + ':' + this.rewardMk(b) + (this.game.weapons.mk >= MAX_MK ? ':max' : '');
     if (k === 'troops') return 'troops:' + (b.reward.amount || 1);
-    return k;
+    return k;  // 'cursed' shares one display key
   }
 
   rewardMk(b) { return Math.min(MAX_MK, this.game.weapons.mk + (b.reward.amount || 1)); }
@@ -61,11 +69,13 @@ export class Barrels {
       if (d.userData.label) {
         // at the top tier a gun barrel pays 25 coins instead (applyReward)
         if (b.reward.kind === 'weapon') drawBadge(d.userData.label, key.endsWith(':max') ? '+25' : 'MK UP', '#ffae1a', '#a85400');
+        else if (b.reward.kind === 'cursed') drawBadge(d.userData.label, '???', '#c46bff', '#3d0a5e');
         else drawBadge(d.userData.label, '+' + (b.reward.amount || 1));
       }
     }
     d.scale.setScalar(1.45);
     d.position.set(0, 0, 0);
+    this.showTell(d, false);
     b.displayKey = key;
     return d;
   }
@@ -82,12 +92,14 @@ export class Barrels {
     if (b.display) { this.releaseDisplay(b.display); b.display = null; }
     if (!b.visual) return;
     this.game.scene.remove(b.visual.group);
-    this.pool.push(b.visual);
+    (b.visual.cursed ? this.cpool : this.pool).push(b.visual);
     b.visual = null;
   }
 
   make(e) {
-    const v = this.pool.length ? this.pool.pop() : buildBarrelVisual();
+    const cursed = e.reward?.kind === 'cursed';
+    const pool = cursed ? this.cpool : this.pool;
+    const v = pool.length ? pool.pop() : buildBarrelVisual(cursed);
     v.label.key = null; v.labelHp = -1;
     v.body.visible = true; v.labelMesh.visible = true;
     v.group.visible = true;
@@ -95,7 +107,7 @@ export class Barrels {
     this.game.scene.add(v.group);
     const b = {
       id: nextId++, x: LANES[e.lane] ?? 0, z: -e.at, hp: e.hp, maxHp: e.hp,
-      reward: { kind: e.reward?.kind || 'coins', amount: e.reward?.amount ?? (e.reward?.kind === 'coins' ? 20 : 1) },
+      reward: { kind: e.reward?.kind || 'coins', amount: e.reward?.amount ?? (e.reward?.kind === 'coins' ? 20 : 1), curse: cursed ? (e.reward.curse === 'mk' ? 'mk' : 'troops') : null },
       state: 'live', t: 0, punch: 0, flash: 0, visual: v, display: null, displayKey: null, fly: null, ph: (e.at * 0.73) % 6.28,
     };
     b.x = Math.max(-MEMBER_CLAMP + 0.6, Math.min(MEMBER_CLAMP - 0.6, b.x + (e.dx || 0)));
@@ -149,11 +161,13 @@ export class Barrels {
     const pos = { x: b.x, y: 0.9, z: b.z };
     // reward.kind is always the barrel's real reward kind; granted:false (amount 0) = smashed by running into it
     const reward = { kind: b.reward.kind, amount: rewarded ? b.reward.amount : 0, granted: !!rewarded };
+    const cursed = b.reward.kind === 'cursed';
+    if (cursed && rewarded) { Object.assign(reward, this.applyCurse(b.reward)); this.showTell(b.display, true); }
     game.events.emit('barrel:break', { id: b.id, reward, pos });
-    game.events.emit('fx:shake', { amount: 0.3 });
+    game.events.emit('fx:shake', { amount: cursed && rewarded ? 0.5 : 0.3 });
     if (game.horde) game.horde.view.blast(b.x, b.z, 1.7);
-    game.gates.burst(b.x, 0.3, b.z, 1.3, 1.4, '#ff3b4e', 14);
-    if (rewarded) { this.applyReward(b.reward, pos); b.fly = { x: b.x, y: 2.5, z: b.z }; }
+    game.gates.burst(b.x, 0.3, b.z, 1.3, 1.4, cursed ? '#9b4dff' : '#ff3b4e', 14);
+    if (rewarded) { if (!cursed) this.applyReward(b.reward, pos); b.fly = { x: b.x, y: 2.5, z: b.z }; }
     else if (b.display) { this.releaseDisplay(b.display); b.display = null; }
   }
 
@@ -171,6 +185,34 @@ export class Barrels {
       case 'coins': if (game.run) game.run.coins += n; game.events.emit('coin:collect', { amount: n, pos }); break;
       default: if (game.powers && game.powers.start) game.powers.start(r.kind);
     }
+  }
+
+  /**
+   * A cursed barrel was shot open: one weapon Mk (curse 'mk' above Mk I) or troops (max(amount, 15% of the
+   * squad), never the last member). The shield power-up / Sugar Shield block it; hero guards absorb members.
+   * Returns { curse, amount (members lost), blocked }.
+   */
+  applyCurse(r) {
+    const game = this.game, squad = game.squad, run = game.run;
+    if (!run || !run.active) return { curse: r.curse, amount: 0, blocked: true };
+    if (game.shielded()) return { curse: r.curse, amount: 0, blocked: true };
+    if (r.curse === 'mk' && game.weapons.mk > 1) {
+      game.weapons.setMk(game.weapons.mk - 1, { silent: true });
+      game.events.emit('barrel:curse', { curse: 'mk', mk: game.weapons.mk });
+      return { curse: 'mk', amount: 0, blocked: false };
+    }
+    const n = Math.min(squad.count - 1, Math.max(r.amount || 1, Math.round(squad.count * CURSE_SHARE)));
+    const lost = n > 0 ? -squad.remove(n, 'cursed') : 0;
+    game.events.emit('barrel:curse', { curse: 'troops', lost });
+    return { curse: 'troops', amount: lost, blocked: lost === 0 };
+  }
+
+  /** Cursed display: the treasure heap or the skull it really is. */
+  showTell(d, skull) {
+    const t = d && d.userData.tell;
+    if (!t || t.skull.visible === skull) return;
+    t.skull.visible = skull; t.pile.visible = !skull;
+    if (d.userData.labelMesh) d.userData.labelMesh.visible = !skull;
   }
 
   /** Live barrels ahead of the leader (autopilot). */
@@ -229,7 +271,7 @@ export class Barrels {
         b.flash = Math.max(0, b.flash - dt * 7);
         v.mat.emissiveIntensity = b.flash * 0.55;
         const hp = Math.max(0, Math.ceil(b.hp));
-        if (hp !== v.labelHp && labelReady(v.label)) { v.labelHp = hp; drawLabel(v.label, String(hp), HP_LABEL); }
+        if (hp !== v.labelHp && labelReady(v.label)) { v.labelHp = hp; drawLabel(v.label, String(hp), v.cursed ? HP_LABEL_CURSED : HP_LABEL); }
         v.labelMesh.scale.setScalar(1 + pu * 0.18);
         // weapon reward follows the current tier (next tier)
         if (b.reward.kind === 'weapon' && this.displayKey(b) !== b.displayKey) {
@@ -239,12 +281,14 @@ export class Barrels {
           v.glow.material.color.set(b.display.userData.glowColor);
         }
         const d = b.display;
+        if (d && v.cursed) this.showTell(d, (this.time + b.ph) % TELL_PERIOD < TELL_ON);
         if (d) {
           // the rifle wobbles (±35°) instead of spinning, so it never turns edge-on into a thin stick
           d.rotation.y = b.reward.kind === 'weapon' ? Math.sin(this.time * 1.8 + b.ph) * 0.6 : this.time * 1.8 + b.ph;
           d.position.y = Math.sin(this.time * 2.4 + b.ph) * 0.14;
           if (d.userData.rotor) d.userData.rotor.rotation.y = this.time * 30;
           if (d.userData.labelMesh) d.userData.labelMesh.rotation.y = -d.rotation.y;
+          if (d.userData.tell) d.userData.tell.skull.rotation.y = -d.rotation.y; // the skull always stares at the squad
         }
         v.glow.material.opacity = 0.55 + 0.2 * Math.sin(this.time * 3 + b.ph);
       } else {

@@ -92,6 +92,7 @@ export function barrelValue(game, b) {
     case 'drone': return game.helpers && game.helpers.drones < 4 ? 45 : 0;
     case 'turret': return game.helpers && game.helpers.turrets < 2 ? 55 : 0;
     case 'coins': return 8;
+    case 'cursed': return -40; // a skull barrel: never aim for it
     default: return 20;
   }
 }

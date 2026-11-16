@@ -7,10 +7,13 @@
 // and Bulwarks (Storm Citadel). Each world has a set piece (blade gauntlet, gap staircase, ladder row).
 // Boss levels end on helper barrels and the boss; every other level ends with a gate row and the final rush.
 // tough / boss hp / stars are first-pass values (quick autopilot check); stage 3 rebalances them.
+// Stage 3: harder.js then adds the new enemy types, elite fractions, extra red gates, cursed barrels and hidden
+// gates on top (before the weapon crates are placed, so a crate never lands on a screening horde).
 import { Rng } from '../core/rng.js';
 import { worldOf, levelKind, indexInWorld, TOTAL_LEVELS } from './worlds.js';
 import { P, C, B, H, K, U, Xd, Od, a, x, dv, mv, FIX, GR, M5, M6, TW, level } from './beats.js';
 import { pickFavours, placeCrates, crateAt } from './levelcrates.js';
+import { hardenLevel } from './harder.js';
 
 export const FIRST_GENERATED = 16;
 
@@ -196,6 +199,7 @@ export function generateLevel(id) {
     id, name: NAMES[id] || `Level ${id}`, theme: q.theme, length: q.length, speed: q.speed, stars: STARS[id] || starsFor(q, boss),
     reward: q.reward, tough: q.tough, boss, rush: { mul: q.intro ? 1 : r2(1.15 + 0.05 * q.wi) },
   }, beatsFor(r, q, boss));
+  hardenLevel(def); // stage 3: enemy mixes, red gates, cursed barrels, hidden gates (own Rng; beats stay put)
   def.favours = pickFavours(def);
   // weapon crates on even levels (one) and boss levels (two), cycling through the favoured weapons
   const fav = (k) => def.favours[(id + k) % def.favours.length];

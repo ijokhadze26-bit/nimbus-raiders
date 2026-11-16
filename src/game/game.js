@@ -39,6 +39,7 @@ import { createZoneViews } from '../models/weapons/zones.js';
 import { Finish } from './finish.js';
 import { worldFor } from './worldlook.js';
 import { Hazards } from './hazards/index.js';
+import { eliteDef } from '../data/elite.js';
 
 const ATTRACT_COUNT = 9;
 
@@ -122,10 +123,14 @@ export class Game {
   }
 
   // ---------------- public API ----------------
-  /** Starts a defined level with the current loadout; false (and nothing happens) for an id without data. */
-  startLevel(levelId) {
-    const def = getLevel(Number(levelId));
-    if (!def) return false;
+  /**
+   * Starts a defined level with the current loadout; false (and nothing happens) for an id without data.
+   * opts.elite: the ELITE version (data/elite.js eliteDef; the loadout only offers it after a 3-star clear).
+   */
+  startLevel(levelId, opts = {}) {
+    const base = getLevel(Number(levelId));
+    if (!base) return false;
+    const def = opts && opts.elite ? eliteDef(base) : base;
     this.beginRun(def, 'level', 1, { hero: this.loadout.hero, weapon: this.loadout.weapon });
     return true;
   }
@@ -301,9 +306,9 @@ export class Game {
     let dist = Math.round(run.dist);
     if (boss && run.mode === 'endless') dist += Math.floor(30 * (1 - boss.hp / boss.maxHp));
     run.setPhase('lost');
-    run.coinsEarned = run.coins;
+    run.coinsEarned = Math.round(run.coins * (run.def.coinMul || 1)); // ELITE: +50% on collected coins
     this.bank.coins += run.coinsEarned;
-    const p = { levelId: run.levelId, mode: run.mode, dist, coins: run.coinsEarned, kills: run.kills, ...bossInfo };
+    const p = { levelId: run.levelId, mode: run.mode, dist, coins: run.coinsEarned, kills: run.kills, ...bossInfo, ...(run.def.elite ? { elite: true } : {}) };
     this.lastResult = { win: false, ...p };
     this.events.emit('run:lose', p);
     this.resultTimer = 1.4;
@@ -315,11 +320,13 @@ export class Game {
     if (run.mode === 'endless' && this.endless.active) { this.endless.bossDown(); return; } // the run goes on
     const squad = this.squad.count;
     run.stars = run.starsFor(squad);
-    run.coinsEarned = Math.round(run.coins + (run.def.reward || 0) + 15 * run.stars);
+    // ELITE (data/elite.js): reward x2 is in the def, collected coins x def.coinMul
+    run.coinsEarned = Math.round(run.coins * (run.def.coinMul || 1) + (run.def.reward || 0) + 15 * run.stars);
     this.bank.coins += run.coinsEarned;
     run.setPhase('won');
-    this.lastResult = { win: true, levelId: run.levelId, mode: run.mode, stars: run.stars, coins: run.coinsEarned, squad, kills: run.kills, time: run.time };
-    this.events.emit('run:win', { levelId: run.levelId, mode: run.mode, stars: run.stars, coins: run.coinsEarned, squad, kills: run.kills, time: Math.round(run.time * 10) / 10 });
+    const elite = run.def.elite ? { elite: true } : {};
+    this.lastResult = { win: true, levelId: run.levelId, mode: run.mode, stars: run.stars, coins: run.coinsEarned, squad, kills: run.kills, time: run.time, ...elite };
+    this.events.emit('run:win', { levelId: run.levelId, mode: run.mode, stars: run.stars, coins: run.coinsEarned, squad, kills: run.kills, time: Math.round(run.time * 10) / 10, ...elite });
     this.resultTimer = 1.6;
   }
 

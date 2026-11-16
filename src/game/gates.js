@@ -1,5 +1,9 @@
 // Gates: +N/-N add gates and the x/÷ ladder, optional moving. Shoot to increment (1 per bullet),
 // punch + color lerp red->blue, pass logic (leader crossing), unchosen gate shatters.
+// Update 3 stage 3: HIDDEN gates (event flag `hidden`, set by data/harder.js behind a screening horde): a dim
+// grey '?' panel that ignores raise hits until it is revealed - when no live enemy stands between the squad and
+// it (checked from REVEAL_NEAR u out, so the screen has to be shot through) or after REVEAL_HITS real hits.
+// Passing it still applies its real op (a blind gamble).
 import * as THREE from 'three';
 import { GATE, LANES, COLORS, FORMATION, HIT } from '../config.js';
 import { buildGateVisual, shardGeometry } from '../models/gate.js';
@@ -12,6 +16,8 @@ const RED_GLOW = new THREE.Color('#ff6b7a'), BLUE_GLOW = new THREE.Color('#7fd0f
 const _c = new THREE.Color(), _c2 = new THREE.Color();
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _p = new THREE.Vector3(), _s = new THREE.Vector3();
 const MAX_SHARDS = 160;
+const HIDDEN = new THREE.Color('#5d6384'), HIDDEN_GLOW = new THREE.Color('#9aa3c7');
+export const REVEAL_NEAR = 46, REVEAL_HITS = 30;
 
 export function rungLabel(r) { const g = GATE.rungs[r]; return (g.op === 'mul' ? '×' : '÷') + g.k; }
 
@@ -102,6 +108,7 @@ export class Gates {
       rung: 0, hits: 0, credit: 0, hitsPerStep: e.hitsPerStep ?? GATE.hitsPerStep,
       moving: e.moving || null, phase: (e.at * 0.37) % 6.283,
       state: 'live', t: 0, colorT: 0, punch: 0, flash: 0, visual: null, row: null, dirty: true, labelBlue: false,
+      hidden: !!e.hidden, revealHits: 0, chk: 0,
     };
     if (g.op === 'ladder') {
       if (e.rung !== undefined) g.rung = Math.max(0, Math.min(GATE.rungs.length - 1, e.rung));
@@ -147,6 +154,7 @@ export class Gates {
       g.t += dt;
       g.punch = Math.max(0, g.punch - dt * 5);
       g.flash = Math.max(0, g.flash - dt * 4);
+      if (g.hidden && g.state === 'live' && (g.chk -= dt) <= 0) { g.chk = 0.1; this.checkReveal(g, L); }
     }
     // pass detection
     for (const row of this.rows) {
@@ -178,7 +186,23 @@ export class Gates {
     }
   }
 
+  /** A hidden gate shows itself once nothing alive stands between the squad and it (or after enough hits). */
+  checkReveal(g, L) {
+    const horde = this.game.horde;
+    if (g.revealHits >= REVEAL_HITS) { this.reveal(g); return; }
+    if (L.z - g.z > REVEAL_NEAR) return;
+    if (!horde || horde.densityAt(g.x, g.halfW + 0.3, g.z, L.z) === 0) this.reveal(g);
+  }
+
+  reveal(g) {
+    if (!g.hidden) return;
+    g.hidden = false; g.dirty = true; g.flash = 1; g.punch = 1.4;
+    this.burst(g.x, 0.3, g.z, g.width, GATE.height, g.colorT > 0.5 ? BLUE_GLOW : RED_GLOW, 10);
+    this.game.events.emit('gate:reveal', { id: g.id, pos: { x: g.x, y: 1.2, z: g.z } });
+  }
+
   pass(g) {
+    if (g.hidden) this.reveal(g);
     const squad = this.game.squad;
     const before = squad.count;
     const after = applyGate(g, before);
@@ -229,6 +253,7 @@ export class Gates {
       if (this.game.events.wants('bullet:hit')) { const p = this.hitPos; p.x = b.x; p.y = b.y; p.z = g.z; this.game.events.emit('bullet:hit', { kind: 'gate', pos: p }); }
       return true;
     }
+    if (g.hidden) { g.revealHits += b.gw; g.flash = Math.max(g.flash, 0.3); return true; } // no raise while hidden
     g.credit += b.gw;
     const n = Math.floor(g.credit);
     g.credit -= n;
@@ -259,13 +284,15 @@ export class Gates {
       if (!v) continue;
       const target = this.targetColorT(g);
       g.colorT += (target - g.colorT) * Math.min(1, dt * 8);
-      _c.copy(RED).lerp(BLUE, g.colorT);
-      _c2.copy(RED_GLOW).lerp(BLUE_GLOW, g.colorT);
+      if (g.hidden) { _c.copy(HIDDEN); _c2.copy(HIDDEN_GLOW); } else {
+        _c.copy(RED).lerp(BLUE, g.colorT);
+        _c2.copy(RED_GLOW).lerp(BLUE_GLOW, g.colorT);
+      }
       const fl = g.flash;
       v.panelMat.color.copy(_c).lerp(_c2, 0.25 + fl * 0.5);
       v.frameMat.color.copy(_c2);
       v.frameMat.emissive.copy(_c);
-      v.frameMat.emissiveIntensity = 0.55 + fl * 0.8;
+      v.frameMat.emissiveIntensity = (g.hidden ? 0.15 : 0.55) + fl * 0.8;
       v.stripMat.color.copy(_c2);
       v.group.position.set(g.x, 0, g.z);
       const pu = g.punch;
@@ -313,7 +340,9 @@ export class Gates {
     const blue = g.colorT > 0.5;
     g.labelBlue = blue;
     const stroke = blue ? '#0e3d9c' : '#8e0f22';
-    if (g.op === 'add') {
+    if (g.hidden) {
+      drawLabel(v.label, '?', { fill: '#e6e9f7', stroke: '#2a2f4a', size: 130, strokeWidth: 20, y: 0.52, key: 'hidden' });
+    } else if (g.op === 'add') {
       drawLabel(v.label, signed(g.value), { fill: '#ffffff', stroke, size: 118, strokeWidth: 20, y: 0.52 });
     } else if (g.hitsPerStep >= 10000) {
       // fixed ×/÷ gate (levels.js FIX): no 'shoot to climb' bar, so it never looks like a ladder

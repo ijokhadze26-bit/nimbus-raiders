@@ -1,4 +1,5 @@
 // Barrel: red metal drum with a white HP band (number label in front) and floating reward displays.
+// Update 3 stage 3: the cursed barrel (purple drum, skull, 'treasure' display that flickers into a skull).
 import * as THREE from 'three';
 import { part, merge, G } from './util.js';
 import { toonMaterial, glowTexture } from './materials.js';
@@ -33,10 +34,39 @@ function barrelGeometry() {
   return barrelGeo;
 }
 
-export function buildBarrelVisual() {
+// Cursed barrel (update 3 stage 3): a purple drum with a bone-white skull on its front above the HP band and
+// dark iron ribs - it pays out a curse (troops or one weapon Mk) instead of a reward.
+let cursedGeo = null;
+export function cursedGeometry() {
+  if (cursedGeo) return cursedGeo;
+  const r = BARREL_R, h = BARREL_H;
+  const body = '#7b3fd6', dark = '#4a1f8f', rib = '#2b1052', lid = '#a774ff', bone = '#f3ead6', eye = '#1a0630';
+  const fz = r + 0.02; // skull sits on the drum front, between the HP band and the top rib
+  cursedGeo = merge([
+    part(G.cyl(r, r, h, 16), body, { p: [0, h / 2, 0] }),
+    part(G.cyl(r * 0.98, r * 0.92, 0.12, 16), dark, { p: [0, 0.06, 0] }),
+    part(G.cyl(r + 0.04, r + 0.04, 0.1, 16, true), rib, { p: [0, 0.2, 0] }),
+    part(G.cyl(r + 0.04, r + 0.04, 0.1, 16, true), rib, { p: [0, h - 0.13, 0] }),
+    part(G.cyl(r + 0.015, r + 0.015, 0.62, 18, true), '#ead9ff', { p: [0, h * 0.5, 0] }),
+    part(G.cyl(r * 0.92, r * 0.92, 0.04, 16), lid, { p: [0, h + 0.01, 0] }),
+    part(G.cyl(0.13, 0.13, 0.08, 8), '#c9ff3d', { p: [0.3, h + 0.05, 0.1] }),
+    // skull: cranium + jaw, dark eyes and nose
+    part(G.sphere(0.27, 12, 8), bone, { p: [0, 1.5, fz - 0.05], s: [1, 0.78, 0.5] }),
+    part(G.box(0.3, 0.1, 0.12), bone, { p: [0, 1.31, fz] }),
+    part(G.sphere(0.075, 8, 6), eye, { p: [-0.1, 1.5, fz + 0.075], s: [1, 1.1, 0.4] }),
+    part(G.sphere(0.075, 8, 6), eye, { p: [0.1, 1.5, fz + 0.075], s: [1, 1.1, 0.4] }),
+    part(G.cone(0.04, 0.07, 3), eye, { p: [0, 1.4, fz + 0.08], r: [0, 0, Math.PI] }),
+    // crossbones on the lower band
+    part(G.box(0.62, 0.07, 0.04), bone, { p: [0, 0.42, r - 0.01], r: [0, 0, 0.5] }),
+    part(G.box(0.62, 0.07, 0.04), bone, { p: [0, 0.42, r - 0.01], r: [0, 0, -0.5] }),
+  ]);
+  return cursedGeo;
+}
+
+export function buildBarrelVisual(cursed = false) {
   const group = new THREE.Group();
   const mat = toonMaterial({ emissive: '#ffffff', emissiveIntensity: 0 });
-  const body = new THREE.Mesh(barrelGeometry(), mat);
+  const body = new THREE.Mesh(cursed ? cursedGeometry() : barrelGeometry(), mat);
   body.castShadow = true;
   group.add(body);
   const label = createLabel(256, 128);
@@ -50,7 +80,7 @@ export function buildBarrelVisual() {
   glow.scale.set(2.8, 2.8, 1);
   glow.renderOrder = 3;
   reward.add(glow);
-  return { group, body, mat, label, labelMesh: lm, reward, glow, display: null };
+  return { group, body, mat, label, labelMesh: lm, reward, glow, display: null, cursed };
 }
 
 // ---------------- reward displays (pooled per kind/tier key) ----------------
@@ -116,6 +146,36 @@ export function buildRewardDisplay(kind, amount, gun = {}) {
     t.position.y = -0.55;
     root.add(t);
     glowColor = '#ff9a3d';
+  } else if (kind === 'cursed') {
+    // looks like treasure (a gold coin heap + '???' badge); every few seconds it flickers into the skull it is
+    // (barrels.js toggles userData.tell) - a careful player can read it
+    const m = sharedMat('coin', () => new THREE.MeshToonMaterial({ gradientMap: toonMaterial().gradientMap, vertexColors: true, emissive: '#ffb000', emissiveIntensity: 0.25 }));
+    const coin = (x, y, z, rx, rz) => part(G.cyl(0.28, 0.28, 0.08, 14), '#ffc531', { p: [x, y, z], r: [rx, 0, rz] });
+    const pile = new THREE.Mesh(merge([
+      coin(0, -0.5, 0, 0, 0), coin(0.05, -0.41, 0.02, 0, 0), coin(-0.03, -0.32, -0.01, 0, 0), coin(0.02, -0.23, 0.01, 0, 0),
+      coin(0.42, -0.42, 0.1, 0.4, 0.3), coin(-0.4, -0.45, -0.05, -0.2, -0.4), coin(0.25, -0.2, -0.2, 0.9, 0.2),
+      part(G.sphere(0.22, 10, 7), '#c46bff', { p: [0, 0.02, 0] }),
+    ]), m);
+    pile.scale.setScalar(1.3);
+    root.add(pile);
+    const sm = sharedMat('skull', () => new THREE.MeshToonMaterial({ gradientMap: toonMaterial().gradientMap, vertexColors: true, emissive: '#7b2bd6', emissiveIntensity: 0.45 }));
+    const skull = new THREE.Mesh(merge([
+      part(G.sphere(0.42, 12, 9), '#f3ead6', { p: [0, 0, 0], s: [1, 0.85, 0.9] }),
+      part(G.box(0.46, 0.18, 0.4), '#f3ead6', { p: [0, -0.33, 0.05] }),
+      part(G.sphere(0.12, 8, 6), '#1a0630', { p: [-0.15, 0.0, 0.31] }),
+      part(G.sphere(0.12, 8, 6), '#1a0630', { p: [0.15, 0.0, 0.31] }),
+    ]), sm);
+    skull.scale.setScalar(1.2);
+    skull.visible = false;
+    root.add(skull);
+    root.userData.tell = { pile, skull };
+    const lab = createLabel(256, 128);
+    const lm = labelMesh(lab, 1.25, 0.62);
+    lm.position.set(0, 0.62, 0.05);
+    root.add(lm);
+    root.userData.label = lab;
+    root.userData.labelMesh = lm;
+    glowColor = '#b46bff';
   } else if (kind === 'coins') {
     const m = sharedMat('coin', () => new THREE.MeshToonMaterial({ gradientMap: toonMaterial().gradientMap, vertexColors: true, emissive: '#ffb000', emissiveIntensity: 0.25 }));
     const coin = (x, y, z, rx, rz) => part(G.cyl(0.28, 0.28, 0.08, 14), '#ffc531', { p: [x, y, z], r: [rx, 0, rz] });
