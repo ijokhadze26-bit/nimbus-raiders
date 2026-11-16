@@ -37,7 +37,7 @@ export function arc(fx, e, segs) {
 }
 
 export function play(fx, e) {
-  const P = fx.P, B = fx.B, s = MK_SCALE[Math.max(1, Math.min(5, e.mk | 0)) - 1];
+  const P = fx.P, B = fx.B, s = MK_SCALE[Math.max(1, Math.min(5, e.mk | 0)) - 1], lo = fx.quality === 'low';
   switch (e.kind) {
     case 'bounce': {
       const L = look(e);
@@ -49,8 +49,9 @@ export function play(fx, e) {
       const def = weaponDef(e.weapon), cs = def.look.candy, r = e.y1 || 2, c = hexInt(cs[(Math.random() * 4) | 0]);
       const k = P.spawn(FLAT_DISC, e.x0, 0.05, e.z0, 0, 0, 0, 0.9, r * 0.5, r * 1.05, c, 0.85, 0.05);
       if (k >= 0) P.d.fade[k] = 0.45;
-      P.spawn(SOFT, e.x0, 0.6, e.z0, 0, 0, 0, 0.18, r * 0.6, r * 1.4, 0xfff0fa, 0.7, 0.8);
-      const fr = P.spawn(FLAT_RING, e.x0, 0.08, e.z0, 0, 0, 0, 0.32, 0.3, r * 2.1, 0xffffff, 0.9, 0.3);
+      // Low: no soft white glow and a tighter shock ring (the candy splat + stars carry the splash)
+      if (!lo) P.spawn(SOFT, e.x0, 0.6, e.z0, 0, 0, 0, 0.18, r * 0.6, r * 1.4, 0xfff0fa, 0.7, 0.8);
+      const fr = P.spawn(FLAT_RING, e.x0, 0.08, e.z0, 0, 0, 0, 0.32, 0.3, r * (lo ? 1.5 : 2.1), 0xffffff, 0.9, 0.3);
       if (fr >= 0) P.d.fade[fr] = 0.2;
       if (e.mk >= 5 && e.n === 0) { // heart-shaped star burst
         for (let i = 0, n = B.n(12); i < n; i++) {
@@ -112,7 +113,7 @@ export function play(fx, e) {
     }
     case 'hole': {
       const r = e.y1 || 4;
-      P.spawn(RING, e.x0, 0.6, e.z0, 0, 0, 0, 0.3, r * 1.2, 0.2, 0xff4bd8, 0.9, 0.7);
+      P.spawn(RING, e.x0, 0.6, e.z0, 0, 0, 0, 0.3, r * (lo ? 0.8 : 1.2), 0.2, 0xff4bd8, 0.9, 0.7); // Low: tighter implosion
       const k = P.spawn(PUFF, e.x0, 0.5, e.z0, 0, 0.3, 0, 0.4, 0.8, 0.3, 0x2a0e4a, 0.85, 0, 0, 0, 0, 0x5f22ae);
       if (k >= 0) P.d.fade[k] = 0.4;
       if (e.n) P.spawn(STAR, e.x0, 0.8, e.z0, 0, 0, 0, 0.15, 0.4, 1.0, 0xff7ae6, 1, 0.9); // a merge flashes

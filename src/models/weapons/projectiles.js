@@ -10,6 +10,9 @@
 //   gearworks   flat saw gear facing the camera (spins as roll); III red-hot teeth; V double layer
 //   thunderclap zig-zag lightning dart in an indigo glow sleeve; thicker at Mk V
 //   voidsiphon  dark violet orb with an off-centre magenta core and a thin ring
+// Low look (geo.userData.low, drawn by bullets.sync on Low): Ember's glow shell is narrower, Glacier drops the
+// frost trail cone, Sugar the Mk III+ halo, Spectra the Mk III+ outer sleeve. Colours and Mk flourishes stay.
+// geo.userData.lowKeep (LOW_KEEP): the share of a style's Low-drawn bullets that is drawn at all on Low.
 // Tracers (drawn only for Ember / Sugar / Void): ember sparks, sugar sprinkles, violet motes.
 import * as THREE from 'three';
 import { part, merge, G } from '../util.js';
@@ -57,18 +60,19 @@ function gearGeometry(R, r, teeth, color, opts = {}) {
 }
 
 // ---------------- per weapon ----------------
-function ember(L, mk) {
+function ember(L, mk, low) {
   const len = 0.35 + (mk - 1) * 0.0625;
   const tail = (zmax) => (x, y, z, o) => (z > 0 ? Math.max(0.1, 1 - (z / zmax) * 0.85) : 1); // the tail fades out
   const parts = [
-    paint(part(G.sphere(0.3, 8, 5), C(L.color), { s: [1, 0.85, len / 0.19], a: 0.26, bright: 1.1 }), tail(len * 1.6)),
+    // Low: the faint glow shell is half as wide (it is most of the flame's pixels, at 26% alpha)
+    paint(part(G.sphere(low ? 0.2 : 0.3, 8, 5), C(L.color), { s: [1, 0.85, len / (low ? 0.15 : 0.19)], a: low ? 0.34 : 0.26, bright: 1.1 }), tail(len * 1.6)),
     paint(part(G.sphere(0.13, 6, 4), C(L.core), { s: [1, 0.9, len / 0.16], p: [0, 0.01, -len * 0.25], a: 0.85 }), tail(len)),
   ];
   if (mk >= 5) parts.push(part(G.sphere(0.06, 4, 3), C('#ffffff'), { s: [1, 1, 2.4], p: [0, 0.01, -len * 0.35], a: 1, bright: 1.3 }));
   return merge(parts);
 }
 
-function glacier(L, mk) {
+function glacier(L, mk, low) {
   const len = 0.9 + (mk - 1) * 0.15, r = 0.075 + (mk - 1) * 0.008;
   const crystal = (dx) => [
     part(cyl(r, r, len * 0.62, 6, 1, true), C(L.color), { r: ALONG, p: [dx, 0, 0], a: 0.92, bright: 1.1 }),
@@ -76,11 +80,11 @@ function glacier(L, mk) {
     part(cone(r, len * 0.14, 6), C(L.color), { r: [Math.PI / 2, 0, 0], p: [dx, 0, len * 0.38], a: 0.9 }),
   ];
   const parts = mk >= 5 ? [...crystal(-0.09), ...crystal(0.09)] : crystal(0);
-  parts.push(part(cone(r * (mk >= 5 ? 2.6 : 1.6), len * 0.9, 6), C(L.trail), { r: ALONG, p: [0, 0, len * 0.75], a: 0.3 }));
+  if (!low) parts.push(part(cone(r * (mk >= 5 ? 2.6 : 1.6), len * 0.9, 6), C(L.trail), { r: ALONG, p: [0, 0, len * 0.75], a: 0.3 }));
   return merge(parts);
 }
 
-function sugar(L, mk, def) {
+function sugar(L, mk, def, low) {
   const R = 0.2 + (mk - 1) * 0.025;
   const candy = def.look.candy.map(C), white = C('#ffffff');
   const ball = paint(part(G.sphere(R, 8, 5), white, { a: 1 }), (x, y, z, o) => {
@@ -91,11 +95,11 @@ function sugar(L, mk, def) {
     return 1;
   });
   const parts = [ball, part(G.sphere(R * 0.32, 4, 3), white, { p: [-R * 0.42, R * 0.48, R * 0.35], a: 0.85, bright: 1.2 })];
-  if (mk >= 3) parts.push(part(G.sphere(R * 1.35, 6, 4), C(L.color), { a: 0.22 }));
+  if (mk >= 3 && !low) parts.push(part(G.sphere(R * 1.35, 6, 4), C(L.color), { a: 0.22 }));
   return merge(parts);
 }
 
-function spectra(L, mk, def) {
+function spectra(L, mk, def, low) {
   const r = 0.055 + (mk - 1) * 0.009;
   const bands = def.look.rainbow.map(C);
   const sleeve = paint(part(cyl(r * 2.1, r * 2.1, 1, 6, 5, true), C('#ffffff'), { r: ALONG, a: 0.92 }), (x, y, z, o) => {
@@ -104,7 +108,7 @@ function spectra(L, mk, def) {
     return z < -0.45 ? 0.5 : 1;
   });
   const parts = [sleeve, part(cyl(r * 0.7, r * 0.7, 1.04, 4, 1, true), C(L.core), { r: ALONG, a: 1, bright: 1.3 })];
-  if (mk >= 3) parts.push(part(cyl(r * 3.2, r * 3.2, 0.9, 5, 1, true), C(L.trail), { r: ALONG, a: 0.22 }));
+  if (mk >= 3 && !low) parts.push(part(cyl(r * 3.2, r * 3.2, 0.9, 5, 1, true), C(L.trail), { r: ALONG, a: 0.22 }));
   if (mk >= 5) parts.push(part(G.sphere(r * 2.6, 5, 3), C('#ffffff'), { p: [0, 0, -0.5], a: 0.9 }));
   return merge(parts);
 }
@@ -172,9 +176,10 @@ function tracer(id, L, def) {
   }
 }
 
-export function buildProjectileGeometry(id, mk = 1, partName = 'main') {
+export function buildProjectileGeometry(id, mk = 1, partName = 'main', lod = 'high') {
   const m = Math.max(1, Math.min(5, mk | 0));
-  const key = id + ':' + m + ':' + partName;
+  const low = lod === 'low';
+  const key = id + ':' + m + ':' + partName + (low ? ':low' : '');
   if (cache.has(key)) return cache.get(key);
   const def = weaponDef(id);
   const L = def.look.mk[m - 1];
@@ -182,10 +187,10 @@ export function buildProjectileGeometry(id, mk = 1, partName = 'main') {
   if (partName === 'tracer') geo = tracer(id, L, def);
   else {
     switch (id) {
-      case 'emberstorm': geo = ember(L, m); break;
-      case 'glacier': geo = glacier(L, m); break;
-      case 'sugarrush': geo = sugar(L, m, def); break;
-      case 'spectra': geo = spectra(L, m, def); break;
+      case 'emberstorm': geo = ember(L, m, low); break;
+      case 'glacier': geo = glacier(L, m, low); break;
+      case 'sugarrush': geo = sugar(L, m, def, low); break;
+      case 'spectra': geo = spectra(L, m, def, low); break;
       case 'gearworks': geo = gear(L, m, partName === 'child'); break;
       case 'thunderclap': geo = thunder(L, m, def); break;
       case 'voidsiphon': geo = voidOrb(L, m); break;
@@ -198,8 +203,19 @@ export function buildProjectileGeometry(id, mk = 1, partName = 'main') {
   geo.computeBoundingBox();
   geo.computeBoundingSphere();
   cache.set(key, geo);
+  // the Low-quality look rides on the High geometry (bullets.sync swaps it in on Low; built now, not mid-run)
+  if (!low && LOW_LOOK.has(id) && partName !== 'tracer') geo.userData.low = buildProjectileGeometry(id, m, partName, 'low');
+  if (!low && partName !== 'tracer' && LOW_KEEP[id]) geo.userData.lowKeep = LOW_KEEP[id];
   return geo;
 }
+
+/** Weapons whose bullets have a lighter Low look (fewer / smaller translucent shells; SPEC2 §6.9 Low variants). */
+const LOW_LOOK = new Set(['emberstorm', 'glacier', 'sugarrush', 'spectra']);
+/**
+ * Share of the Low-drawn (`show`) bullets of a style that bullets.sync still draws on Low, for the big translucent
+ * styles (flame wall, candy bombs, long beams, saw gears). Stable per bullet (b.lod), so nothing flickers.
+ */
+const LOW_KEEP = { emberstorm: 0.75, sugarrush: 0.75, spectra: 0.65, gearworks: 0.8 };
 
 /** Triangle count of a geometry (tests / budgets). */
 export function triCount(g) { return (g.index ? g.index.count : g.attributes.position.count) / 3; }

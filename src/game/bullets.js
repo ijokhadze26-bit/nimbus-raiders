@@ -7,7 +7,8 @@
 // 'bounce' to keep the bullet on a new heading (vx/vz rewritten); onLand(b) fires when a lobbed (air)
 // bullet comes down, onExpire(b) at the end of its range. Behaviours set b.dead = true to drop a bullet.
 // Styles: registerStyle(key, geometry) at init (all weapons register theirs at boot, hidden until used);
-// setStyleGeometry(idx, geo) swaps a style's look (Mk changes; the caller owns and caches geometries).
+// setStyleGeometry(idx, geo) swaps a style's look (Mk changes; the caller owns and caches geometries). On Low,
+// sync() draws geo.userData.low when a geometry carries one (a lighter look; drawing only).
 import * as THREE from 'three';
 import { BULLETS, HIT } from '../config.js';
 import { HELPER_SHOTS } from '../data/weapons.js';
@@ -49,6 +50,8 @@ export class Bullets {
     this.keys = [];
     this.byKey = new Map();
     this.counts = new Int32Array(64);
+    this.keep = new Float32Array(64);
+    this.lodSeq = 0;
     this.hitPos = { x: 0, y: 0, z: 0 };
     for (const w of HELPER_SHOTS) this.registerStyle(w.id, helperShotGeometry(w));
   }
@@ -63,12 +66,13 @@ export class Bullets {
     mesh.visible = false;
     mesh.renderOrder = 6;
     mesh.userData.cap = cap;
+    mesh.userData.hi = geometry;
     this.game.scene.add(mesh);
     const idx = this.meshes.length;
     this.meshes.push(mesh);
     this.keys.push(key);
     this.byKey.set(key, idx);
-    if (this.counts.length <= idx) { const c = new Int32Array(this.counts.length * 2); c.set(this.counts); this.counts = c; }
+    if (this.counts.length <= idx) { const c = new Int32Array(this.counts.length * 2); c.set(this.counts); this.counts = c; this.keep = new Float32Array(c.length); }
     return idx;
   }
 
@@ -78,7 +82,10 @@ export class Bullets {
   /** Swaps the geometry of a style (Mk changes). The caller owns the geometries (nothing is disposed here). */
   setStyleGeometry(idx, geometry) {
     const mesh = this.meshes[idx];
-    if (mesh && geometry && mesh.geometry !== geometry) mesh.geometry = geometry;
+    if (!mesh || !geometry) return;
+    mesh.userData.hi = geometry; // on Low, sync() draws its Low look (geometry.userData.low) instead
+    const low = this.game.engine && this.game.engine.quality === 'low';
+    mesh.geometry = (low && geometry.userData.low) || geometry;
   }
 
   addTargetSystem(sys) {
@@ -107,6 +114,7 @@ export class Bullets {
     b.g = 0; b.air = false; b.bounces = 0; b.gen = 0;
     b.sx = 1; b.sy = 1; b.sz = 1; b.spin = 0; b.roll = 0;
     b.bdmg = 0; b.gw = 0; b.show = true; b.t = 0; b.data = 0; b.dead = false; b.z0 = z;
+    b.lod = this.lodSeq = (this.lodSeq + 0.6180339887) % 1; // drawing only (Low thinning in sync); never simulated
     this.active.push(b);
     return b;
   }
@@ -184,11 +192,14 @@ export class Bullets {
     counts.fill(0);
     const list = this.active;
     const meshes = this.meshes;
-    // low quality: draw only the volleys flagged `show` (~budgetLow/budgetHigh); all bullets still simulate
+    // low quality: draw only the volleys flagged `show` (~budgetLow/budgetHigh), and of those only the share
+    // lowKeep of the style's geometry (big translucent styles); all bullets still simulate
     const low = this.game.engine && this.game.engine.quality === 'low';
+    const keep = this.keep;
+    for (let s = 0; s < meshes.length; s++) keep[s] = low ? (meshes[s].userData.hi.userData.lowKeep || 1) : 1;
     for (let i = 0; i < list.length; i++) {
       const b = list[i];
-      if (b.style < 0 || (low && !b.show)) continue;
+      if (b.style < 0 || (low && (!b.show || b.lod >= keep[b.style]))) continue;
       const mesh = meshes[b.style];
       const n = counts[b.style]++;
       if (n >= mesh.userData.cap) continue;
@@ -198,7 +209,9 @@ export class Bullets {
       writeXfYawRoll(mesh.instanceMatrix.array, n);
     }
     for (let s = 0; s < meshes.length; s++) {
-      const mesh = meshes[s];
+      const mesh = meshes[s], hi = mesh.userData.hi;
+      const geo = (low && hi.userData.low) || hi;
+      if (mesh.geometry !== geo) mesh.geometry = geo;
       mesh.count = Math.min(counts[s], mesh.userData.cap);
       mesh.visible = mesh.count > 0;
       if (mesh.visible) markInstances(mesh.instanceMatrix, mesh.count);
@@ -213,7 +226,7 @@ function newBullet() {
     x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, dmg: 1, unit: 1, pierce: 0, style: 0, dist: 0, range: 60, nh: 0, ang: 0,
     hits: [null, null, null, null, null, null, null, null],
     owner: null, el: 'neutral', mask: HIT.ALL, cause: null, g: 0, air: false, bounces: 0, gen: 0,
-    sx: 1, sy: 1, sz: 1, spin: 0, roll: 0, bdmg: 0, gw: 0, show: true, t: 0, data: 0, dead: false, z0: 0,
+    sx: 1, sy: 1, sz: 1, spin: 0, roll: 0, bdmg: 0, gw: 0, show: true, t: 0, data: 0, dead: false, z0: 0, lod: 0,
   };
 }
 

@@ -12,8 +12,11 @@ import { registerWarm } from '../../game/warmup.js';
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _e = new THREE.Euler();
 const geoCache = {};
 
-/** Flat disc on the ground (XZ), triangle fan with per-vertex RGBA from fn(r01, angle) -> [r,g,b,a]. */
-function disc(rings, seg, fn, wobble = 0) {
+/**
+ * Flat disc on the ground (XZ), triangle fan with per-vertex RGBA from fn(r01, angle) -> [r,g,b,a].
+ * from > 0 leaves out the centre fan and the bands inside ring `from` (fully transparent there: pure overdraw).
+ */
+function disc(rings, seg, fn, wobble = 0, from = 0) {
   const pos = [], col = [], idx = [];
   pos.push(0, 0, 0); col.push(...fn(0, 0));
   for (let k = 1; k <= rings; k++) {
@@ -25,8 +28,8 @@ function disc(rings, seg, fn, wobble = 0) {
       col.push(...fn(r, a));
     }
   }
-  for (let i = 0; i < seg; i++) idx.push(0, 1 + ((i + 1) % seg), 1 + i);
-  for (let k = 1; k < rings; k++) {
+  if (!from) for (let i = 0; i < seg; i++) idx.push(0, 1 + ((i + 1) % seg), 1 + i);
+  for (let k = Math.max(1, from); k < rings; k++) {
     const o0 = 1 + (k - 1) * seg, o1 = 1 + k * seg;
     for (let i = 0; i < seg; i++) {
       const j = (i + 1) % seg;
@@ -79,7 +82,7 @@ export function swirlGeometry() {
     const c = arm > 0.8 ? pink : mag;
     const edge = r >= 1 ? 0 : 1 - Math.abs(r - 0.82) / 0.3;
     return [c[0], c[1], c[2], Math.max(0, edge) * (0.35 + 0.6 * arm)];
-  });
+  }, 0, 2); // alpha is 0 inside r = 0.5: an annulus draws the same picture
   return geoCache.swirl;
 }
 
@@ -93,6 +96,9 @@ function instMesh(geo, cap, additive = false) {
   mesh.renderOrder = 3;
   return mesh;
 }
+
+/** Low draw scale of a zone at z: 1 while ahead of (or level with) the leader z lz, 0 once 3 units behind it. */
+export function passed(z, lz) { return z <= lz ? 1 : Math.max(0, 1 - (z - lz) / 3); }
 
 function put(mesh, i, x, y, z, s, yaw) {
   _e.set(0, yaw, 0); _q.setFromEuler(_e);
@@ -113,12 +119,16 @@ export function createZoneViews(game) {
       const Z = game.zones;
       if (!Z) return;
       const P = Z.puddles, H = Z.holes;
+      // Low: a zone the squad has run past (between the squad and the camera) shrinks away; near the camera
+      // its disc would fill the screen. Drawing only: the zone itself simulates the same on every quality.
+      const lz = game.engine.quality === 'low' && game.squad ? game.squad.leader.z : Infinity;
       let n = 0;
       for (let i = 0; i < P.length && n < 5; i++) {
         const p = P[i];
         const life = p.dur - p.t;
-        const k = Math.min(1, p.t / 0.18) * Math.min(1, Math.max(0.02, life / 0.5));
-        put(puddles, n++, p.x, 0.035 + i * 0.002, p.z, p.r * (0.55 + 0.45 * k) * (1 + Math.sin(t * 3 + p.id) * 0.02), p.id * 1.7);
+        const k = Math.min(1, p.t / 0.18) * Math.min(1, Math.max(0.02, life / 0.5)), f = passed(p.z, lz);
+        if (f <= 0) continue;
+        put(puddles, n++, p.x, 0.035 + i * 0.002, p.z, p.r * (0.55 + 0.45 * k) * f * (1 + Math.sin(t * 3 + p.id) * 0.02), p.id * 1.7);
       }
       puddles.count = n; puddles.visible = n > 0;
       if (n) puddles.instanceMatrix.needsUpdate = true;
@@ -126,8 +136,9 @@ export function createZoneViews(game) {
       for (let i = 0; i < H.length && n < 6; i++) {
         const h = H[i];
         const life = h.dur - h.t;
-        const k = Math.min(1, h.t / 0.15) * Math.min(1, Math.max(0.05, life / 0.3));
-        const core = Z.holeCore(h) * 1.6 * k, rr = Z.holeR(h) * (0.6 + 0.4 * k);
+        const k = Math.min(1, h.t / 0.15) * Math.min(1, Math.max(0.05, life / 0.3)), f = passed(h.z, lz);
+        if (f <= 0) continue;
+        const core = Z.holeCore(h) * 1.6 * k * f, rr = Z.holeR(h) * (0.6 + 0.4 * k) * f;
         put(holes, n, h.x, 0.05 + i * 0.003, h.z, core, t * 2.2 + h.id);
         put(swirls, n, h.x, 0.07 + i * 0.003, h.z, rr, -t * 3.1 - h.id);
         n++;
