@@ -69,7 +69,7 @@ for (const q of ['high', 'low']) {
     b.t = 75;
     let minWarn = 9, n = 0;
     // (troops topped up: a wiped squad would end the run and leave a result screen over the next pictures)
-    step(10, () => { if (g.squad.count < 15) d.give('troops', 30); for (const h of g.telegraph.active) { if (h.t < 0.05) n++; minWarn = Math.min(minWarn, h.duration); } });
+    step(10, () => { if (g.squad.count < 30) d.give('troops', 40); for (const h of g.telegraph.active) { if (h.t < 0.05) n++; minWarn = Math.min(minWarn, h.duration); } });
     if (n > 0 && minWarn < 0.9) fails.push(`${type}/${q}: a ${minWarn.toFixed(2)} s warning while raging`);
     info[`rage-${type}-${q}`] = { ratio: Math.round(ratio * 100) / 100, minWarn: Math.round(minWarn * 100) / 100, warnings: n };
   }
@@ -100,7 +100,8 @@ for (const q of ['high', 'low']) {
     if (r.r < SAFE_SPOT.r0 - 1e-6 || r.r > SAFE_SPOT.r1 + 1e-6) fails.push(`safe/${q}: radius ${r.r}`);
     if (r.dx < 2.4) fails.push(`safe/${q}: spot only ${r.dx.toFixed(2)} u from the squad`);
     if (!r.hud) fails.push(`safe/${q}: no MOVE TO THE SAFE SPOT call`);
-    step(0.6); await shot(q === 'high' ? 'safe-spot' : 'safe-spot-low', 100, '.safe-call');
+    // 400 ms of wall clock (the sim is paused): a result screen from an earlier wiped arena finishes leaving
+    step(0.6); await shot(q === 'high' ? 'safe-spot' : 'safe-spot-low', 400, '.safe-call');
     const lost = finish(still);
     if (!(lost > 0) || lost > Math.ceil(still.before * SAFE_SPOT.maxLoss) || g.squad.count < 1) fails.push(`safe/${q}: standing still lost ${lost} of ${still.before}`);
     info[`safe-${q}`] = { ...r, stillLost: lost };
@@ -233,7 +234,7 @@ for (const q of ['high', 'low']) {
         en = Math.max(en, g.horde.count - en0);
         coats = Math.max(coats, b.effects.x.brood.length);
         if (id === 'summon' && i === 50) { g.sync(1 / 30); const jm = b.effects.x.jellies; if (!jm || jm.count !== b.effects.x.brood.length || !jm.visible) fails.push(`candy/${q}: ${jm && jm.count} jelly coats drawn for ${b.effects.x.brood.length}`); }
-        if (!jellyShot && q === 'high' && id === 'summon' && coats >= 10 && i > 40) { jellyShot = true; g.sync(1 / 30); await shot('candy-queen-jelly-brood', 40); }
+        if (!jellyShot && q === 'high' && id === 'summon' && coats >= 10 && i > 72) { jellyShot = true; g.sync(1 / 30); await shot('candy-queen-jelly-brood', 40); }
         if (!shotTaken && q === 'high' && id === 'cane' && canes >= 3) { shotTaken = true; g.sync(1 / 30); await shot('candy-queen-canes', 40); }
       }
       r[id] = { canes, syrup, enemies: en, coats };
