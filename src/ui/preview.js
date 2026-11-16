@@ -418,6 +418,7 @@ export function createPreview(ui) {
   };
   P.dispose = () => { P.hide(); };
   P.fx = fx;
+  P.root = () => (content ? content.root : null); // tests: the shown model
   return P;
 }
 
