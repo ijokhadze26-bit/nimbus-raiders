@@ -2,9 +2,13 @@
 // pours out of her body and charges (phase 2 mixes in bombers, tanks, shields). GOO PUDDLE — goo blobs
 // arc out of her crown onto red warning circles: members under a blob die, and a sticky green puddle
 // stays behind that slows the squad's sideways movement. Entrance: rises out of a goo pool. Death: melts.
+// Update 3 - CANDY QUEEN (skin 'candy', L40): a candy-flavoured attack table (def.candy): the JELLY BROOD summon
+// (pink burst; the Candy Kingdom's jelly Murklings), SYRUP puddles (caramel, slow the squad like goo) and a
+// CANDY-CANE VOLLEY (spinning canes arc out of her crown onto pink circles).
 import * as THREE from 'three';
 import { BaseBoss } from './base.js';
 import { volley, summon } from './attacks.js';
+import { caneVolley } from './worldattacks.js';
 import { buildMotherMurk } from '../../models/bosses/mothermurk.js';
 
 const EYE1 = new THREE.Color('#ffd84a'), EYE2 = new THREE.Color('#ff3b2b');
@@ -36,7 +40,7 @@ export class MotherMurk extends BaseBoss {
     this.y = -9.5 * e * e * e;
     if (this.t < 0.02 && !this.pooled) {
       this.pooled = true;
-      this.effects.puddle(this.x, this.z + 0.5, 6.5, 2.2);
+      this.effects.puddle(this.x, this.z + 0.5, 6.5, 2.2, this.candy ? 'syrup' : 'goo');
     }
   }
 
@@ -47,10 +51,27 @@ export class MotherMurk extends BaseBoss {
     this.game.gates.burst(this.x, 0.5, this.z + 3, 7, 2, '#a77bff', 22);
   }
 
+  get candy() { return this.skin === 'candy' && !!this.def.candy; }
+
+  attackList() { return this.candy ? this.def.candy : this.def.attacks; }
+
+  safeSpotOpts() { return this.candy ? { blast: '#ff7ad1', safeColor: '#4ee6b8' } : { blast: '#9dff7a' }; }
+
   // ---------------- attacks ----------------
   startAttack(id, spec) {
     if (id === 'puddle') return this.puddleAttack(spec);
+    if (id === 'cane') return this.caneAttack(spec);
     return this.summonAttack(spec);
+  }
+
+  caneAttack(spec) {
+    const self = this;
+    return caneVolley(this, {
+      count: this.tierCount(this.phase >= 2 ? spec.count2 : spec.count, 0.34), radius: spec.radius, telegraph: this.warnTime(spec.telegraph, 0.05),
+      flight: spec.flight, stagger: spec.stagger, spread: spec.spread,
+      from: (i) => ({ x: self.x + (i % 2 ? 1.8 : -1.8), y: 7.2, z: self.z + 1 }),
+      onLaunch(i) { self.pose.throw = 1; self.pose.throwSide = i % 2 ? 1 : -1; },
+    });
   }
 
   summonAttack(spec) {
@@ -59,7 +80,7 @@ export class MotherMurk extends BaseBoss {
     const count = Math.min(spec.max, base + spec.perTier * (this.tier - 1));
     const self = this;
     return summon(this, {
-      count, mix: p2 ? spec.mix2 : spec.mix, windup: this.warnTime(spec.windup), width: 8.4, ahead: 5,
+      count, mix: p2 ? spec.mix2 : spec.mix, windup: this.warnTime(spec.windup), width: 8.4, ahead: 5, color: this.candy ? '#ff7ad1' : undefined,
       hpMul: 1 + (this.tier - 1) * (spec.hpPerTier || 0) + (p2 ? 0.5 : 0),
       onWindup(f) { self.pose.swell = f; },
       onSpawn() { self.pose.swell = 0; self.pose.squash = 1; },
@@ -70,12 +91,14 @@ export class MotherMurk extends BaseBoss {
     const p2 = this.phase === 2;
     const n = this.tierCount(p2 ? spec.count2 : spec.count, 0.5);
     const self = this, fx = this.effects;
+    const syrup = this.candy;
     return volley(this, {
       count: n, radius: spec.radius, telegraph: this.warnTime(spec.telegraph), flight: spec.flight, stagger: 0.28, spread: 2.6,
-      attack: 'puddle', orbColor: '#9dff7a', core: '#62d63e', ringColor: '#c8ff7a', arc: 5, size: 0.95,
+      attack: 'puddle', orbColor: syrup ? '#ffa04a' : '#9dff7a', core: syrup ? '#c8541e' : '#62d63e', ringColor: syrup ? '#ffd0a0' : '#c8ff7a', arc: 5, size: 0.95,
+      color: syrup ? '#ff7a2a' : undefined,
       from: (i) => ({ x: self.x + (i % 2 ? 1.6 : -1.6), y: 7.4, z: self.z + 1 }),
       onLaunch(i) { self.pose.throw = 1; self.pose.throwSide = i % 2 ? 1 : -1; },
-      onImpact(i, kills, h) { fx.puddle(h.x, h.z, spec.radius * 1.2, spec.life); },
+      onImpact(i, kills, h) { fx.puddle(h.x, h.z, spec.radius * 1.2, spec.life, syrup ? 'syrup' : 'goo'); },
     });
   }
 
@@ -98,6 +121,8 @@ export class MotherMurk extends BaseBoss {
       zones.push(z);
     }
   }
+
+  onRage() { this.pose.squash = 1; }
 
   onPhase2() {
     this.pose.squash = 1;
@@ -148,7 +173,7 @@ export class MotherMurk extends BaseBoss {
     const fl = this.flash;
     m.mat.emissive.setRGB(fl * 0.25 + p.swell * 0.05, fl * 0.22 + p.swell * 0.18, fl * 0.28);
     m.aura.material.opacity = p.swell * 0.6 + (p2 ? 0.1 + 0.05 * Math.sin(t * 6) : 0);
-    m.aura.material.color.set(p.swell > 0.05 ? '#7dff6a' : '#ff6a5a');
+    m.aura.material.color.set(p.swell > 0.05 ? (this.candy ? '#ff7ad1' : '#7dff6a') : '#ff6a5a');
     m.aura.scale.setScalar(10 + p.swell * 6);
     // death: shudder, then melt into a spreading puddle while the crown topples off
     if (dying) {

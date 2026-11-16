@@ -3,9 +3,13 @@
 // (members in that half die as it passes). STOMP — rears up and slams its hooves: a quake crest races
 // down a striped strip at the squad. Phase 2: DOUBLE charge (one half, then the other) and FEINT (the
 // warning jumps to the other half mid-way; the real one still gets >= 0.9 s). Death: sparks, topples.
+// Update 3: in the Volcanic Forge (L20, or cfg.lava) every charge leaves a burning lava strip along its track and
+// the stomp is a MAGMA STOMP that also rains embers onto circles around the squad; as FROSTHORN (frost skin,
+// L25) the charge trails are frost instead (no embers).
 import * as THREE from 'three';
 import { BaseBoss } from './base.js';
 import { sequence, clampX } from './attacks.js';
+import { emberRain } from './worldattacks.js';
 import { buildIronhorn } from '../../models/bosses/ironhorn.js';
 
 const GLOW1 = new THREE.Color('#ffb43a'), GLOW2 = new THREE.Color('#ff3020'), WHITE = new THREE.Color('#ffffff');
@@ -16,6 +20,20 @@ const HALF = (EDGE + OVER) / 2, CX = (EDGE - OVER) / 2;
 
 export class Ironhorn extends BaseBoss {
   static preload(game) { game.bosses.model('ironhorn', buildIronhorn); }
+
+  constructor(game, cfg) {
+    super(game, cfg);
+    // trail kind: 'lava' (forge world / cfg.lava), 'frost' (Frosthorn), null (sky: the classic fight)
+    this.trail = cfg.lava || this.flavor === 'forge' ? 'lava' : this.flavor === 'frost' ? 'frost' : null;
+  }
+
+  /** Lava / frost strip along the track a charge just ran (x centre cx, from zFar to zEnd). */
+  leaveTrail(x, zFar, zEnd) {
+    const L = this.def.lava;
+    if (!this.trail || !L) return;
+    const life = L.life + 0.1 * (this.tier - 1);
+    this.addBurn(this.trail, x - L.halfW, x + L.halfW, zFar, zEnd, life, L.rate + (this.rage ? 2 : 0));
+  }
 
   buildModel() {
     const m = this.game.bosses.model('ironhorn', buildIronhorn);
@@ -119,7 +137,11 @@ export class Ironhorn extends BaseBoss {
           p.gallop = 1; p.lower = 1;
           dustT -= dt;
           if (dustT <= 0 && self.fx) { dustT = 0.05; self.fx.dust(self.x + (Math.random() - 0.5) * 3, self.z, 0); }
-          if (self.z >= endZ) { stage = 'skid'; st = 0; self.dropZone(zone); if (self.fx) self.fx.landing(self.x, self.z + 3, 2); game.events.emit('fx:shake', { amount: 0.35 }); }
+          if (self.z >= endZ) {
+            stage = 'skid'; st = 0; self.dropZone(zone);
+            self.leaveTrail(side * cx, zFar, endZ + FRONT + 1);
+            if (self.fx) self.fx.landing(self.x, self.z + 3, 2); game.events.emit('fx:shake', { amount: 0.35 });
+          }
         } else if (stage === 'skid') {
           p.gallop = Math.max(0, 1 - st * 4); p.lower = Math.max(0, 1 - st * 3);
           if (st >= 0.3) { stage = 'turn'; st = 0; }
@@ -154,12 +176,14 @@ export class Ironhorn extends BaseBoss {
     const dur = this.warnTime(spec.telegraph);
     const marks = xs.map((x) => T.lane(x - hw, x + hw, zNear, zFar, dur, { attack: 'slam' }));
     const zones = xs.map((x) => ({ kind: 'lane', x0: x - hw, x1: x + hw, zNear, zFar }));
-    let t = 0, fired = false, hit = false;
+    let t = 0, fired = false, hit = false, rain = null, rainDone = true;
+    const L = this.def.lava;
     this.lockX = 0;
     return {
       update(dt) {
         t += dt;
         const p = self.pose;
+        if (rain && !rainDone) rainDone = rain.update(dt);
         if (!fired) {
           p.rear = Math.min(1, t / (dur * 0.8));
           if (t >= dur) {
@@ -169,6 +193,12 @@ export class Ironhorn extends BaseBoss {
             game.events.emit('boss:attack', { attack: 'slam', pos: { x: self.x, y: 0, z: self.z + 3 } });
             game.events.emit('fx:shake', { amount: 0.7 });
             if (self.fx) self.fx.slam(self.x, self.z + 3.5, 2.8);
+            // magma stomp: embers burst out of the impact and rain onto the squad
+            if (self.trail === 'lava' && L) {
+              rainDone = false;
+              rain = emberRain(self, { count: self.phase >= 2 ? L.embers2 : L.embers, radius: L.emberR, telegraph: self.warnTime(L.emberWarn), stagger: 0.16, spread: 2.8 });
+              for (let k = 0; k < 6; k++) self.effects.glow(self.x + (k - 2.5) * 0.9, 2 + k * 0.4, self.z + 4, '#ff7a1e', 2.4, 0.5);
+            }
           }
           return false;
         }
@@ -178,12 +208,16 @@ export class Ironhorn extends BaseBoss {
         if (!hit && z >= game.squad.leader.z - 1) { hit = true; for (const x of xs) self.killInBox(x, hw, zFar, zNear); }
         if (self.fx && Math.random() < 0.6) for (const x of xs) self.fx.dust(x + (Math.random() - 0.5) * hw * 2, z, 0);
         if (f >= 1) for (const zn of zones) self.dropZone(zn);
-        if (f >= 1 && t >= dur + spec.travel + 0.35) { self.lockX = null; return true; }
+        if (f >= 1 && t >= dur + spec.travel + 0.35 && rainDone) { self.lockX = null; return true; }
         return false;
       },
-      cancel() { for (const m of marks) T.cancel(m); for (const zn of zones) self.dropZone(zn); self.lockX = null; },
+      cancel() { for (const m of marks) T.cancel(m); for (const zn of zones) self.dropZone(zn); self.lockX = null; if (rain) rain.cancel(); },
     };
   }
+
+  safeSpotOpts() { return this.trail === 'lava' ? { blast: '#ff7a1e' } : this.trail === 'frost' ? { blast: '#9fe8ff' } : {}; }
+
+  onRage() { this.pose.roar = 1; }
 
   onPhase2() {
     this.pose.roar = 1;

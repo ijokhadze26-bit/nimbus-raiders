@@ -1,14 +1,18 @@
 // Telegraph: warning markers painted on the road before an attack lands.
 //   circle(x, z, r, duration, opts) / lane(x0, x1, zNear, zFar, duration, opts) -> handle
+//   safe(x, z, r, duration, opts) -> handle: update 3 SAFE SPOT - the whole arena glows red except a glowing
+//   green circle (a light column marks it above the squad); contains() is true OUTSIDE the circle, so the
+//   autopilot's dodge (which minimises members inside warnings) walks the squad into it.
 // A handle fills up over `duration`; at the end handle.fired = true (the attacker resolves damage),
 // then it flashes and fades. Normal alpha blending (saturated red reads on the white road; additive would not).
 import * as THREE from 'three';
+import { registerWarm } from './warmup.js';
 
 const FADE = 0.22;
 // Circle markers are repeated as a reticle hovering just above the Raiders' helmets: a big squad
 // stands on (and hides) the ground decal, but the camera looks down onto the overhead reticle.
 const OVERHEAD_Y = 1.3;
-let circleTex = null, stripeTex = null, wallTex = null;
+let circleTex = null, stripeTex = null, wallTex = null, beamTex = null;
 
 function makeWallTexture() {
   const c = document.createElement('canvas');
@@ -18,6 +22,22 @@ function makeWallTexture() {
   grd.addColorStop(0, 'rgba(255,255,255,0.85)');
   grd.addColorStop(0.35, 'rgba(255,255,255,0.35)');
   grd.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 4, 64);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+/** Safe-spot light column: stays visible above the helmets (alpha 0.95 at the ground -> 0.3 at the top). */
+function makeBeamTexture() {
+  const c = document.createElement('canvas');
+  c.width = 4; c.height = 64;
+  const g = c.getContext('2d');
+  const grd = g.createLinearGradient(0, 64, 0, 0);
+  grd.addColorStop(0, 'rgba(255,255,255,0.95)');
+  grd.addColorStop(0.5, 'rgba(255,255,255,0.55)');
+  grd.addColorStop(1, 'rgba(255,255,255,0.12)');
   g.fillStyle = grd;
   g.fillRect(0, 0, 4, 64);
   const t = new THREE.CanvasTexture(c);
@@ -72,16 +92,36 @@ const mat = (opts) => new THREE.MeshBasicMaterial({ transparent: true, depthWrit
 const circleGeo = new THREE.CircleGeometry(1, 48).rotateX(-Math.PI / 2);
 const planeGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 const wallGeo = new THREE.CylinderGeometry(1, 1, 1, 48, 1, true).translate(0, 0.5, 0);
+const ringGeo = new THREE.RingGeometry(0.9, 1, 56).rotateX(-Math.PI / 2);
+// safe spot: the red sheet covers the road (x within ROAD_HW) from SAFE_FAR ahead of the hole to SAFE_NEAR behind
+const ROAD_HW = 5.3, SAFE_FAR = 16, SAFE_NEAR = 9;
+const SAFE_COLOR = '#3dff8a', DANGER_COLOR = '#ff2a3a';
+
+/** Road rectangle with a round hole of radius r at local (hx, 0) (group sits at x = 0, z = hole z). */
+function safeSheet(hx, r) {
+  const sh = new THREE.Shape();
+  // shape is drawn in (x, -z) and rotated flat, so +y here is -z (toward the boss)
+  sh.moveTo(-ROAD_HW, -SAFE_NEAR); sh.lineTo(ROAD_HW, -SAFE_NEAR); sh.lineTo(ROAD_HW, SAFE_FAR); sh.lineTo(-ROAD_HW, SAFE_FAR); sh.lineTo(-ROAD_HW, -SAFE_NEAR);
+  const hole = new THREE.Path();
+  hole.absarc(hx, 0, r, 0, Math.PI * 2, true);
+  sh.holes.push(hole);
+  const g = new THREE.ShapeGeometry(sh, 40).rotateX(-Math.PI / 2);
+  // uv = road units / 2.2 so the stripe texture keeps its scale
+  const p = g.attributes.position, uv = g.attributes.uv;
+  for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) / 2.2, p.getZ(i) / 2.2);
+  return g;
+}
 
 export class Telegraph {
   init(game) {
     this.game = game;
     this.list = [];
-    this.pools = { circle: [], lane: [] };
+    this.pools = { circle: [], lane: [], safe: [] };
     this.time = 0;
     circleTex = circleTex || makeCircleTexture();
     stripeTex = stripeTex || makeStripeTexture();
     wallTex = wallTex || makeWallTexture();
+    beamTex = beamTex || makeBeamTexture();
   }
 
   reset() {
@@ -105,6 +145,22 @@ export class Telegraph {
       const topFill = new THREE.Mesh(circleGeo, mat({ opacity: 0.2, side: THREE.DoubleSide }));
       group.add(base, fill, wall, top, topFill);
       v = { group, base, fill, wall, top, topFill };
+    } else if (kind === 'safe') {
+      const tex = stripeTex.clone();
+      tex.needsUpdate = true;
+      tex.repeat.set(1, 1);
+      const sheet = new THREE.Mesh(safeSheet(0, 2), mat({ map: tex, opacity: 0.85 }));
+      // a faint red ceiling over the helmets (with the same hole): a big squad hides the road decal
+      const roof = new THREE.Mesh(sheet.geometry, mat({ opacity: 0.2, side: THREE.DoubleSide }));
+      roof.position.y = OVERHEAD_Y + 0.25;
+      const disc = new THREE.Mesh(circleGeo, mat({ map: circleTex, opacity: 0.9 }));
+      disc.position.y = 0.006;
+      const ring = new THREE.Mesh(ringGeo, mat({ opacity: 1 }));
+      ring.position.y = 0.012;
+      const wall = new THREE.Mesh(wallGeo, mat({ map: beamTex, side: THREE.DoubleSide, opacity: 0.85 }));
+      const top = new THREE.Mesh(ringGeo, mat({ opacity: 0.9, side: THREE.DoubleSide }));
+      group.add(sheet, roof, disc, ring, wall, top);
+      v = { group, sheet, roof, disc, ring, wall, top, tex, hx: 0, r: 2 };
     } else {
       const tex = stripeTex.clone();
       tex.needsUpdate = true;
@@ -124,6 +180,7 @@ export class Telegraph {
     for (const m of group.children) m.renderOrder = 2;
     if (v.topFill) { v.top.renderOrder = 8; v.topFill.renderOrder = 8; }
     if (v.railA) { v.top.renderOrder = 8; v.railA.renderOrder = 8; v.railB.renderOrder = 8; }
+    if (v.sheet) { v.wall.renderOrder = 8; v.top.renderOrder = 8; v.roof.renderOrder = 7; }
     v.kind = kind;
     return v;
   }
@@ -131,8 +188,14 @@ export class Telegraph {
   add(h) {
     h.t = 0; h.fired = false; h.done = false;
     h.v = this.visual(h.kind);
-    const color = h.color || '#ff2a3a';
+    const color = h.color || DANGER_COLOR;
     for (const m of h.v.group.children) m.material.color.set(color);
+    if (h.kind === 'safe') {
+      const v = h.v;
+      if (v.hx !== h.x || v.r !== h.r) { v.sheet.geometry.dispose(); v.sheet.geometry = v.roof.geometry = safeSheet(h.x, h.r); v.hx = h.x; v.r = h.r; }
+      const sc = h.safeColor || SAFE_COLOR;
+      for (const m of [v.disc, v.ring, v.wall, v.top]) m.material.color.set(sc);
+    }
     this.game.scene.add(h.v.group);
     this.list.push(h);
     this.game.events.emit('boss:telegraph', { attack: h.attack || 'attack', pos: { x: h.x, y: 0, z: h.z }, duration: h.duration });
@@ -149,8 +212,17 @@ export class Telegraph {
     return this.add({ kind: 'lane', x0: Math.min(x0, x1), x1: Math.max(x0, x1), zNear, zFar, x: (x0 + x1) / 2, z: (zNear + zFar) / 2, duration: Math.max(0.9, duration), color: opts.color, attack: opts.attack });
   }
 
-  /** True if point (x, z) is inside the marked area (pad widens it). */
+  /**
+   * Safe-spot warning: everything outside the circle (x, z, r) is hit when it fires (>= 1.8 s). opts: { attack,
+   * color (danger), safeColor }.
+   */
+  safe(x, z, r, duration, opts = {}) {
+    return this.add({ kind: 'safe', x, z, r, duration: Math.max(1.8, duration), color: opts.color, safeColor: opts.safeColor, attack: opts.attack || 'safespot' });
+  }
+
+  /** True if point (x, z) is inside the marked area (pad widens it; for a safe spot: outside the circle). */
   contains(h, x, z, pad = 0) {
+    if (h.kind === 'safe') { const dx = x - h.x, dz = z - h.z, r = Math.max(0.2, h.r - pad); return dx * dx + dz * dz > r * r; }
     if (h.kind === 'circle') { const dx = x - h.x, dz = z - h.z, r = h.r + pad; return dx * dx + dz * dz < r * r; }
     return x > h.x0 - pad && x < h.x1 + pad && z > h.zFar - pad && z < h.zNear + pad;
   }
@@ -191,7 +263,26 @@ export class Telegraph {
       const after = h.t > h.duration ? (h.t - h.duration) / FADE : 0;
       const fade = 1 - after;
       const ease = 1 - (1 - p) * (1 - p);
-      if (h.kind === 'circle') {
+      if (h.kind === 'safe') {
+        // sheet in road coordinates (x = 0 at the road centre), the hole + light column at h.x
+        v.group.position.set(0, 0.045, h.z);
+        v.sheet.material.opacity = Math.min(1, 0.72 + 0.18 * p + 0.15 * pulse) * fade;
+        v.tex.offset.y = -time * 1.2;
+        v.roof.material.opacity = (after > 0 ? 0.45 : 0.1 + 0.16 * p + 0.06 * pulse) * fade * Math.min(1, h.t / 0.2);
+        if (after > 0) v.sheet.material.color.setRGB(1, 0.85, 0.8); else v.sheet.material.color.set(h.color || DANGER_COLOR);
+        const pop = Math.min(1, h.t / 0.2);
+        for (const m of [v.disc, v.ring, v.wall, v.top]) m.position.x = h.x;
+        v.disc.scale.setScalar(h.r * pop);
+        v.disc.material.opacity = (0.7 + 0.3 * pulse) * fade;
+        v.ring.scale.setScalar(h.r * pop * (1 + 0.04 * pulse));
+        v.ring.material.opacity = fade;
+        // light column: tall at first (easy to find), settles as the warning fills
+        v.wall.scale.set(h.r * pop, 3.2 + 3 * (1 - ease), h.r * pop);
+        v.wall.material.opacity = (0.6 + 0.3 * pulse) * fade;
+        v.top.position.y = OVERHEAD_Y + 0.4 + (1 - ease) * 2.4;
+        v.top.scale.setScalar(h.r * (1.05 + 0.08 * pulse));
+        v.top.material.opacity = (0.7 + 0.3 * pulse) * fade * pop;
+      } else if (h.kind === 'circle') {
         v.group.position.set(h.x, 0.045, h.z);
         const pop = Math.min(1, h.t / 0.12);
         v.base.scale.setScalar(h.r * (0.6 + 0.4 * pop) * (1 + (1 - p) * 0.04 * pulse));
@@ -238,3 +329,10 @@ export class Telegraph {
 
   dispose() {}
 }
+
+// boot warm-up: the safe-spot marker compiles with the other telegraph markers (then goes back to its pool)
+registerWarm((game) => {
+  if (!game.telegraph || !game.telegraph.pools) return null;
+  const v = game.telegraph.visual('safe');
+  return { objects: [v.group], done: () => game.telegraph.pools.safe.push(v) };
+});

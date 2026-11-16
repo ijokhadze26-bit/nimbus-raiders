@@ -3,13 +3,22 @@
 // his fists, SUMMON (a Murkling wave pours out of the storm) — with more strikes/orbs and a much faster
 // cadence below 50% hp, when his lightning turns violet. Entrance: descends in a lightning storm.
 // Death: the storm shrinks away in a burst of bolts while the crown tumbles down.
+// Update 3 (final boss of the Storm Citadel, L50): THREE PHASES (def.phases [0.66, 0.33]), each opened by the
+// shared safe-spot step: 1 = storm (lightning, bolt slam, orbs, summon); 2 adds the Volcanic Forge EMBER RAIN and
+// the Frozen Peaks FREEZE LANE (violet storm); 3 adds the Candy Kingdom ROLLING GUMBALL and the Sky Bridge
+// GRAWLSTONE ROCK SLAM, two frozen lanes at once (crimson storm); RAGE at 25% on top. During each safe-spot step
+// a storm shield (pale aura) cuts the damage he takes to def.safeGuard, so every phase gets played out.
 import * as THREE from 'three';
 import { BaseBoss } from './base.js';
 import { volley, strikes, summon } from './attacks.js';
+import { emberRain, freezeLane, gumballRoll, rockSlam } from './worldattacks.js';
 import { buildTempestKing } from '../../models/bosses/tempestking.js';
 
 const P1 = { bolt: new THREE.Color('#fff27a'), face: new THREE.Color('#fff6b0'), gem: new THREE.Color('#59e8ff'), aura: new THREE.Color('#8a9cff'), tint: new THREE.Color(1, 1, 1) };
 const P2 = { bolt: new THREE.Color('#e070ff'), face: new THREE.Color('#ff6a3a'), gem: new THREE.Color('#ff3b4e'), aura: new THREE.Color('#c04dff'), tint: new THREE.Color(0.74, 0.7, 0.9) };
+const P3 = { bolt: new THREE.Color('#ff5a8a'), face: new THREE.Color('#ff2a2a'), gem: new THREE.Color('#ff3b4e'), aura: new THREE.Color('#ff3a6a'), tint: new THREE.Color(0.62, 0.55, 0.74) };
+const PALETTES = [P1, P2, P3];
+const BOLTS = ['#fff27a', '#e070ff', '#ff5a8a'];
 const WHITE = new THREE.Color('#ffffff');
 
 export class TempestKing extends BaseBoss {
@@ -27,11 +36,18 @@ export class TempestKing extends BaseBoss {
     return m;
   }
 
-  get boltColor() { return this.phase === 2 ? '#e070ff' : '#fff27a'; }
+  /** Storm shield: while his safe-spot step runs he takes def.safeGuard of the damage (pale aura). */
+  update(dt) {
+    super.update(dt);
+    this.guardMul = this.attack && this.attack.safe && this.alive ? this.def.safeGuard ?? 1 : 1;
+  }
 
-  /** Attacks rotate in a fixed order (slam, orbs, summon, lightning), never random. */
+  get boltColor() { return BOLTS[Math.min(3, this.phase) - 1]; }
+
+  /** Attacks rotate in a fixed order per phase (def.rotate / rotate2 / rotate3), never random. */
   pickAttack() {
-    const order = this.def.rotate;
+    const d = this.def;
+    const order = (this.phase >= 3 && d.rotate3) || (this.phase === 2 && d.rotate2) || d.rotate;
     const id = order[this.turn++ % order.length];
     return this.def.attacks.find((a) => a.id === id) || this.def.attacks[0];
   }
@@ -57,7 +73,7 @@ export class TempestKing extends BaseBoss {
 
   // ---------------- attacks ----------------
   startAttack(id, spec) {
-    const p2 = this.phase === 2;
+    const p2 = this.phase >= 2, p3 = this.phase >= 3;
     const self = this;
     const raise = () => { self.pose.raise = 1; };
     const slam = () => { self.pose.raise = 0; self.pose.slam = 1; };
@@ -76,6 +92,19 @@ export class TempestKing extends BaseBoss {
           hpMul: 1 + (this.tier - 1) * (spec.hpPerTier || 0) + (p2 ? 0.5 : 0),
           onWindup(f) { self.pose.raise = f; }, onSpawn() { self.pose.raise = 0; self.pose.slam = 1; } });
       }
+      case 'embers':
+        this.pose.raise = 1;
+        return emberRain(this, { count: this.tierCount(p3 ? spec.count2 : spec.count, 0.34), radius: spec.radius, telegraph: this.warnTime(spec.telegraph, 0.05),
+          stagger: spec.stagger, spread: spec.spread, onImpact: slam });
+      case 'freeze':
+        this.pose.raise = 1;
+        return freezeLane(this, { halfW: spec.halfW, telegraph: this.warnTime(spec.telegraph, 0.05), life: spec.life, rate: spec.rate, count: p3 ? 2 : 1, stagger: 0.55 });
+      case 'gumball':
+        this.pose.throw = 1; this.pose.throwArm = this.turn % 2;
+        return gumballRoll(this, { halfW: spec.halfW, telegraph: spec.telegraph, launch: spec.launch });
+      case 'grawl':
+        this.pose.raise = 1;
+        return rockSlam(this, { count: spec.count + (this.rage ? 1 : 0), radius: spec.radius, telegraph: this.warnTime(spec.telegraph, 0.05), gap: spec.gap, onImpact: slam });
       default:
         return volley(this, { count: this.tierCount(p2 ? spec.count2 : spec.count, 0.5), radius: spec.radius, telegraph: this.warnTime(spec.telegraph, 0.1),
           flight: spec.flight, stagger: p2 ? spec.stagger * 0.8 : spec.stagger, spread: spec.spread, from: (i) => this.fistPos(i),
@@ -84,10 +113,18 @@ export class TempestKing extends BaseBoss {
     }
   }
 
-  onPhase2() {
-    for (const dx of [-4, -1.5, 1.5, 4]) this.effects.bolt(this.x + dx, this.z + 2, 24, { color: '#e070ff', width: 1.2, life: 0.45 });
-    this.effects.ring(this.x, this.z + 2, 11, { color: '#e9a8ff', life: 0.7 });
+  /** Phase 2 / 3: a burst of bolts in the new colour; the rotation restarts with the new world attacks. */
+  onPhase(n) {
+    this.turn = 0;
+    const col = BOLTS[Math.min(3, n) - 1];
+    for (const dx of [-4, -1.5, 1.5, 4]) this.effects.bolt(this.x + dx, this.z + 2, 24, { color: col, width: 1.2 + (n - 2) * 0.3, life: 0.45 });
+    this.effects.ring(this.x, this.z + 2, 11 + n, { color: n >= 3 ? '#ff9ab8' : '#e9a8ff', life: 0.7 });
+    this.pose.raise = 1;
   }
+
+  onRage() { for (const dx of [-5, -2.5, 0, 2.5, 5]) this.effects.bolt(this.x + dx, this.z + 1, 26, { color: '#ff3a3a', width: 1.4, life: 0.5 }); }
+
+  safeSpotOpts() { return { bolts: this.boltColor, blast: this.phase >= 3 ? '#ff7aa8' : '#e9a8ff' }; }
 
   onDeath() { this.clearMinions(); }
 
@@ -95,7 +132,7 @@ export class TempestKing extends BaseBoss {
   animate(dt, t) {
     const m = this.model, p = this.pose;
     const dying = this.state === 'dying' || this.state === 'dead';
-    const p2 = this.phase === 2;
+    const p2 = this.phase >= 2;
     p.slam = Math.max(0, p.slam - dt * 2.5);
     p.throw = Math.max(0, p.throw - dt * 3.5);
     if (!this.attack) p.raise = Math.max(0, p.raise - dt * 2);
@@ -118,7 +155,7 @@ export class TempestKing extends BaseBoss {
     });
     // colours: phase-2 violet lightning, red face, darker cloud; hit flash
     const k = Math.min(1, dt * 3);
-    const P = p2 ? P2 : P1;
+    const P = PALETTES[Math.min(3, this.phase) - 1];
     for (const key of Object.keys(this.col)) this.col[key].lerp(P[key], k);
     const fl = this.flash;
     m.boltMat.color.copy(this.col.bolt).lerp(WHITE, 0.25 + 0.2 * Math.sin(t * 40));
@@ -130,7 +167,7 @@ export class TempestKing extends BaseBoss {
     m.mat.color.copy(this.col.tint);
     m.mat.emissive.setRGB(fl * 0.28, fl * 0.28, fl * 0.32);
     // ambient sky bolts in phase 2
-    if (p2 && !dying && Math.random() < dt * 0.8) this.effects.bolt(this.x + (Math.random() < 0.5 ? -1 : 1) * (6 + Math.random() * 4), this.z - 2 - Math.random() * 6, 26, { color: '#e070ff', width: 0.8, life: 0.25 });
+    if (p2 && !dying && Math.random() < dt * (this.phase >= 3 ? 1.4 : 0.8)) this.effects.bolt(this.x + (Math.random() < 0.5 ? -1 : 1) * (6 + Math.random() * 4), this.z - 2 - Math.random() * 6, 26, { color: this.boltColor, width: 0.8, life: 0.25 });
     // death: the storm shrinks and rises away crackling, the crown tumbles down
     if (dying) {
       const f = Math.min(1, this.t / 1.55);

@@ -8,7 +8,8 @@ import { bindHeroes } from './bindheroes.js';
 import { runTrackFor } from './tracks.js';
 
 const POP_PITCH = { grunt: 1, runner: 1.28, tank: 0.68, shield: 0.88, bomber: 1.1 };
-const BOSS_ATTACK = { slam: 'slam', roll: 'rumble', orb: 'orb', orbs: 'orb', volley: 'orb', summon: 'summon', puddle: 'summon', charge: 'charge', lightning: 'lightning', strike: 'lightning' };
+const BOSS_ATTACK = { slam: 'slam', roll: 'rumble', orb: 'orb', orbs: 'orb', volley: 'orb', summon: 'summon', puddle: 'summon', charge: 'charge', lightning: 'lightning', strike: 'lightning' ,
+  safespot: 'safeBlast', embers: 'embers', freeze: 'freeze', cane: 'cane', gumball: 'rumble' }; // update 3 (bosses-upgrade)
 
 export function bindAudio(audio, game) {
   const ev = game.events;
@@ -144,6 +145,8 @@ export function bindAudio(audio, game) {
   // ---------------- boss ----------------
   on('boss:spawn', () => { fx('bossLand'); dip(0.45, 1.4); });
   on('boss:phase', () => { fx('roar', { len: 1.1, f0: 92 }); dip(0.35, 0.8); });
+  on('boss:rage', () => { fx('rage'); dip(0.4, 1.0); });             // update 3: RAGE at 25%
+  on('boss:safespot', (p) => fx('safeAlarm', { duration: p.duration }));
   on('boss:telegraph', (p) => { fx('warn', { duration: p.duration }); dip(0.3, 0.25); });
   on('boss:attack', (p) => { fx(BOSS_ATTACK[p.attack] || 'slam'); if (p.attack === 'slam') dip(0.3, 0.3); });
   on('boss:defeated', () => {

@@ -4,13 +4,17 @@
 //   volley(boss, o)      orbs (or bolts) land on target circles: scatter / spiral patterns
 //   strikes(boss, o)     striped lane warnings, then lightning (or an orb rain) slams down each strip
 //   summon(boss, o)      green swelling burst, then a Murkling wave pours out of the boss (horde.spawnWave)
+//   safeSpot(boss, o)    update 3: the whole arena glows red except one glowing safe circle (>= 1.8 s); then a
+//                        blast hits everyone outside it (at most SAFE_SPOT.maxLoss of the squad, never a wipe)
+import { SAFE_SPOT } from '../../data/bosses.js';
 
 export const clampX = (x, lim = 4.2) => Math.max(-lim, Math.min(lim, x));
 
 /**
  * Target-circle volley. o: { count, radius, telegraph, flight, stagger, spread, pattern:'scatter'|'spiral',
  * turn, maxR, attack, color, orbColor, core, projectile:'orb'|'bolt', from(i) -> {x,y,z}, arc, size,
- * ringColor, onLaunch(i), onImpact(i, kills, mark) }.
+ * ringColor, onLaunch(i), onImpact(i, kills, mark) }. Update 3: projectile 'drop' (o.drop 'ember' | 'rock' | 'ice'
+ * falls from the sky onto the mark) and 'cane' (a spinning candy cane thrown from o.from(i)).
  */
 export function volley(boss, o) {
   const game = boss.game, T = game.telegraph, rng = game.rng, fx = boss.effects;
@@ -51,7 +55,9 @@ export function volley(boss, o) {
         const lt = t - s.start;
         if (!s.launched && lt >= dur - flight) {
           s.launched = true;
-          if (o.projectile !== 'bolt') {
+          if (o.projectile === 'drop') fx.x.drop(o.drop || 'ember', s.mark.x, s.mark.z, dur - lt, o.size ?? 1);
+          else if (o.projectile === 'cane') { const p = o.from(i); fx.x.cane(p.x, p.y, p.z, s.mark.x, s.mark.z, dur - lt, o.arc ?? 4); }
+          else if (o.projectile !== 'bolt') {
             const p = o.from(i);
             fx.orb(p.x, p.y, p.z, s.mark.x, s.mark.z, dur - lt, { color: o.orbColor || o.color, core: o.core, arc: o.arc ?? 3.5, size: o.size ?? 0.75 });
           }
@@ -199,4 +205,78 @@ export function sequence(...steps) {
     },
     cancel() { if (cur && cur.cancel) cur.cancel(); },
   };
+}
+
+/**
+ * SAFE SPOT (update 3, world bosses at each phase change). The arena is telegraphed except a glowing circle of
+ * radius 1.8-2.4 (bigger squads get the bigger one) at a random x at least 2.5 u from the squad and clear of live
+ * danger zones; after >= 1.8 s a blast hits outside it. Members of a big blob that cannot fit count as safe
+ * within a huddle allowance (r + 0.75 * (blob radius - r)), so a squad centred on the spot loses little and one
+ * that stays put loses up to maxLoss (35%) of its count. game.shielded() (shield power-up, Sugar Shield) = no loss.
+ * o: { telegraph, maxLoss, color, safeColor, blast (ring colour), bolts (lightning on the blast), onBlast(kills) }.
+ */
+export function safeSpot(boss, o = {}) {
+  const game = boss.game, T = game.telegraph, rng = game.rng, fx = boss.effects;
+  boss.safeQueued = false; // a boss that starts its own safe spot consumes the one BaseBoss queued at the phase change
+  const c0 = boss.squadCenter();
+  const r = Math.min(SAFE_SPOT.r1, Math.max(SAFE_SPOT.r0, SAFE_SPOT.r0 + (c0.r - 1) * 0.2));
+  const lim = 3.3;
+  const zones = boss.dangerZones;
+  const clear = (x) => !zones.some((zn) => T.contains(zn, x, c0.z, r * 0.6));
+  // candidates across the road, away from the squad, not on a lava / frost strip
+  const cand = [];
+  for (let x = -lim; x <= lim + 1e-6; x += 0.3) if (Math.abs(x - c0.x) >= 2.5 && clear(x)) cand.push(x);
+  let x = cand.length ? cand[rng.int(0, cand.length - 1)] : (c0.x > 0 ? -lim : lim);
+  x = Math.round(x * 100) / 100;
+  const z = c0.z;
+  const dur = Math.max(1.8, (o.telegraph ?? SAFE_SPOT.telegraph) - 0.03 * (boss.tier - 1));
+  const mark = T.safe(x, z, r, dur, { color: o.color, safeColor: o.safeColor });
+  game.events.emit('boss:safespot', { duration: dur, pos: { x, y: 0, z } });
+  let t = 0, fired = false;
+  return {
+    mark, safe: true,
+    update(dt) {
+      t += dt;
+      if (!fired && t >= dur) {
+        fired = true;
+        const kills = game.shielded && game.shielded() ? 0 : safeBlast(boss, x, z, r, o.maxLoss ?? SAFE_SPOT.maxLoss);
+        // the blast: rings + glows across the road outside the circle, lightning on a storm boss
+        for (let k = -2; k <= 2; k++) {
+          const bx = clampX(k * 2.2, 4.6);
+          if (Math.abs(bx - x) < r + 0.6) continue;
+          fx.ring(bx, z - 1, 2.6, { color: o.blast || '#ff6a4a', life: 0.5 });
+          fx.glow(bx, 0.6, z - 1, o.blast || '#ff6a4a', 6, 0.45);
+          if (o.bolts) fx.bolt(bx, z - 2 + (k & 1) * 2, 20, { color: o.bolts, width: 1.2, life: 0.35 });
+        }
+        fx.ring(x, z, r * 1.6, { color: o.safeColor || '#3dff8a', life: 0.6 });
+        game.events.emit('boss:attack', { attack: 'safespot', pos: { x, y: 0, z } });
+        game.events.emit('fx:shake', { amount: kills > 0 ? 0.9 : 0.6 });
+        if (o.onBlast) o.onBlast(kills);
+      }
+      return fired && t >= dur + 0.5;
+    },
+    cancel() { T.cancel(mark); },
+  };
+}
+
+/** Resolves a safe-spot blast: kills outside the (huddle-widened) circle, at most maxLoss of the count. */
+function safeBlast(boss, x, z, r, maxLoss) {
+  const squad = boss.game.squad;
+  const c = boss.squadCenter();
+  const rr = r + 0.75 * Math.max(0, c.r - r);
+  const out = [];
+  for (const m of squad.members) { const dx = m.x - x, dz = m.z - z; if (dx * dx + dz * dz > rr * rr) out.push(m); }
+  const L = squad.leader;
+  const lOut = (L.x - x) ** 2 + (L.z - z) ** 2 > rr * rr;
+  const rendered = squad.members.length + 1;
+  const frac = (out.length + (lOut ? 1 : 0)) / rendered;
+  const loss = Math.min(squad.count - 1, Math.round(squad.count * maxLoss * frac));
+  if (loss <= 0) return 0;
+  // the rendered members outside die (farthest first); reserves behind the rendered cap make up the rest
+  out.sort((a, b) => ((b.x - x) ** 2 + (b.z - z) ** 2) - ((a.x - x) ** 2 + (a.z - z) ** 2));
+  const visible = Math.min(out.length, Math.round(loss * squad.members.length / Math.max(1, squad.count)) || Math.min(out.length, loss));
+  let n = 0;
+  for (let i = 0; i < visible && squad.count > 1; i++) { const before = squad.count; boss.killMemberObj(out[i], 'boss'); n += before - squad.count; }
+  if (loss - n > 0 && squad.count > 1) n += -squad.remove(Math.min(loss - n, squad.count - 1), 'boss') || 0;
+  return n;
 }
