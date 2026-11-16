@@ -72,9 +72,10 @@ if (lost < budget * 0.95) fails.push(`meteor dealt only ${lost.toFixed(1)} of ${
 info.meteorBudget = { lost: Math.round(lost), budget: Math.round(budget) };
 // boss cap 6%
 d.setAutopilot(false); d.setLoadout('cinder', 'emberstorm');
-d.bossTest('grawlstone', { hero: 'cinder', weapon: 'emberstorm', mk: 5, squad: 900 });
+// weapons off before anything fires (final weapons leave flames, burn pools and holes that would kill the boss)
+d.bossTest('grawlstone', { hero: 'cinder', weapon: 'emberstorm', mk: 5, squad: 900, arrive: false });
 g.weapons.enabled = false;
-d.simulate(2.5);
+d.simulate(1.6 + 2.5);
 let bhp = g.boss.hp; ready();
 d.useAbility(); d.simulate(1.0);
 let bl = (bhp - g.boss.hp) / g.boss.maxHp;
@@ -161,8 +162,8 @@ let worst = 0;
 near.forEach((e, i) => { worst = Math.max(worst, (before[i] - Math.max(0, e.hp)) / e.maxHp); });
 if (worst > 0.25 + 1e-6) fails.push(`shockwave: an enemy lost ${(worst * 100).toFixed(1)}% of its max hp`);
 info.shockwave.L14 = { pushed: g.heroes.abilities.shockwave.last.pushed, worst: Math.round(worst * 1000) / 1000 };
-d.bossTest('ironhorn', { hero: 'vex', weapon: 'voidsiphon', mk: 5, squad: 900 });
-g.weapons.enabled = false; d.simulate(2.5);
+d.bossTest('ironhorn', { hero: 'vex', weapon: 'voidsiphon', mk: 5, squad: 900, arrive: false });
+g.weapons.enabled = false; d.simulate(1.6 + 2.5);
 bhp = g.boss.hp; ready(); d.useAbility(); g.step(1 / 60);
 bl = (bhp - g.boss.hp) / g.boss.maxHp;
 if (!(bl > 0) || bl > 0.03 + 1e-9) fails.push(`shockwave boss loss ${bl}`);

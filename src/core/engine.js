@@ -106,6 +106,8 @@ export class Engine {
     this.renderer.shadowMap.enabled = shadows;
     // Materials must recompile to drop/add shadow sampling.
     this.scene.traverse((o) => { if (o.material) { const m = Array.isArray(o.material) ? o.material : [o.material]; m.forEach((x) => { x.needsUpdate = true; }); } });
+    // recompile now (hidden pooled meshes included) instead of on their first draw mid-run
+    this.precompile();
   }
 
   /** Resolution scale for auto quality (keeps the 'high' look, renders fewer pixels). */

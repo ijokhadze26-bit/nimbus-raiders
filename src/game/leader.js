@@ -13,12 +13,12 @@ export class Leader {
   }
 
   /**
-   * Builds (or keeps) the leader rig for hero + outfit. The cache key is heroId + ':' + outfitId; a change
-   * disposes the old rig. outfit = Pip palette (game/skins.js heroLook(...).pip), ignored by other heroes.
+   * Builds (or keeps) the leader rig for hero + outfit. The cache key is heroId + ':' + outfitId + ':' + LOD; a
+   * change disposes the old rig. outfit = Pip palette (game/skins.js heroLook(...).pip), ignored by other heroes.
    */
   setHero(heroId, outfitId = 'classic', outfit = null) {
-    const key = heroId + ':' + (heroId === 'pip' ? outfitId : '-');
     const sq = this.squad;
+    const key = heroId + ':' + (heroId === 'pip' ? outfitId : '-') + ':' + (sq.lod || 'high');
     if (key === this.key && sq.pip) return false;
     this.key = key;
     this.heroId = heroId;

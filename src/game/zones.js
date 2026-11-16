@@ -51,6 +51,7 @@ export class Zones {
       h.t = 0; h.dur = dur;
       h.grow = Math.min(M.cap, h.grow * M.grow);
       h.merges++;
+      if (opts.boss) h.boss = true;
       return h;
     }
     const h = this.freeH.length ? this.freeH.pop() : {};
@@ -81,19 +82,20 @@ export class Zones {
     // holes: pull everything within r toward the centre, crush what sits in the core
     for (let i = this.holes.length - 1; i >= 0; i--) {
       const h = this.holes[i];
+      // drain the pool over the time left: a merge adds to what is left (it never re-deals what was crushed)
+      const d = h.pool * Math.min(1, dt / Math.max(dt, h.dur - h.t));
+      h.pool -= d;
       h.t += dt;
-      if (h.t >= h.dur) {
+      if (h.t >= h.dur - 1e-9) {
         this.freeH.push(h); this.holes.splice(i, 1);
         if (game.events.wants('weapon:special')) game.events.emit('weapon:special', { weapon: 'voidsiphon', kind: 'hole:end', pos: { x: h.x, y: 0.5, z: h.z }, n: 0 });
-        continue;
       }
-      const rate = h.pool / Math.max(0.1, h.dur);
       if (h.boss) {
         const b = game.boss;
-        if (b && b.targetable) b.damageTyped(rate * dt, h.el);
+        if (b && b.targetable) b.damageTyped(d, h.el);
         continue;
       }
-      this._h = h; this._dt = dt; this._crush = rate * dt; this._core = this.holeCore(h);
+      this._h = h; this._dt = dt; this._crush = d; this._core = this.holeCore(h);
       forEachInRadius(horde, h.x, h.z, this.holeR(h), this.inHole || (this.inHole = (e) => {
         const H = this._h;
         const dx = H.x - e.x, dz = H.z - e.z, d = Math.hypot(dx, dz);

@@ -80,6 +80,8 @@ export class Squad {
     if (q === 'low' && !this.raiderGeo.low) this.raiderGeo.low = buildRaiderLowGeometry(this.raiderLook.colors, this.raiderLook.tell);
     this.raiders.geometry = q === 'low' ? this.raiderGeo.low : this.raiderGeo.high;
     this.lod = q === 'low' ? 'low' : 'high';
+    // the leader rig follows the LOD (visual only; nothing in the simulation reads the rig)
+    if (this.leaderRig?.key && !this.leaderRig.key.endsWith(':' + this.lod)) this.game.loadout?.applyLook();
     this.guns.geometry = buildRaiderGunGeometry(this.gunWeapon || 'thunderclap', this.gunMk || 1, this.lod);
   }
 
