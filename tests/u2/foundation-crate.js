@@ -32,7 +32,7 @@ if (s.weapon !== 'glacier') fails.push(`'always' bot missed the crate (${s.weapo
 d.setAutopilot(false);
 // ---- 3. every level crate placed and clear ----
 for (const lv of L.LEVELS) {
-  const want = L.CRATES[lv.id] || [];
+  const want = lv.crates || L.CRATES[lv.id] || []; // update 3: every def carries its crate plan (16-50 generated)
   const st = d.startLevel(lv.id).crates;
   if (st.length !== want.length) fails.push(`L${lv.id}: ${st.length} crates, want ${want.length}`);
   for (const [lane, weapon] of want) if (!st.some((c) => c.lane === lane && c.weapon === weapon)) fails.push(`L${lv.id}: ${lane} ${weapon} missing`);

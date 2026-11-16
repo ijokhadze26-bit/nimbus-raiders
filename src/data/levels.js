@@ -1,106 +1,25 @@
-// Hand-made levels 1-15 (data only). Each level is a list of beats laid out at an even spacing; a beat is one
-// decision (gate row, barrel pair, horde, ...) plus optional side items (coins, power-ups, blades, gaps).
+// Campaign levels (data only). Levels 1-15 are hand-made (below); 16-50 are generated from the world they
+// belong to (levelgen.js). The builders (beats, mixes, toughness, the final rush) live in beats.js, favours
+// and weapon crates in levelcrates.js; this file re-exports them for older callers.
 // Teaching curve: L1 plain +gates, a red gate to shoot blue, a barrel with a gun; runners from L2, shields
 // from L4, bombers from L5, tanks from L6; ÷ ladders from L2, moving gates from L3, blades from L3, magnet
 // from L3, gaps from L5, sliding blades from L6. Up to L4 the left lane is never a trap (a player who barely
 // steers still wins); from L5 on the lanes have to be read. L11-15 each have their own idea (blade gauntlet,
-// gap staircase, tank walls, ladders, finale medley). Late rows keep the squad under the 999 cap until the
-// arena; the last rows of the big levels offer helpers instead of troops. Boss rotation follows the spec
-// (Tempest King on 10 as a mini fight and on 15 as the finale).
-// Update 2: weapon levels are Mk I..V (the tier walk caps at 5), every level lists the weapons it favours
-// (hints, SPEC2 §2.11) and L4-15 get weapon crates (CRATES, placed after level() so beats never move).
-import { LANES } from '../config.js';
+// gap staircase, tank walls, ladders, finale medley).
+// Update 3: 5 worlds of 10 levels (worlds.js). L1-10 are the Sky Bridge, L11-15 open the Volcanic Forge (their
+// beats are unchanged). Bosses only on the world boss and mini-boss levels (L5 mini Oculon, L10 Grawlstone,
+// L15 mini Magma Grawlstone); every other level ends with a FINAL RUSH horde and a finish arch (def.finish).
+// Every def gets `world` (1..5) and `kind` (levelKind: 'boss' | 'mini' | 'intro' | 'normal').
+import { P, C, B, H, K, U, X, O, Xd, Od, a, x, dv, mv, G, GR, GRS, M5, M6, TW, level } from './beats.js';
+import { FAVOURS, CRATES, placeCrates } from './levelcrates.js';
+import { generateLevels } from './levelgen.js';
+import { worldOf, levelKind, TOTAL_LEVELS } from './worlds.js';
 
-// ---------------- event builders (shared with data/endless.js) ----------------
-export const gate = (at, lane, op, extra = {}) => ({ type: 'gate', at, lane, op, ...extra });
-export const barrel = (at, lane, hp, kind, amount) => ({ type: 'barrel', at, lane, hp, reward: amount == null ? { kind } : { kind, amount } });
-export const horde = (at, count, mix, lane = 'both', extra = {}) => ({ type: 'horde', at, count, mix, lane, ...extra });
-export const blade = (at, lane, extra = {}) => ({ type: 'blade', at, lane, ...extra });
-export const gap = (at, lane, length = 10) => ({ type: 'gap', at, lane, length });
-export const powerup = (at, lane, kind) => ({ type: 'powerup', at, lane, kind });
-export const coins = (at, lane, count = 8, pattern = 'line') => ({ type: 'coins', at, lane, count, pattern });
-/** Weapon crate (lane L or R only): taking it switches to `weapon` (same weapon: +1 Mk). */
-export const crate = (at, lane, weapon) => ({ type: 'crate', at, lane, x: LANES[lane] ?? 0, weapon });
-
-// ---------------- gate specs ----------------
-// a(+N, max) add gate; x(k, hits) ladder starting at ×k, dv(k, hits) at ÷k (one rung up per `hits` bullets,
-// FIX = never climbs)
-const FIX = 99999;
-const RUNG = { mul: { 2: 3, 3: 4, 4: 5 }, div: { 4: 0, 3: 1, 2: 2 } };
-const a = (value, max, extra = {}) => ({ op: 'add', value, max, ...extra });
-const x = (k, hitsPerStep = FIX, extra = {}) => ({ op: 'mul', rung: RUNG.mul[k], hitsPerStep, ...extra });
-const dv = (k, hitsPerStep = FIX, extra = {}) => ({ op: 'div', rung: RUNG.div[k], hitsPerStep, ...extra });
-const mv = (range, speed) => ({ moving: { range, speed } });
-const strip = ({ op, ...rest }) => rest;
-
-// ---------------- beats: functions of the beat position ----------------
-const P = (l, r) => (at) => [gate(at, 'L', l.op, strip(l)), gate(at, 'R', r.op, strip(r))];
-const C = (s) => (at) => [gate(at, 'C', s.op, strip(s))];
-const B = (l, r) => (at) => [l && barrel(at, 'L', ...l), r && barrel(at, 'R', ...r)];
-// hordes charge the squad once it is within ~50 u: placed 18 u past the beat they meet it around the beat
-const H = (count, mix, lane = 'both') => (at) => [horde(at + 18, count, mix, lane)];
-const K = (lane, n = 8, pattern = 'line') => (at) => [coins(at, lane, n, pattern)];
-const U = (lane, kind) => (at) => [powerup(at, lane, kind)];
-const X = (lane, extra = {}) => (at) => [blade(at, lane, extra)];
-const O = (lane, length = 12) => (at) => [gap(at - length / 2, lane, length)];
-// staggered variants: a blade / gap `dz` past the beat (after its gate row, or after another hazard), so two
-// hazards never share one z and a good gate is never floating over a hole
-const Xd = (lane, dz, extra = {}) => (at) => [blade(at + dz, lane, extra)];
-const Od = (lane, length, dz) => (at) => [gap(at + dz, lane, length)];
-
-export const START = 24, ARENA = 30;
-
-// Horde toughness follows the gun the squad should be holding and how far into the level it is: a horde's
-// hp multiplier is the relative crowd damage of the tier reached by breaking every weapon barrel before it
-// (pistol = 1) times a toughness that ramps from 1 at the start (a small squad meets small hordes) to the
-// level's `tough` at the arena (the squad has snowballed by then). Miss a gun barrel and the hordes after it
-// feel tougher; buy damage / fire rate / a better starting gun and they melt faster. Anything spawned
-// without its own multiplier (boss broods) uses def.enemyHp = BROOD x the arena toughness.
-export const TIER_CROWD = [1, 2.05, 3.2, 6.1, 9.3, 9.8];
-export const TIER_EXP = 0.7, RAMP_EXP = 1.5, BROOD = 0.35;
-export const toughFor = (tough, tier) => Math.round(tough * Math.pow(TIER_CROWD[Math.min(5, tier) - 1], TIER_EXP) * 100) / 100;
-
-function toughen(def, events) {
-  const tough = def.tough ?? 1;
-  let tier = 1;
-  for (const e of events.slice().sort((a, b) => a.at - b.at)) {
-    if (e.type === 'barrel' && e.reward.kind === 'weapon') tier = Math.min(5, tier + (e.reward.amount || 1));
-    else if (e.type === 'horde' && (e.hpMul == null || e.autoHp)) {
-      const p = Math.max(0, Math.min(1, e.at / def.length));
-      e.hpMul = toughFor(1 + (tough - 1) * Math.pow(p, RAMP_EXP), tier) * (e.tough ?? 1);
-      e.autoHp = true;
-    }
-  }
-  return Math.round(Math.max(1, BROOD * toughFor(tough, tier)) * 100) / 100;
-}
-
-/** Re-derives the horde toughness of a level def after its `tough` changed (balance tests). */
-export function retough(def) { def.enemyHp = toughen(def, def.events); return def; }
-
-/** Spreads the beats evenly between START and `length - ARENA` (the boss arena opens at `length`). */
-function level(def, beats) {
-  const step = (def.length - ARENA - START) / Math.max(1, beats.length - 1);
-  const events = [];
-  beats.forEach((beat, i) => {
-    const at = Math.round(START + i * step);
-    for (const fn of [].concat(beat)) for (const e of fn(at)) if (e) events.push(e);
-  });
-  const enemyHp = toughen(def, events);
-  return { ...def, enemyHp, events };
-}
-
-// enemy mixes. A Fizzbomb blast (r 2.2) wipes ~25 packed Murklings whatever their hp, so above ~5% bombers
-// one pop chains through a whole horde; the share written in the mixes below is scaled by BOMB so a pop
-// cracks a horde open (a reward for aiming) instead of erasing it.
-const BOMB = 0.4;
-const G = { grunt: 1 };
-const GR = (r = 0.25) => ({ grunt: 1 - r, runner: r });
-const GRS = (r = 0.2, s = 0.15) => ({ grunt: 1 - r - s, runner: r, shield: s });
-const M5 = (r = 0.2, s = 0.14, b = 0.12) => ({ grunt: 1 - r - s - b * BOMB, runner: r, shield: s, bomber: b * BOMB });
-const M6 = (r = 0.2, s = 0.14, b = 0.12, t = 0.07) => ({ grunt: 1 - r - s - b * BOMB - t, runner: r, shield: s, bomber: b * BOMB, tank: t });
-
-// tank walls (L13+): Bulwarks packed with Fizzbombs - pop a bomber inside and the wall cracks open
-const TW = (t = 0.25, b = 0.22) => ({ grunt: 1 - t - b * BOMB - 0.1, runner: 0.1, tank: t, bomber: b * BOMB });
+export {
+  gate, barrel, horde, blade, gap, powerup, coins, crate, START, ARENA, RUSH_TAIL, TIER_CROWD, TIER_EXP, RAMP_EXP, BROOD,
+  toughFor, retough, level,
+} from './beats.js';
+export { FAVOURS, CRATES, CRATE_CLEAR, CRATE_SEARCH, crateAt, placeCrates } from './levelcrates.js';
 
 // Per level: `tough` (horde toughness at the arena, see toughen) and the boss hp are calibrated with the
 // autopilot skill profiles (debug.setAutopilot('pro' | 'casual' | 'novice')) against that level's own gate
@@ -108,9 +27,11 @@ const TW = (t = 0.25, b = 0.22) => ({ grunt: 1 - t - b * BOMB - 0.1, runner: 0.1
 // Targets: 'pro' clears every level first try (2-3 stars, 2 on L13-15), 'casual' with the upgrades it can
 // afford clears L1-8 in 1-2 tries and needs some retries on L9-15, 'novice' clears L1-4; casual boss
 // fights last ~12-25 s (L1 is a short tutorial fight). Stars: 2 at about a typical casual finish, 3 at a
-// strong one.
-export const LEVELS = [
-  level({ id: 1, name: 'Cloud Cadets', theme: 'noon', length: 320, speed: 9, stars: [45, 95], reward: 40, tough: 1.5, boss: { type: 'grawlstone', hp: 3000, tier: 1 } }, [
+// strong one. Update 3 (first pass, quick autopilot check): `tough` unchanged; boss hp re-set for the new boss
+// levels (mini fights ~8-12 s, world boss ~15 s for casual); stars re-set from the finish squads (the final rush
+// on bossless levels) - many levels reach the 999 cap, so their stars sit at [870, 970] until stage 3 rebalances.
+const HAND = [
+  level({ id: 1, name: 'Cloud Cadets', theme: 'noon', length: 320, speed: 9, stars: [90, 115], reward: 40, tough: 1.5, boss: null }, [
     P(a(3, 6), a(1, 3)),
     B([8, 'weapon', 1], [8, 'troops', 4]),
     P(a(-3, 8), a(2, 4)),                       // the red gate turns blue when you shoot it
@@ -123,7 +44,7 @@ export const LEVELS = [
     P(x(2), a(10, 18)),
     [H(50, G), K('L', 8, 'zigzag')],
   ]),
-  level({ id: 2, name: 'Dawn Patrol', theme: 'dawn', length: 350, speed: 9.2, stars: [90, 280], reward: 50, tough: 3, boss: { type: 'oculon', hp: 18000, tier: 1 } }, [
+  level({ id: 2, name: 'Dawn Patrol', theme: 'dawn', length: 350, speed: 9.2, stars: [295, 530], reward: 50, tough: 3, boss: null }, [
     P(a(4, 8), a(2, 5)),
     B([8, 'weapon', 1], [10, 'troops', 5]),
     [H(16, GR(0.2)), K('R', 6)],
@@ -138,7 +59,7 @@ export const LEVELS = [
     H(100, GR(0.3)),
     P(x(2), a(120, 200)),                        // the last call: double up, or shoot the big add gate full
   ]),
-  level({ id: 3, name: 'Sunset Rally', theme: 'sunset', length: 380, speed: 9.4, stars: [300, 470], reward: 60, tough: 4, boss: { type: 'mothermurk', hp: 78000, tier: 2 } }, [
+  level({ id: 3, name: 'Sunset Rally', theme: 'sunset', length: 380, speed: 9.4, stars: [530, 605], reward: 60, tough: 4, boss: null }, [
     P(a(4, 8), a(3, 7)),
     B([8, 'weapon', 1], [10, 'troops', 5]),
     [H(22, GR(0.3)), K('R', 6)],
@@ -154,7 +75,7 @@ export const LEVELS = [
     [B([110, 'weapon', 1], [100, 'troops', 20]), Xd('R', 12)],
     P(x(2), a(150, 260)),
   ]),
-  level({ id: 4, name: 'Violet Stampede', theme: 'dusk', length: 410, speed: 9.6, stars: [480, 690], reward: 70, tough: 5, boss: { type: 'ironhorn', hp: 60000, tier: 2 } }, [
+  level({ id: 4, name: 'Violet Stampede', theme: 'dusk', length: 410, speed: 9.6, stars: [505, 815], reward: 70, tough: 5, boss: null }, [
     P(a(5, 9), a(2, 6)),
     B([8, 'weapon', 1], [10, 'troops', 6]),
     [H(26, GRS(0.2, 0.1)), K('R', 6)],
@@ -172,7 +93,7 @@ export const LEVELS = [
     H(300, GRS(0.25, 0.3)),
     P(x(2), a(180, 300, mv(1.1, 1.4))),
   ]),
-  level({ id: 5, name: 'Storm Front', theme: 'storm', length: 440, speed: 9.8, stars: [70, 165], reward: 80, tough: 2.5, boss: { type: 'grawlstone', hp: 26000, tier: 2 } }, [
+  level({ id: 5, name: 'Storm Front', theme: 'storm', length: 440, speed: 9.8, stars: [545, 860], reward: 80, tough: 2.5, boss: { type: 'oculon', hp: 40000, tier: 2, mini: true } }, [
     P(a(2, 4), a(5, 9)),                        // from here the left lane is not always safe
     B([10, 'troops', 5], [8, 'weapon', 1]),
     [H(34, M5(0.2, 0, 0.18), 'L'), K('R', 8)],  // first Fizzbombs: pop one inside the pack
@@ -190,7 +111,7 @@ export const LEVELS = [
     [H(330, M5(0.25, 0.25, 0.15)), U('L', 'freeze')],
     P(a(-20, 10), a(18, 32)),
   ]),
-  level({ id: 6, name: 'Starlight Run', theme: 'night', length: 470, speed: 10, stars: [45, 140], reward: 90, tough: 5, boss: { type: 'oculon', hp: 42000, tier: 2 } }, [
+  level({ id: 6, name: 'Starlight Run', theme: 'night', length: 470, speed: 10, stars: [870, 970], reward: 90, tough: 5, boss: null }, [
     P(a(-3, 12), a(5, 9)),
     B([8, 'weapon', 1], [12, 'troops', 7]),
     [H(38, M6(0.2, 0.1, 0.1, 0.06), 'L'), K('R', 8)],   // first Bulwark tanks
@@ -209,7 +130,7 @@ export const LEVELS = [
     P(dv(3, 600), a(60, 90)),
     H(440, M6(0.2, 0.25, 0.12, 0.08)),
   ]),
-  level({ id: 7, name: 'High Noon Havoc', theme: 'noon', length: 500, speed: 10.2, stars: [250, 520], reward: 100, tough: 4, boss: { type: 'mothermurk', hp: 85000, tier: 3 } }, [
+  level({ id: 7, name: 'High Noon Havoc', theme: 'noon', length: 500, speed: 10.2, stars: [870, 970], reward: 100, tough: 4, boss: null }, [
     P(a(-4, 10), a(4, 8)),
     B([12, 'troops', 8], [8, 'weapon', 1]),
     [H(44, M5(0.3, 0.1, 0.1), 'L'), K('R', 8)],
@@ -229,7 +150,7 @@ export const LEVELS = [
     B([240, 'turret', 1], [240, 'troops', 40]),
     P(a(40, 60), x(2)),
   ]),
-  level({ id: 8, name: 'Rose Dawn Raid', theme: 'dawn', length: 530, speed: 10.4, stars: [400, 600], reward: 110, tough: 6, boss: { type: 'ironhorn', hp: 80000, tier: 3 } }, [
+  level({ id: 8, name: 'Rose Dawn Raid', theme: 'dawn', length: 530, speed: 10.4, stars: [870, 970], reward: 110, tough: 6, boss: null }, [
     P(a(3, 6), a(6, 10)),
     B([8, 'weapon', 1], [14, 'troops', 8]),
     [H(30, M5(0.25, 0.1, 0.1), 'R'), K('L', 8)],
@@ -250,7 +171,7 @@ export const LEVELS = [
     P(x(2, 1400), a(60, 90)),
     H(520, M6(0.2, 0.26, 0.14, 0.08)),
   ]),
-  level({ id: 9, name: 'Ember Bridge', theme: 'sunset', length: 560, speed: 10.6, stars: [75, 230], reward: 120, tough: 8, boss: { type: 'grawlstone', hp: 85000, tier: 3 } }, [
+  level({ id: 9, name: 'Ember Bridge', theme: 'sunset', length: 560, speed: 10.6, stars: [870, 970], reward: 120, tough: 8, boss: null }, [
     P(a(6, 10), a(-4, 12)),
     B([14, 'troops', 8], [8, 'weapon', 1]),
     H(40, M5(0.25, 0.1, 0.12), 'L'),
@@ -272,7 +193,7 @@ export const LEVELS = [
     [H(540, M6(0.2, 0.26, 0.14, 0.1)), U('L', 'magnet'), K('R', 12, 'zigzag')],
     P(x(2, 1200), a(80, 120)),
   ]),
-  level({ id: 10, name: 'Thunder Gate', theme: 'storm', length: 590, speed: 10.8, stars: [380, 600], reward: 150, tough: 6, boss: { type: 'tempestking', hp: 110000, tier: 4 } }, [
+  level({ id: 10, name: 'Thunder Gate', theme: 'storm', length: 590, speed: 10.8, stars: [530, 705], reward: 150, tough: 6, boss: { type: 'grawlstone', hp: 175000, tier: 4 } }, [
     P(a(-3, 12), a(5, 9)),
     B([14, 'troops', 9], [8, 'weapon', 1]),
     [H(34, M5(0.25, 0.12, 0.12), 'L'), K('R', 8)],
@@ -295,7 +216,7 @@ export const LEVELS = [
     B([320, 'turret', 1], [300, 'drone', 1]),  // at this size troops are not the prize: helpers are
   ]),
   // L11: sliding-blade gauntlet. Opens on one centre gate; blades follow every gate row.
-  level({ id: 11, name: 'Twilight Siege', theme: 'dusk', length: 610, speed: 11, stars: [200, 450], reward: 160, tough: 32, boss: { type: 'oculon', hp: 140000, tier: 4 } }, [
+  level({ id: 11, name: 'Twilight Siege', theme: 'forgeNight', length: 610, speed: 11, stars: [870, 970], reward: 160, tough: 32, boss: null }, [
     [C(a(3, 10)), K('R', 6)],
     [B([10, 'weapon', 1], [10, 'troops', 7]), Xd('L', 14, mv(0.9, 0.9))],
     [H(26, GR(0.25), 'R'), K('L', 8)],
@@ -319,7 +240,7 @@ export const LEVELS = [
   ]),
   // L12: gap staircase. ×3 on one troop is the trap of the opening row; the holes alternate lanes early on,
   // while the squad is still small enough to fit beside them.
-  level({ id: 12, name: 'Moonlit March', theme: 'night', length: 630, speed: 11.2, stars: [350, 620], reward: 170, tough: 40, boss: { type: 'mothermurk', hp: 160000, tier: 4 } }, [
+  level({ id: 12, name: 'Moonlit March', theme: 'forgeNight', length: 630, speed: 11.2, stars: [870, 970], reward: 170, tough: 40, boss: null }, [
     P(a(3, 8), x(3)),
     B([10, 'troops', 8], [10, 'weapon', 1]),
     P(dv(2, 220), a(8, 14)),
@@ -344,7 +265,7 @@ export const LEVELS = [
     B([320, 'turret', 1], [320, 'shield']),
   ]),
   // L13: tank walls. Opens on a barrel row; Bulwarks come packed with Fizzbombs that crack the wall open.
-  level({ id: 13, name: 'Iron Noon', theme: 'noon', length: 650, speed: 11.4, stars: [110, 540], reward: 180, tough: 40, boss: { type: 'ironhorn', hp: 68000, tier: 5 } }, [
+  level({ id: 13, name: 'Iron Noon', theme: 'forge', length: 650, speed: 11.4, stars: [870, 965], reward: 180, tough: 40, boss: null }, [
     B([3, 'troops', 6], [3, 'weapon', 1]),
     P(a(4, 10), a(-2, 12)),
     [H(30, GR(0.25), 'L'), K('R', 8)],
@@ -367,7 +288,7 @@ export const LEVELS = [
     B([320, 'turret', 1], [300, 'drone', 1]),
   ]),
   // L14: ladders. Climbing gates while the squad is small, ÷ gambles against fat add gates once it is big.
-  level({ id: 14, name: 'Molten Skies', theme: 'sunset', length: 675, speed: 11.6, stars: [500, 790], reward: 190, tough: 100, boss: { type: 'grawlstone', hp: 260000, tier: 5 } }, [
+  level({ id: 14, name: 'Molten Skies', theme: 'forge', length: 675, speed: 11.6, stars: [735, 820], reward: 190, tough: 100, boss: null }, [
     P(a(5, 9), a(3, 6)),
     P(x(2, 30), a(6, 12)),                        // shoot the ×2 up the rungs
     [H(36, GR(0.25), 'R'), K('L', 8)],
@@ -389,8 +310,8 @@ export const LEVELS = [
     [H(480, M6(0.2, 0.26, 0.15, 0.1)), U('L', 'freeze')],
     B([320, 'turret', 1], [320, 'drone', 1]),
   ]),
-  // L15: the finale medley - staircase holes, sliding blades, tank walls, ladders, then the Tempest King.
-  level({ id: 15, name: 'Tempest Throne', theme: 'storm', length: 700, speed: 11.8, stars: [290, 450], reward: 250, tough: 45, boss: { type: 'tempestking', hp: 240000, tier: 5 } }, [
+  // L15: the medley - staircase holes, sliding blades, tank walls, ladders, then the Magma Grawlstone (mini-boss).
+  level({ id: 15, name: 'Magma Throne', theme: 'forgeNight', length: 700, speed: 11.8, stars: [770, 915], reward: 250, tough: 45, boss: { type: 'grawlstone', hp: 200000, tier: 5, skin: 'forge', mini: true } }, [
     [C(a(2, 12)), K('L', 6)],
     B([10, 'weapon', 1], [10, 'troops', 8]),
     [H(28, GR(0.25), 'L'), K('R', 8)],
@@ -416,60 +337,15 @@ export const LEVELS = [
   ]),
 ];
 
-// ---------------- update 2: favours + weapon crates ----------------
-/** Weapons each level favours (loadout hint; backed by the matchups and the level's enemy mix). */
-export const FAVOURS = {
-  1: ['thunderclap', 'spectra'], 2: ['glacier', 'spectra'], 3: ['glacier', 'voidsiphon', 'thunderclap'],
-  4: ['gearworks', 'thunderclap'], 5: ['emberstorm', 'sugarrush', 'thunderclap'], 6: ['spectra', 'glacier'],
-  7: ['voidsiphon', 'emberstorm', 'sugarrush'], 8: ['gearworks', 'thunderclap'], 9: ['emberstorm', 'sugarrush', 'spectra'],
-  10: ['spectra', 'voidsiphon', 'glacier'], 11: ['spectra', 'glacier'], 12: ['voidsiphon', 'emberstorm'],
-  13: ['gearworks', 'spectra'], 14: ['emberstorm', 'sugarrush', 'voidsiphon'], 15: ['spectra', 'gearworks', 'voidsiphon'],
-};
 
-/** Weapon crates per level: [lane, weapon, p] with p = 0..1 of the beat span (SPEC2 §2.10). L1-3 have none. */
-export const CRATES = {
-  4: [['R', 'gearworks', 0.55]], 5: [['L', 'emberstorm', 0.4]], 6: [['R', 'spectra', 0.7]], 7: [['L', 'sugarrush', 0.68]],
-  8: [['R', 'gearworks', 0.65]], 9: [['L', 'voidsiphon', 0.35], ['R', 'spectra', 0.85]], 10: [['L', 'glacier', 0.45]],
-  11: [['R', 'thunderclap', 0.3], ['L', 'spectra', 0.6]], 12: [['R', 'voidsiphon', 0.55]],
-  13: [['L', 'gearworks', 0.3], ['R', 'spectra', 0.85]], 14: [['L', 'voidsiphon', 0.35], ['R', 'sugarrush', 0.5]],
-  15: [['L', 'gearworks', 0.4], ['R', 'spectra', 0.85]],
-};
-export const CRATE_CLEAR = 12, CRATE_SEARCH = 40;
+for (const l of HAND) { l.favours = FAVOURS[l.id] || []; l.crates = CRATES[l.id] || []; placeCrates(l, l.crates); }
 
-/**
- * Crate z for target p: START + p * (length - ARENA - START), then the first z in 0, +2, -2, +4, ... (±40)
- * that is >= 12 u outside every other event's extent [at, at + length] and every placed crate. null = none.
- */
-export function crateAt(def, events, p) {
-  const base = Math.round(START + p * (def.length - ARENA - START));
-  for (let k = 0; k <= CRATE_SEARCH; k += 2) {
-    for (const z of k === 0 ? [base] : [base + k, base - k]) {
-      let ok = z > START && z < def.length - ARENA;
-      for (let i = 0; ok && i < events.length; i++) {
-        const e = events[i], a = e.at, b = e.at + (e.length || 0);
-        if (z > a - CRATE_CLEAR && z < b + CRATE_CLEAR) ok = false;
-      }
-      if (ok) return z;
-    }
-  }
-  return null;
-}
+export const LEVELS = [...HAND, ...generateLevels()];
+for (const l of LEVELS) { l.world = worldOf(l.id).id; l.kind = levelKind(l.id); }
 
-/** Adds the level's crates (beat-independent; toughen() already ran and ignores crates). */
-export function placeCrates(def, list = CRATES[def.id] || []) {
-  for (const [lane, weapon, p] of list) {
-    const at = crateAt(def, def.events, p);
-    if (at != null) def.events.push(crate(at, lane, weapon));
-  }
-  return def;
-}
+const BY_ID = new Map(LEVELS.map((l) => [l.id, l]));
+export function getLevel(id) { return BY_ID.get(Number(id)) || null; }
 
-for (const l of LEVELS) { l.favours = FAVOURS[l.id] || []; placeCrates(l); }
-
-export function getLevel(id) {
-  return LEVELS.find((l) => l.id === id) || null;
-}
-
-export const LEVEL_COUNT = 15;
+export const LEVEL_COUNT = TOTAL_LEVELS;
 /** Highest level id with data. Map nodes past it show "coming soon"; progression never unlocks past it. */
 export const LAST_LEVEL = LEVELS.reduce((m, l) => Math.max(m, l.id), 0);

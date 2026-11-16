@@ -18,9 +18,11 @@ async function calls(name, q, setup) {
   if (b && p.calls.avg > b.calls.avg + 5) fails.push(`${name}: ${p.calls.avg} calls avg > baseline ${b.calls.avg} + 5`);
 }
 await calls('lvl8_run', 'high', () => { d.startLevel(8); d.setAutopilot('pro', 1); d.simulate(20); d.give('troops', 150); d.give('mk', 5); });
-await calls('lvl8_boss', 'high', () => { d.skipToBoss(); d.simulate(4); });
+// update 3: L8 has no boss any more - the probe keeps its old Ironhorn arena (same boss, hp, tier) on the L8 run
+const l8Boss = () => { g.run.boss = { type: 'ironhorn', hp: 80000, tier: 3 }; g.bosses.preload(g.run.boss); d.skipToBoss(); d.simulate(4); };
+await calls('lvl8_boss', 'high', l8Boss);
 await calls('low_lvl8_run', 'low', () => { d.startLevel(8); d.setAutopilot('pro', 1); d.simulate(20); d.give('troops', 150); d.give('mk', 5); });
-await calls('low_lvl8_boss', 'low', () => { d.skipToBoss(); d.simulate(4); });
+await calls('low_lvl8_boss', 'low', l8Boss);
 // programs stable after the first 2 s of a run (High and Low)
 for (const q of ['high', 'low']) {
   g.applyQuality(q);

@@ -24,10 +24,13 @@ for (const h of H.HERO_DEFS) {
   if (h.blurb.length > 90) fails.push(`hero ${h.id} blurb ${h.blurb.length} chars`);
   if (!W.WEAPON_BY_ID[h.favourite]) fails.push(`hero ${h.id} favourite ${h.favourite}`);
 }
-// favours never list a weapon weak against that level's / boss's boss
+// favours never list a weapon weak against that level's / boss's boss (update 3: most levels have no boss; a
+// stage-2 boss type without matchups yet is checked as the Grawlstone it falls back to)
 for (const lv of L.LEVELS) {
   if (!lv.favours || !lv.favours.length) fails.push(`L${lv.id} has no favours`);
-  for (const w of lv.favours) if (W.WEAPON_BY_ID[w].weak.some((x) => x.id === lv.boss.type)) fails.push(`L${lv.id} favours ${w}, weak vs ${lv.boss.type}`);
+  if (!lv.boss) continue;
+  const bt = B.BOSSES[lv.boss.type] ? lv.boss.type : 'grawlstone';
+  for (const w of lv.favours) if (W.WEAPON_BY_ID[w].weak.some((x) => x.id === bt || x.id === lv.boss.type)) fails.push(`L${lv.id} favours ${w}, weak vs ${lv.boss.type}`);
 }
 for (const [type, b] of Object.entries(B.BOSSES)) for (const w of b.favours || []) if (W.WEAPON_BY_ID[w].weak.some((x) => x.id === type)) fails.push(`boss ${type} favours ${w} (weak)`);
 // lock lines
