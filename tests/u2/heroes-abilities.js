@@ -181,16 +181,16 @@ for (const h of Object.keys(FAV)) {
   if (early || !g.heroes.ability.ready) fails.push(`${h} recharge: ready at cd-0.1 ${early}, at cd+0.1 ${g.heroes.ability.ready}`);
   info.recharge[h] = cd;
 }
-
-// ---------------- the bot uses every ability on a real level ----------------
+// ---------------- the bot uses every ability on a real level (update 3: L10, a boss level - L8 has none now and
+// Pip's Rally is saved for the boss start) ----------------
 info.bot = {};
 for (const h of Object.keys(FAV)) {
   d.setLoadout(h, FAV[h]);
   d.setAutopilot('pro', 1, { ability: true, crates: 'never' });
-  d.startLevel(8);
+  d.startLevel(10);
   d.simulate(150);
   info.bot[h] = { used: g.heroes.used, result: g.lastResult && g.lastResult.win };
-  if (!(g.heroes.used >= 1)) fails.push(`bot never used ${h}'s ability on L8`);
+  if (!(g.heroes.used >= 1)) fails.push(`bot never used ${h}'s ability on L10`);
 }
 d.setAutopilot(false);
 

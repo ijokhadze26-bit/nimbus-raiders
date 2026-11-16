@@ -61,7 +61,7 @@ for (const id of [21, 31, 41]) ok(L.getLevel(id).length <= 420, `L${id} intro le
 const rewards = L.LEVELS.slice(15).map((l) => l.reward);
 ok(rewards.every((v, i) => i === 0 || v >= rewards[i - 1]), 'rewards 16-50 rise');
 ok(Math.abs(L.getLevel(20).reward - 260) <= 30 && Math.abs(L.getLevel(50).reward - 600) <= 40, `rewards L20 ${L.getLevel(20).reward} L50 ${L.getLevel(50).reward}`);
-// L1-15 beats unchanged: every non-rush event of the hand-made levels sits on the old beat grid
+// L1-15 beats unchanged: the old length stays the beat layout; a bossless level only adds the 24 u rush tail
 for (let id = 1; id <= 15; id++) { const lv = L.getLevel(id); ok(lv.layout + (lv.finish ? 24 : 0) === lv.length, `L${id} layout ${lv.layout} / length ${lv.length}`); }
 // deterministic generation
 for (const id of [16, 23, 33, 43, 50]) { const { world, kind, ...lv } = L.getLevel(id); eq(JSON.stringify(GEN.generateLevel(id)), JSON.stringify(lv), `L${id} regenerates identically`); }
