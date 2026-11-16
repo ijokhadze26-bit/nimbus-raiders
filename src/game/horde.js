@@ -1,6 +1,8 @@
 // Horde: all Murklings. Spawns blobs from level 'horde' events, idles until the squad is near, charges +Z,
 // steers toward the squad, resolves bullet hits (z-grid), contact kills (tank multi-kill, bomber blasts),
 // chain explosions. Rendering lives in hordeview.js (one InstancedMesh per type).
+// Update 3 (stage 3): new types + elites + smarter enemies per world (hordeai.js), level hordes split into
+// probe / pause / rush waves (hordewaves.js). Boss summons (attacks.js -> spawnWave(ev)) are never split.
 // Update 2: status (burn / slow / freeze / pull) ticks first (game.status.tickHorde); every hp change goes
 // through hordeops.applyDamage (matchups, shields, carry); the spatial queries live in hordeops.js too.
 import { HORDE, LANES, MEMBER_CLAMP } from '../config.js';
@@ -10,8 +12,11 @@ import { HordeView } from './hordeview.js';
 import { hasHit } from './bullets.js';
 import { HIT } from '../config.js';
 import * as ops from './hordeops.js';
+import * as AI from './hordeai.js';
+import { planFor, splitCounts, makeWave, updateWaves, waveInfo, HOLD_AT } from './hordewaves.js';
+import { Rng } from '../core/rng.js';
 
-export const ALIVE = 0, DYING = 1;
+export const ALIVE = 0, DYING = 1, SWELL = AI.SWELL;
 const KILL_CAT = { bullet: 'weapon', weapon: 'weapon', burn: 'weapon', shatter: 'weapon', ability: 'ability', helper: 'helper' };
 const CONTACT = 0.55;       // + type radius (SPEC §5)
 const AGGRO = 52;           // idle blobs start charging when the squad is this close
@@ -19,6 +24,7 @@ const MAX_ENEMIES = 900;
 const DIE_TIME = 0.17;
 const CHAIN_DELAY = 0.11;
 const DEFS = ENEMY_TYPES.map((t) => ENEMIES[t]);
+const WAVE_GAP = 2.6;     // empty road between a wave's sub-blob and the next one
 
 export class Horde {
   init(game) {
@@ -40,6 +46,15 @@ export class Horde {
     this.leaderRef = { leader: true, x: 0, z: 0, hitStamp: -1 };
     this.diePos = { x: 0, y: 0.5, z: 0 };
     this.hitPos = { x: 0, y: 0.5, z: 0 };
+    this.maxEnemies = MAX_ENEMIES;
+    this.waves = [];
+    this.waveStats = { split: 0, released: 0 };
+    this.lastHint = -99;
+    this.prevLz = null; this.dLz = 0; this.fwd = 0;
+    this.arng = new Rng(1);
+    this.ai = AI.aiFor(null);
+    AI.initAi(this);
+    for (const [n, r] of [['enemy:heal', 6], ['enemy:spawn', 8], ['enemy:spit', 8], ['enemy:splat', 8], ['enemy:dive', 6], ['enemy:swell', 10]]) game.events.setRate(n, r);
     this.view = new HordeView(game, MAX_ENEMIES);
     game.bullets.addTargetSystem(this);
   }
@@ -52,21 +67,36 @@ export class Horde {
     this.cursor = 0;
     this.alive = 0;
     this.grid.clear();
+    this.waves.length = 0;
+    this.waveStats.split = 0; this.waveStats.released = 0;
+    this.lastHint = -99;
+    this.prevLz = null;
+    this.arng.seed(run ? (run.def.id | 0) * 31337 + 7 : 1);
+    this.ai = AI.aiFor(run);
+    AI.resetAi(this);
     this.view.reset();
   }
 
   get count() { return this.alive; }
 
   /** Skip all not-yet-spawned waves (debug skipToBoss). */
-  skipAll() { this.cursor = this.events.length; for (const e of this.list) if (e.state === ALIVE) { e.state = DYING; e.t = DIE_TIME; this.alive--; } }
+  skipAll() {
+    this.cursor = this.events.length;
+    for (const e of this.list) if (e.state === ALIVE || e.state === SWELL) { if (e.state === ALIVE) this.alive--; e.state = DYING; e.t = DIE_TIME; }
+    this.waves.length = 0;
+    AI.resetAi(this);
+  }
 
   alloc() {
     return this.free.length ? this.free.pop() : { type: 0, def: null, x: 0, z: 0, vx: 0, hp: 1, maxHp: 1, shield: 0, state: 0, t: 0, ph: 0, ox: 0, charging: false, flash: 0, sflash: 0, cd: 0, ckills: 0, slow: 1,
-      burnPool: 0, burnT: 0, slowPct: 0, slowT: 0, freezeT: 0, shatter: 0, stickyT: 0, stickyPct: 0, px: 0, pz: 0, pud: 0, spd: 1, ice: 0, burn: 0 };
+      burnPool: 0, burnT: 0, slowPct: 0, slowT: 0, freezeT: 0, shatter: 0, stickyT: 0, stickyPct: 0, px: 0, pz: 0, pud: 0, spd: 1, ice: 0, burn: 0,
+      hpm: 1, wave: null, wmul: 1, elite: false, size: 1, aiT: 0, dodge: false, dashT: 0, dashV: 0, dcd: 0, spr: 1, turn: false, yaw: 0, glow: 0, sw: 0,
+      y: 0, dived: false, shots: 0, brood: 0, sp: 0, stopD: 0, beh: false };
   }
 
   // ---------------- spawning ----------------
-  spawnWave(ev) {
+  /** split = a level horde event (horde.update): may become probe / pause / rush waves (hordewaves.js). */
+  spawnWave(ev, split = false) {
     const rng = this.game.rng;
     const count = Math.max(1, Math.min(ev.count | 0, MAX_ENEMIES - this.list.length));
     if (count <= 0) return;
@@ -88,23 +118,48 @@ export class Horde {
       for (let i = 0; i < n; i++) types.push(ENEMY_INDEX[k]);
     }
     while (types.length < count) types.push(ENEMY_INDEX[keys[0]] ?? 0);
-    // shuffle then stable-sort by front priority (tanks + shields lead the charge)
+    // shuffle, then each (sub-)blob is stable-sorted by front priority (tanks + shields lead the charge)
     for (let i = types.length - 1; i > 0; i--) { const j = rng.int(0, i); const t = types[i]; types[i] = types[j]; types[j] = t; }
-    const keyed = types.map((t, i) => ({ t, k: DEFS[t].front * 1000 + i }));
+    const elite = eliteFlags(ev, types);
+    const plan = split ? planFor(this.game, ev) : null;
+    if (!plan) {
+      this.layout(types, elite, 0, types.length, cx, width, -ev.at + (ev.depth ? ev.depth / 2 : Math.sqrt(count) * 0.32), hpMul, null);
+    } else {
+      const counts = splitCounts(plan, types.length);
+      let z = -ev.at + Math.sqrt(counts[0]) * 0.32, start = 0, prev = null;
+      for (let k = 0; k < counts.length; k++) {
+        const w = makeWave(k, counts[k], plan[k], prev, ev);
+        w.last = k === counts.length - 1;
+        z = this.layout(types, elite, start, start + counts[k], cx, width, z, hpMul, w) - WAVE_GAP;
+        start += counts[k];
+        this.waves.push(w);
+        prev = w;
+      }
+      this.waveStats.split++;
+    }
+    this.game.events.emit('horde:incoming', { count });
+  }
+
+  /** Packs types[i0..i1) into rows from zFront backward (crowd taper); returns the z behind the last row. */
+  layout(types, elite, i0, i1, cx, width, zFront, hpMul, wave) {
+    const rng = this.game.rng;
+    const keyed = [];
+    for (let i = i0; i < i1; i++) keyed.push({ t: types[i], i, k: DEFS[types[i]].front * 1000 + i });
     keyed.sort((a, b) => a.k - b.k);
-    // pack rows from the front (largest z) backward
-    let z = -ev.at + (ev.depth ? ev.depth / 2 : Math.sqrt(count) * 0.32);
+    const count = keyed.length;
+    let z = zFront;
     let row = [], rowW = 0, rowIdx = 0;
     const flush = () => {
       if (!row.length) return;
       let depth = 0;
-      for (const t of row) depth = Math.max(depth, DEFS[t].spacing);
+      for (const { t } of row) depth = Math.max(depth, DEFS[t].spacing);
       const stagger = rowIdx & 1 ? 0.18 : -0.18;
       let x = cx - rowW / 2 + stagger;
-      for (const t of row) {
+      for (const { t, i } of row) {
         const d = DEFS[t];
         x += d.spacing / 2;
-        this.place(t, x + rng.range(-0.14, 0.14), z - depth / 2 + rng.range(-0.24, 0.24), x - cx, hpMul);
+        const e = this.place(t, x + rng.range(-0.14, 0.14), z - depth / 2 + rng.range(-0.24, 0.24), x - cx, hpMul, !!(elite && elite[i]));
+        if (e && wave) { e.wave = wave; e.wmul = wave.speed; wave.alive++; }
         x += d.spacing / 2;
       }
       z -= depth * 0.9;
@@ -116,28 +171,31 @@ export class Horde {
     avg /= keyed.length;
     const estRows = Math.max(1, Math.ceil((avg * count) / width));
     const rowWidth = () => width * (estRows < 3 ? 1 : 0.62 + 0.38 * Math.sin(Math.PI * Math.min(1, (rowIdx + 0.7) / (estRows + 0.4))));
-    for (const { t } of keyed) {
-      const w = DEFS[t].spacing;
+    for (const it of keyed) {
+      const w = DEFS[it.t].spacing;
       if (rowW + w > rowWidth() && row.length) flush();
-      row.push(t); rowW += w;
+      row.push(it); rowW += w;
     }
     flush();
-    this.game.events.emit('horde:incoming', { count });
+    return z;
   }
 
-  place(type, x, z, ox, hpMul = 1) {
+  place(type, x, z, ox, hpMul = 1, elite = false) {
     const d = DEFS[type];
     const e = this.alloc();
     e.type = type; e.def = d;
     e.x = Math.max(-MEMBER_CLAMP, Math.min(MEMBER_CLAMP, x)); e.z = z; e.vx = 0; e.ox = ox;
-    e.hp = d.hp * hpMul; e.maxHp = e.hp; e.shield = d.shieldHits || 0;
+    e.hp = d.hp * hpMul; e.maxHp = e.hp; e.shield = d.shieldHits || 0; e.hpm = hpMul;
     e.state = ALIVE; e.t = 0; e.ph = this.game.rng.next() * Math.PI * 2;
     e.charging = false; e.flash = 0; e.sflash = 0; e.cd = 0; e.ckills = 0; e.slow = 1;
     e.burnPool = 0; e.burnT = 0; e.slowPct = 0; e.slowT = 0; e.freezeT = 0; e.shatter = 0; e.stickyT = 0; e.stickyPct = 0;
     e.px = 0; e.pz = 0; e.pud = 0; e.spd = 1; e.ice = 0; e.burn = 0;
+    e.wave = null; e.wmul = 1;
+    AI.onPlace(this, e, elite);
     if (this.game.status) this.game.status.onPlace(e);
     this.list.push(e);
     this.alive++;
+    return e;
   }
 
   // ---------------- simulation ----------------
@@ -150,8 +208,13 @@ export class Horde {
     const squad = game.squad;
     const L = squad.leader;
     const dist = -L.z;
+    const dLz = this.prevLz == null ? 0 : L.z - this.prevLz; // leader z change this step (<= 0 while running)
+    this.prevLz = L.z; this.dLz = dLz; this.fwd = dt > 0 ? Math.max(0, -dLz / dt) : 0;
     const ev = this.events;
-    while (this.cursor < ev.length && ev[this.cursor].at - dist < HORDE.spawnAhead) this.spawnWave(ev[this.cursor++]);
+    while (this.cursor < ev.length && ev[this.cursor].at - dist < HORDE.spawnAhead) this.spawnWave(ev[this.cursor++], true);
+    if (this.waves.length) updateWaves(this, dt, dist);
+    AI.preStep(this, dt);
+    AI.updatePulses(this, dt);
 
     const frozen = !!(game.powers && game.powers.has && game.powers.has('freeze'));
     const c = squad.center(this._c || (this._c = { x: 0, z: 0, r: 0 }));
@@ -164,10 +227,18 @@ export class Horde {
         if (e.t >= DIE_TIME) { list[i] = list[list.length - 1]; list.pop(); this.free.push(e); }
         continue;
       }
+      if (e.state === SWELL) { // a dead Boomling swelling up: bursts after def.boom.swell s, then pops
+        if (AI.swellStep(this, e, dt)) { e.state = DYING; e.t = DIE_TIME * 0.35; this.emitDie(e); }
+        continue;
+      }
       if (e.cd > 0) e.cd -= dt;
       if (frozen) continue;
       const ahead = L.z - e.z; // > 0 while the enemy is in front of the leader
-      if (!e.charging && ahead < AGGRO) e.charging = true;
+      const w = e.wave;
+      if (w && !w.go) { // a held wave waits at the edge of view (keeps its distance to the squad)
+        if (!w.locked && ahead < HOLD_AT) w.locked = true;
+        if (w.locked && e.freezeT <= 0) e.z += dLz;
+      } else if (!e.charging && ahead < AGGRO) { e.charging = true; if (w) w.engaged = true; }
       if (e.charging && e.freezeT <= 0) { // frozen: no charge, sway or step
         const d = e.def;
         let tvx = 0;
@@ -176,13 +247,16 @@ export class Horde {
           tvx = Math.max(-3, Math.min(3, (tx - e.x) * 1.7));
         }
         e.vx += (tvx - e.vx) * Math.min(1, dt * 4);
-        e.x += e.vx * dt;
-        e.z += base * d.speed * e.slow * e.spd * dt;
+        const mul = e.beh ? e.wmul * AI.step(this, e, dt, ahead) : e.wmul;
+        e.x += (e.vx + e.dashV) * dt;
+        e.z += base * d.speed * e.slow * e.spd * mul * dt;
         e.slow = Math.min(1, e.slow + dt * 2);
         if (e.x > MEMBER_CLAMP) e.x = MEMBER_CLAMP; else if (e.x < -MEMBER_CLAMP) e.x = -MEMBER_CLAMP;
       }
+      if (e.def.heal && e.freezeT <= 0) AI.heal(this, e, dt);
       if (e.z > L.z + HORDE.despawnBehind) {
         this.alive--;
+        if (e.wave) e.wave.alive--;
         list[i] = list[list.length - 1]; list.pop(); this.free.push(e);
       }
     }
@@ -193,6 +267,7 @@ export class Horde {
 
     if (run && run.active && squad.count > 0) this.contacts(c);
     this.updateBlasts(dt);
+    AI.updateShots(this, dt);
   }
 
   contacts(c) {
@@ -216,7 +291,7 @@ export class Horde {
       if (!b) continue;
       for (let i = 0; i < b.length; i++) {
         const e = b[i];
-        if (e.state !== ALIVE) continue;
+        if (e.state !== ALIVE || e.y > 1.1) continue; // a Flapling up high flies over the squad until it dives
         const reach = CONTACT + e.def.r;
         const m = this.findMember(e.x, e.z, reach);
         if (!m) continue;
@@ -224,6 +299,7 @@ export class Horde {
         if (shielded) { this.kill(e, 'contact'); continue; }
         if (e.freezeT > 0 && e.shatter) { this.kill(e, 'shatter'); continue; } // Glacier freeze: shatters harmlessly
         const d = e.def;
+        if (d.boom) { this.kill(e, 'contact'); continue; } // swells, then the burst does the damage
         if (d.blastRadius) {
           this.kill(e, 'contact');
           this.blastMembers(e.x, e.z, d.blastRadius, d.blastKills);
@@ -332,9 +408,16 @@ export class Horde {
       run.kills++;
       if (run.killsBy) run.killsBy[KILL_CAT[cause] || 'other']++;
     }
-    const p = this.diePos; p.x = e.x; p.y = 0.5; p.z = e.z;
-    if (this.game.events.wants('enemy:die')) this.game.events.emit('enemy:die', { type: e.def.id, pos: p, color: this.view.bodyColors[e.type] || e.def.color });
+    if (e.wave) e.wave.alive--;
+    if (e.elite && run) run.stats.elites = (run.stats.elites || 0) + 1;
+    if (e.def.boom) { AI.startSwell(this, e); return; } // its death pop + burst come when the swell ends
+    this.emitDie(e);
     if (e.def.blastRadius && cause !== 'contact') this.queueBlast(e.x, e.z, e.def.blastRadius, cause === 'blast' ? CHAIN_DELAY : 0.02);
+  }
+
+  emitDie(e) {
+    const p = this.diePos; p.x = e.x; p.y = 0.5 + (e.y || 0); p.z = e.z;
+    if (this.game.events.wants('enemy:die')) this.game.events.emit('enemy:die', { type: e.def.id, pos: p, color: this.view.bodyColors[e.type] || e.def.color, elite: e.elite });
   }
 
   // ---------------- bullet target system ----------------
@@ -371,37 +454,33 @@ export class Horde {
 
   // ---------------- queries (helpers, autopilot) ----------------
   /** Nearest alive enemy ahead of z (smaller z) within range, preferring small lateral offset. */
-  nearestAhead(x, z, range) {
-    let best = null, bs = Infinity;
-    for (let k = Math.floor(z); k >= Math.floor(z - range); k--) {
-      const b = this.grid.buckets.get(k);
-      if (!b) continue;
-      for (let i = 0; i < b.length; i++) {
-        const e = b[i];
-        if (e.state !== ALIVE) continue;
-        const s = (z - e.z) + Math.abs(e.x - x) * 1.5;
-        if (s < bs) { bs = s; best = e; }
-      }
-      if (best && z - k > (z - best.z) + 6) break;
-    }
-    return best;
-  }
-
+  nearestAhead(x, z, range) { return ops.nearestAheadRange(this, x, z, range); }
   /** Weighted count of enemies with |x - ex| < halfW and z in [zFar, zNear]. */
-  densityAt(x, halfW, zFar, zNear) {
-    let n = 0;
-    for (let k = Math.floor(zFar); k <= Math.floor(zNear); k++) {
-      const b = this.grid.buckets.get(k);
-      if (!b) continue;
-      for (let i = 0; i < b.length; i++) {
-        const e = b[i];
-        if (e.state === ALIVE && Math.abs(e.x - x) < halfW) n += e.def.hp > 4 ? 4 : 1;
-      }
-    }
-    return n;
-  }
+  densityAt(x, halfW, zFar, zNear) { return ops.densityAt(this, x, halfW, zFar, zNear); }
 
-  sync(dt) { this.view.sync(dt, this.list, this.time, !!(this.game.powers && this.game.powers.has && this.game.powers.has('freeze'))); }
+  sync(dt) { this.view.sync(dt, this.list, this.time, !!(this.game.powers && this.game.powers.has && this.game.powers.has('freeze')), this); }
+
+  /** Tests / debug: waves, AI tallies, live special objects. */
+  info() {
+    let elites = 0, swelling = 0;
+    for (const e of this.list) { if (e.state === ALIVE && e.elite) elites++; if (e.state === SWELL) swelling++; }
+    return { alive: this.alive, elites, swelling, shots: this.shots.length, pulses: this.pulses.length, waves: waveInfo(this), waveStats: { ...this.waveStats }, ai: { ...this.aiStats }, rules: { ...this.ai } };
+  }
 
   dispose() {}
+}
+
+/**
+ * Elite flags for a shuffled type list: `eliteTypes` makes every enemy of those types elite, `elite` (0..1) an
+ * evenly spread share of the rest (no dice: the list is already shuffled, and every wave gets its share).
+ */
+function eliteFlags(ev, types) {
+  const frac = Math.max(0, Math.min(1, ev.elite || 0)), et = ev.eliteTypes;
+  if (!(frac > 0) && !(et && et.length)) return null;
+  const f = new Uint8Array(types.length);
+  for (let i = 0; i < types.length; i++) {
+    if (et && et.includes(ENEMY_TYPES[types[i]])) f[i] = 1;
+    else if (frac > 0 && Math.floor((i + 1) * frac) > Math.floor(i * frac)) f[i] = 1;
+  }
+  return f;
 }

@@ -3,6 +3,8 @@
 //   applyDamage(h, e, dmg, unit, src) -> { killed, used, blocked } (a reused scratch object: copy what you need)
 //     src = { el = 'neutral', shieldHits = 1, bypassShield = false, cause = 'weapon', canBurn, events = true }
 //     Shield: if e.shield > 0 and !bypassShield -> e.shield -= shieldHits, blocked, no hp damage (today's rule).
+//     Update 3: a Shieldbearer that turns its shield (world 3+, e.turn) only blocks hits from the front: a
+//     source point src.sx / src.sz (bullets: where the shot came from) more than ~70 deg off the shield goes through.
 //     Else d = dmg * vsMul(el, type) * (frozen ? 1.25 : 1); kill at hp <= 0.
 //     Carry: used = ceil(hpBefore / (unit * m)) * unit (bundled shots left over keep flying).
 //   forEachInRadius(h, x, z, r, fn)            alive enemies within r, deterministic (grid bucket, list) order
@@ -10,6 +12,7 @@
 //   nearestAhead(h, x, z, band, maxDist)       nearest alive enemy ahead of z with |e.x - x| <= band
 // Ties are broken by the lower list index (determinism checklist §6.8).
 import { VS_INDEX } from '../data/matchups.js';
+import { shieldFaces } from './hordeai.js';
 
 export const ALIVE = 0;
 const R = { killed: false, used: 0, blocked: false };
@@ -20,7 +23,7 @@ export function applyDamage(h, e, dmg, unit = dmg, src = SRC) {
   R.killed = false; R.used = 0; R.blocked = false;
   if (!e || e.state !== ALIVE || !(dmg > 0)) return R;
   const game = h.game;
-  if (e.shield > 0 && !src.bypassShield) {
+  if (e.shield > 0 && !src.bypassShield && !(e.turn && src.sx != null && !shieldFaces(e, src.sx, src.sz))) {
     e.shield = Math.max(0, e.shield - (src.shieldHits || 1));
     e.sflash = 1;
     R.blocked = true;
@@ -46,7 +49,7 @@ export function applyDamage(h, e, dmg, unit = dmg, src = SRC) {
   return R;
 }
 
-const BSRC = { el: 'neutral', shieldHits: 1, bypassShield: false, cause: 'weapon', events: true, keepPos: true };
+const BSRC = { el: 'neutral', shieldHits: 1, bypassShield: false, cause: 'weapon', events: true, keepPos: true, sx: 0, sz: 0 };
 
 /** Bullet hit on an enemy (horde.hit): true = consumed, false = pierce spent, 'carry' = keep flying. */
 export function bulletHit(h, e, b) {
@@ -54,6 +57,9 @@ export function bulletHit(h, e, b) {
   BSRC.shieldHits = b.owner ? b.owner.shieldHits || 1 : 1;
   BSRC.cause = b.cause || (b.owner ? 'weapon' : 'helper');
   BSRC.weapon = b.owner ? b.owner.id : 'helper';
+  // where the shot came from (for the front-only shield rule): back along its heading by the distance flown
+  const sp = Math.hypot(b.vx, b.vz) || 1, back = Math.min(b.dist || 0, 40);
+  BSRC.sx = b.x - (b.vx / sp) * back; BSRC.sz = b.z - (b.vz / sp) * back;
   const unit = b.unit || b.dmg;
   const hp = h.hitPos; hp.x = b.x; hp.y = b.y; hp.z = e.z + e.def.r;
   const r = applyDamage(h, e, b.dmg, unit, BSRC);
@@ -109,4 +115,36 @@ export function nearestAhead(h, x, z, band, maxDist = Infinity) {
     bd = d; best = e;
   }
   return best;
+}
+
+// horde.js queries (helpers, autopilot)
+/** Nearest alive enemy ahead of z (smaller z) within range, preferring small lateral offset. */
+export function nearestAheadRange(h, x, z, range) {
+  let best = null, bs = Infinity;
+  for (let k = Math.floor(z); k >= Math.floor(z - range); k--) {
+    const b = h.grid.buckets.get(k);
+    if (!b) continue;
+    for (let i = 0; i < b.length; i++) {
+      const e = b[i];
+      if (e.state !== ALIVE) continue;
+      const s = (z - e.z) + Math.abs(e.x - x) * 1.5;
+      if (s < bs) { bs = s; best = e; }
+    }
+    if (best && z - k > (z - best.z) + 6) break;
+  }
+  return best;
+}
+
+/** Weighted count of enemies with |x - ex| < halfW and z in [zFar, zNear]. */
+export function densityAt(h, x, halfW, zFar, zNear) {
+  let n = 0;
+  for (let k = Math.floor(zFar); k <= Math.floor(zNear); k++) {
+    const b = h.grid.buckets.get(k);
+    if (!b) continue;
+    for (let i = 0; i < b.length; i++) {
+      const e = b[i];
+      if (e.state === ALIVE && Math.abs(e.x - x) < halfW) n += e.def.hp > 4 ? 4 : 1;
+    }
+  }
+  return n;
 }

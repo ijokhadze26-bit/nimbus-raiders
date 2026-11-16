@@ -3,6 +3,7 @@
 // Kept low-poly (~150-280 tris) so 600 alive enemies stay inside the triangle budget.
 import * as THREE from 'three';
 import { part, merge, G } from './util.js';
+import { NEW_SKINS, NEW_BUILDERS } from './murklings2.js';
 
 const EYE_WHITE = '#ffffff', PUPIL = '#1d1033', MOUTH = '#2c0f55';
 
@@ -51,6 +52,8 @@ export const MURKLING_SKINS = {
     bomber: { body: '#ff2e48', dark: '#981028', light: '#ffa0b0', cap: '#26203a' },
   },
 };
+// stage 3 types (Boomling, Mendling, Broodling Hive, Spitling, Flapling): palettes live in murklings2.js
+for (const k of Object.keys(MURKLING_SKINS)) Object.assign(MURKLING_SKINS[k], NEW_SKINS[k] || NEW_SKINS.sky);
 const pal = (skin, type) => (MURKLING_SKINS[skin] || SKY)[type] || SKY[type];
 
 /** Squat purple blob, one big yellow eye, two little nub horns. */
@@ -143,7 +146,7 @@ function bomber(P) {
       ]);
 }
 
-const BUILDERS = { grunt, runner, tank, shield: shieldbearer, bomber };
+const BUILDERS = { grunt, runner, tank, shield: shieldbearer, bomber, ...NEW_BUILDERS };
 
 /** skin: a MURKLING_SKINS key (default 'sky' = the original look). */
 export function buildMurklingGeometry(type, skin = 'sky') {

@@ -1,11 +1,15 @@
 // Horde rendering: one InstancedMesh per Murkling type (toon + per-instance flash/ice/glow/burn attribute),
 // Shieldbearer shields, Fizzbomb fuse sparks, instanced blob shadows and bomber blast puffs.
+// Update 3: the stage-3 types (Boomling swell, Mendling / Hive / Spitling glow pulses, Flapling altitude +
+// wing flap), per-enemy size, turned shields, the elite gold rim (aElite) and the extras in hordefx.js.
 import * as THREE from 'three';
 import { ENEMY_TYPES, ENEMIES } from '../data/enemies.js';
 import { buildMurklingGeometry, buildShieldGeometry, buildSparkGeometry, murklingBodyColor } from '../models/murklings.js';
-import { fxToonMaterial, blobShadowTexture } from '../models/materials.js';
+import { blobShadowTexture } from '../models/materials.js';
 import { XF, writeXfYawRoll, writeXfYaw, markInstances } from '../core/pool.js';
 import { part, merge, G } from '../models/util.js';
+import { murklingMaterial, NEW_GLOW } from '../models/murklings2.js';
+import { HordeFx } from './hordefx.js';
 
 const DIE_TIME = 0.17;
 // bomber chain puffs: few, see-through and quick, so a chain never hides the gate row or the squad
@@ -16,7 +20,13 @@ const ANIM = {
   tank: { f: 5.5, hop: 0.05, sq: 0.05, roll: 0.07 },
   shield: { f: 8, hop: 0.09, sq: 0.07, roll: 0.08 },
   bomber: { f: 10, hop: 0.15, sq: 0.1, roll: 0.15 },
+  blaster: { f: 11, hop: 0.12, sq: 0.11, roll: 0.12 },
+  healer: { f: 6, hop: 0.08, sq: 0.08, roll: 0.06 },
+  spawner: { f: 3.5, hop: 0.02, sq: 0.07, roll: 0.04 },
+  sniper: { f: 8, hop: 0.09, sq: 0.06, roll: 0.08 },
+  flyer: { f: 16, hop: 0.12, sq: 0.05, roll: 0.14 },
 };
+const GLOW = { bomber: '#ff6a3a', tank: '#ff2a3a', ...NEW_GLOW };
 const ANIMS = ENEMY_TYPES.map((t) => ANIM[t]);
 const _c = new THREE.Color();
 
@@ -30,14 +40,18 @@ export class HordeView {
       const fx = new THREE.InstancedBufferAttribute(new Float32Array(cap * 4), 4);
       fx.setUsage(THREE.DynamicDrawUsage);
       geo.setAttribute('aFx', fx);
-      const mat = fxToonMaterial(t === 'bomber' ? '#ff6a3a' : t === 'tank' ? '#ff2a3a' : '#ffffff');
+      const el = new THREE.InstancedBufferAttribute(new Float32Array(cap), 1);
+      el.setUsage(THREE.DynamicDrawUsage);
+      geo.setAttribute('aElite', el);
+      const mat = murklingMaterial(GLOW[t] || '#ffffff');
       const mesh = new THREE.InstancedMesh(geo, mat, cap);
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       mesh.frustumCulled = false;
       mesh.count = 0;
       scene.add(mesh);
-      return { mesh, fx, n: 0 };
+      return { mesh, fx, el, n: 0, anyElite: false };
     });
+    this.extras = new HordeFx(game);
     this.shields = new THREE.InstancedMesh(buildShieldGeometry(), new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true, toneMapped: false }), 320);
     this.shields.frustumCulled = false; this.shields.count = 0; this.shields.renderOrder = 4;
     this.shields.setColorAt(0, _c.set(1, 1, 1));
@@ -99,9 +113,9 @@ export class HordeView {
     if (gates && gates.burst) gates.burst(e.x, 0.5, e.z + 0.5, 1.1, 0.8, '#4de1ff', 10);
   }
 
-  sync(dt, list, time, frozen) {
+  sync(dt, list, time, frozen, h) {
     const ms = this.meshes;
-    for (const m of ms) m.n = 0;
+    for (const m of ms) { m.n = 0; m.anyElite = false; }
     let ns = 0, nk = 0, nb = 0;
     const sArr = this.shields.instanceMatrix.array, kArr = this.sparks.instanceMatrix.array, bArr = this.blobs.instanceMatrix.array;
     const fd = Math.min(1, dt * 12);
@@ -117,6 +131,11 @@ export class HordeView {
         const s = f < 0.45 ? 1 + f * 0.9 : Math.max(0.01, 1.4 * (1 - (f - 0.45) / 0.55));
         sx = sz = s * 1.12; sy = s * (f < 0.45 ? 0.82 : 1);
         flash = 1;
+      } else if (e.state === 2) { // Boomling swell: puffs up, trembles and blinks before the burst
+        const f = e.sw;
+        sx = sz = 1 + f * 0.8; sy = (1 + f * 0.7) * (1 - 0.06 * Math.sin(time * 50));
+        roll = Math.sin(time * 60 + e.ph) * 0.08 * f;
+        flash = 0.2 + 0.65 * f * (0.5 + 0.5 * Math.sin(time * 42));
       } else {
         const speed = e.charging && !frozen ? 1 : 0.45;
         const ph = time * a.f * speed + e.ph;
@@ -125,11 +144,15 @@ export class HordeView {
         const squash = frozen ? 0 : Math.cos(ph * 2) * a.sq;
         sy = 1 + squash; sx = sz = 1 - squash * 0.6;
         roll = frozen ? 0 : Math.sin(ph) * a.roll;
-        yaw = Math.max(-0.5, Math.min(0.5, e.vx * 0.18)) + (e.charging ? 0 : Math.sin(time * 0.9 + e.ph * 3) * 0.35);
+        yaw = e.turn && e.charging ? e.yaw : Math.max(-0.5, Math.min(0.5, e.vx * 0.18)) + (e.charging ? 0 : Math.sin(time * 0.9 + e.ph * 3) * 0.35);
         e.flash = Math.max(0, e.flash - fd);
+        if (d.fly && !still0(frozen, e)) { const fl = Math.sin(time * 22 + e.ph); sx *= 1 + 0.2 * fl; sy *= 1 - 0.06 * fl; y += Math.sin(time * 3 + e.ph) * 0.12; }
       }
       const still = frozen || e.freezeT > 0;
       if (still && e.state === 0) { y = 0; roll = 0; sy = 1; sx = sz = 1; }
+      const sz0 = e.size || 1;
+      if (sz0 !== 1) { sx *= sz0; sy *= sz0; sz *= sz0; }
+      if (e.y) y += e.y;
       XF[0] = e.x; XF[1] = y; XF[2] = e.z; XF[3] = yaw; XF[4] = roll; XF[5] = sx; XF[6] = sy; XF[7] = sz;
       writeXfYawRoll(vm.mesh.instanceMatrix.array, vm.n);
       if (e.px || e.pz) lean(vm.mesh.instanceMatrix.array, vm.n, e.px, e.pz, e.x, e.z);
@@ -137,12 +160,16 @@ export class HordeView {
       const fx = vm.fx.array;
       fx[fo] = flash * 0.7;
       fx[fo + 1] = frozen ? 1 : e.ice;
-      fx[fo + 2] = d.blastRadius ? 0.25 + 0.25 * Math.sin(time * 11 + e.ph) : (d.contactKills ? e.ckills * 0.2 : 0);
+      fx[fo + 2] = d.boom ? (e.state === 2 ? 0.5 + 0.5 * e.sw : 0.12 + 0.14 * Math.sin(time * 9 + e.ph))
+        : d.blastRadius ? 0.25 + 0.25 * Math.sin(time * 11 + e.ph)
+          : d.heal || d.brood || d.spit ? e.glow * 0.75 : (d.contactKills ? e.ckills * 0.2 : 0);
+      vm.el.array[vm.n] = e.elite ? 0.8 + 0.2 * Math.sin(time * 6 + e.ph) : 0;
+      if (e.elite) vm.anyElite = true;
       fx[fo + 3] = e.burn > 0 ? Math.min(1, 0.35 + e.burn * 1.5) * (0.8 + 0.2 * Math.sin(time * 17 + e.ph)) : 0;
       vm.n++;
       // blob shadow
       if (nb < this.cap) {
-        const bs = d.r * 2.5 * (e.state === 1 ? Math.max(0, 1 - e.t / DIE_TIME) : 1 - y * 0.8);
+        const bs = d.r * 2.5 * sz0 * (e.state === 1 ? Math.max(0, 1 - e.t / DIE_TIME) : e.y ? Math.max(0.35, 1 - e.y * 0.28) : 1 - y * 0.8);
         XF[0] = e.x; XF[1] = 0.02; XF[2] = e.z + 0.05; XF[3] = 0; XF[5] = bs; XF[6] = 1; XF[7] = bs * 0.85;
         writeXfYaw(bArr, nb++);
       }
@@ -168,7 +195,11 @@ export class HordeView {
     for (const m of ms) {
       m.mesh.count = m.n;
       if (m.n) { markInstances(m.mesh.instanceMatrix, m.n); markInstances(m.fx, m.n); }
+      if (m.n && m.anyElite) markInstances(m.el, m.n);
+      else if (m.elDirty) { m.el.array.fill(0, 0, m.n); if (m.n) markInstances(m.el, m.n); }
+      m.elDirty = m.anyElite; m.anyElite = false;
     }
+    if (h) this.extras.sync(dt, list, time, h);
     this.shields.count = ns;
     if (ns) { markInstances(this.shields.instanceMatrix, ns); markInstances(this.shields.instanceColor, ns); }
     this.sparks.count = nk; if (nk) markInstances(this.sparks.instanceMatrix, nk);
@@ -214,5 +245,7 @@ function lean(arr, i, px, pz, x, z) {
   }
   arr[o + 12] = x; arr[o + 14] = z;
 }
+
+const still0 = (frozen, e) => frozen || e.freezeT > 0;
 
 export const MURKLING_COLORS = Object.fromEntries(ENEMY_TYPES.map((t) => [t, ENEMIES[t].color]));
