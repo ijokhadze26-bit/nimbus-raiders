@@ -1,6 +1,7 @@
 // Pre-level LOADOUT (SPEC2 §5). Every level start goes through it (map node, map PLAY, result NEXT, endless
 // PLAY; RETRY, ?level=N and debug.startLevel skip it). Top: level, boss and the weapons this level favours
-// (unlocked ones get a gold star). Middle: 3D preview of the chosen hero holding the chosen weapon. Below: HERO
+// (unlocked ones get a gold star), and since update 3 the world name + a BOSS / MINI-BOSS / FINAL RUSH tag.
+// Middle: 3D preview of the chosen hero holding the chosen weapon. Below: HERO
 // and WEAPON chip rows (locked chips are silhouettes; tapping one shows the lock line + BUY when affordable),
 // INFO buttons to the Heroes / Armory pages, START and BACK.
 // Opened with ui.nav('loadout', { levelId }) or { mode: 'endless' }.
@@ -15,6 +16,8 @@ import { lockText } from '../infofmt.js';
 import { heroIcon, weaponIcon, bossIcon, infoIcon } from '../icons2.js';
 import { createPreview } from '../preview.js';
 import { chipHtml, ENTER_MS } from './armory.js';
+import { worldOf } from '../../data/worlds.js';
+import { bossName, kindTag } from '../worldart.js';
 import '../info.css';
 
 const STAR = `<i class="fav-star" aria-hidden="true">${icon('star')}</i>`;
@@ -58,8 +61,11 @@ export function createLoadout(ui) {
     title.textContent = `LEVEL ${L.id}`;
     const B = L.boss ? bossDef(L.boss.type) : null;
     const fav = favours().map((id) => `<span class="lo-favw${isWeaponUnlocked(d, id) ? ' on' : ''}" title="${WEAPON_BY_ID[id].name}">${weaponIcon(id)}${isWeaponUnlocked(d, id) ? STAR : ''}</span>`).join('');
-    level.innerHTML = `<div class="lo-name">${L.name.toUpperCase()}</div>`
-      + `<div class="lo-sub">${B ? `<span class="lo-boss">${bossIcon(B.type)}<span>${B.name}</span></span>` : ''}`
+    const W = worldOf(L.id), tag = kindTag(L.id, L);
+    level.innerHTML = `<div class="lo-world" style="--wc:${W.color}"><span class="lo-wname">WORLD ${W.id} · ${W.name}</span>`
+      + `<span class="lo-tag t-${tag === 'FINAL RUSH' ? 'rush' : tag === 'BOSS' ? 'boss' : 'mini'}">${tag}</span></div>`
+      + `<div class="lo-name">${L.name.toUpperCase()}</div>`
+      + `<div class="lo-sub">${B ? `<span class="lo-boss">${bossIcon(B.type)}<span>${bossName(L.id, L) || B.name}</span></span>` : ''}`
       + (fav ? `<span class="lo-fav"><b>FAVOURED:</b>${fav}</span>` : '') + '</div>';
   }
   function renderChips() {

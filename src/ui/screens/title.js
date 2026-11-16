@@ -9,6 +9,7 @@ import { WEAPON_IDS } from '../../data/weapons.js';
 import { HERO_IDS } from '../../data/heroes.js';
 import { isNew } from '../../save/unlocks.js';
 import { weaponIcon, heroIcon } from '../icons2.js';
+import { worldLevelText } from '../worldart.js';
 
 export function createTitle(ui) {
   const el = screenEl('title');
@@ -34,7 +35,7 @@ export function createTitle(ui) {
     </div>
     <div class="title-menu">
       <button type="button" class="btn btn-gold btn-xl btn-play" data-act="play">
-        <span class="play-ico">${icon('play')}</span><span class="col"><span class="big">PLAY</span><span class="sub lvl">LEVEL 1</span></span>
+        <span class="play-ico">${icon('play')}</span><span class="col"><span class="big">PLAY</span><span class="sub wl lvl">WORLD 1 · LEVEL 1</span></span>
       </button>
       <div class="title-row">
         <button type="button" class="tbtn btn-purple" data-act="endless">${icon('infinity')}<span>ENDLESS</span></button>
@@ -73,7 +74,7 @@ export function createTitle(ui) {
     el,
     show() {
       const d = ui.save.data;
-      lvl.textContent = `LEVEL ${Math.min(LAST_LEVEL, d.unlockedLevel)}`;
+      lvl.textContent = worldLevelText(Math.max(1, Math.min(LAST_LEVEL, d.unlockedLevel)));
       daily.classList.toggle('ready', ui.screens.daily.available());
       dots.armory.hidden = !WEAPON_IDS.some((id) => isNew(d, 'weapon', id) && id !== 'thunderclap');
       dots.heroes.hidden = !HERO_IDS.some((id) => isNew(d, 'hero', id) && id !== 'pip');
