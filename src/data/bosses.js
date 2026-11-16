@@ -100,7 +100,7 @@ export const BOSSES = {
     phase2Cadence: 1.3,
     syrupSlow: 0.35,                   // sideways speed factor inside a syrup puddle
     attacks: [
-      { id: 'bounce', weight: 3, minPhase: 1, telegraph: 1.3, radius: 2.4, radius2: 2.5, count: 1, count2: 2, air: 0.8, height: 7, back: 0.5, hold: 0.25, ahead: 1.5 },
+      { id: 'bounce', weight: 3, minPhase: 1, telegraph: 1.3, radius: 2.4, radius2: 2.5, count: 1, count2: 2, air: 0.8, height: 7, back: 0.5, hold: 0.25, ahead: 2.2 },
       { id: 'split', weight: 2, minPhase: 1, windup: 1.0, count: 14, perTier: 4, count2: 22, max: 46, hpPerTier: 0.6,
         mix: { grunt: 0.6, runner: 0.4 }, mix2: { grunt: 0.5, runner: 0.35, bomber: 0.15 } },
       { id: 'spit', weight: 2, minPhase: 1, telegraph: 1.1, radius: 1.4, count: 2, count2: 3, flight: 0.8, life: 5 },

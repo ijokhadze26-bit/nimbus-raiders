@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { BaseBoss } from './base.js';
 import { summon, volley } from './attacks.js';
 import { buildGumdrop, syrupTexture } from '../../models/bosses/gumdrop.js';
+import { registerWarm } from '../warmup.js';
 
 const EYE1 = new THREE.Color('#ffffff'), EYE2 = new THREE.Color('#ffd0d0');
 const TINT1 = new THREE.Color(1, 1, 1), TINT2 = new THREE.Color(1.08, 0.86, 0.86);
@@ -18,6 +19,10 @@ const ringGeo = new THREE.RingGeometry(0.86, 1, 40).rotateX(-Math.PI / 2);
 const clampX = (x, lim = 4.2) => Math.max(-lim, Math.min(lim, x));
 
 const buildCached = () => { const m = buildGumdrop(); m.syrup = []; return m; };
+const syrupMat = () => new THREE.MeshBasicMaterial({ map: syrupTexture(), transparent: true, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+const rimMat = () => new THREE.MeshBasicMaterial({ color: '#ffd0e4', transparent: true, depthWrite: false, toneMapped: false });
+// shader warm-up at boot (the first syrup puddle never hitches)
+registerWarm(() => [new THREE.Mesh(discGeo, syrupMat()), new THREE.Mesh(ringGeo, rimMat())]);
 
 export class GumdropGoliath extends BaseBoss {
   static preload(game) { game.bosses.model('gumdrop', buildCached); }
@@ -108,7 +113,7 @@ export class GumdropGoliath extends BaseBoss {
       },
       cancel() {
         if (mark) T.cancel(mark);
-        self.hop = null; self.y = 0; self.z = self.homeZ;
+        self.hop = null; self.y = 0; // killed mid-hop: he melts where he is
       },
     };
   }
@@ -142,8 +147,7 @@ export class GumdropGoliath extends BaseBoss {
   puddle(x, z, r, life) {
     let s = this.syrup.find((o) => !o.active);
     if (!s) {
-      const mesh = new THREE.Mesh(discGeo, new THREE.MeshBasicMaterial({ map: syrupTexture(), transparent: true, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
-      const rim = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: '#ffd0e4', transparent: true, depthWrite: false, toneMapped: false }));
+      const mesh = new THREE.Mesh(discGeo, syrupMat()), rim = new THREE.Mesh(ringGeo, rimMat());
       mesh.renderOrder = 1; rim.renderOrder = 2;
       s = { mesh, rim };
       this.syrup.push(s);
@@ -217,7 +221,7 @@ export class GumdropGoliath extends BaseBoss {
     // jelly wobble: idle jiggle + landing spring + crouch + summon swell; stretched tall while airborne
     const air = this.hop ? Math.sin(Math.min(1, this.hop.t / this.hop.dur) * Math.PI) : 0;
     const wob = Math.sin(t * 3.1) * 0.035 + Math.sin(t * 5.3) * 0.015;
-    const spring = Math.sin(p.squash * Math.PI * 3.5) * p.squash * 0.24;
+    const spring = Math.cos((1 - p.squash) * Math.PI * 3.5) * p.squash * 0.24; // lands flat, then jiggles
     const sw = p.swell * p.swell * 0.16 + Math.sin(t * 28) * 0.015 * p.swell;
     const sx = 1 + wob + spring + p.crouch * 0.2 + sw - air * 0.12;
     const sy = 1 - wob - spring - p.crouch * 0.28 + sw * 0.5 + air * 0.18 - p.spit * 0.06;

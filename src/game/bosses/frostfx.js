@@ -10,6 +10,7 @@ import { HIT } from '../../config.js';
 import { Bullets } from '../bullets.js';
 import { toonMaterial } from '../../models/materials.js';
 import { iceWallGeometry, icicleGeometry, frostSpikeGeometry } from '../../models/bosses/glacius.js';
+import { registerWarm } from '../warmup.js';
 
 const SPIKES = 14, WAVE = 22, WAVE_LOW = 8, WALL_RISE = 0.18, WALL_SINK = 0.4, ICICLE_FALL = 0.42, ICICLE_STAY = 0.7;
 const sheetGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
@@ -44,11 +45,20 @@ function frostTexture() {
   return frostTex;
 }
 
+let iceMat = null;
+const iceMaterial = () => iceMat || (iceMat = toonMaterial({ emissive: new THREE.Color('#1f5088') }));
+const sheetMaterial = (map) => new THREE.MeshBasicMaterial({ map, transparent: true, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+const rimMaterial = () => new THREE.MeshBasicMaterial({ color: '#1f6fe0', transparent: true, depthWrite: false, toneMapped: false });
+
+// shader warm-up at boot: one of each prop setup, so the first frozen lane / wall / icicle never hitches
+registerWarm(() => [
+  new THREE.Mesh(sheetGeo, sheetMaterial(frostTexture())), new THREE.Mesh(sheetGeo, rimMaterial()),
+  new THREE.InstancedMesh(frostSpikeGeometry(), iceMaterial(), 1), new THREE.Mesh(iceWallGeometry(), iceMaterial()),
+]);
+
 /** Pools live on the cached model (m.frost) so meshes are built once per game. */
 export function frostPools(m) {
-  if (!m.frost) {
-    m.frost = { lanes: [], walls: [], icicles: [], waves: [], iceMat: toonMaterial({ emissive: new THREE.Color('#2a5f94') }) };
-  }
+  if (!m.frost) m.frost = { lanes: [], walls: [], icicles: [], waves: [], iceMat: iceMaterial() };
   return m.frost;
 }
 
@@ -77,12 +87,12 @@ export class FrostFx {
     if (!L) {
       const tex = frostTexture().clone();
       tex.needsUpdate = true;
-      const sheet = new THREE.Mesh(sheetGeo, new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+      const sheet = new THREE.Mesh(sheetGeo, sheetMaterial(tex));
       sheet.renderOrder = 1;
       const spikes = new THREE.InstancedMesh(frostSpikeGeometry(), this.p.iceMat, SPIKES);
       spikes.frustumCulled = false;
       // deep-blue rims along both lane edges (the sheet alone vanishes on the snowy road)
-      const rimMat = new THREE.MeshBasicMaterial({ color: '#1f6fe0', transparent: true, depthWrite: false, toneMapped: false });
+      const rimMat = rimMaterial();
       const rimA = new THREE.Mesh(sheetGeo, rimMat), rimB = new THREE.Mesh(sheetGeo, rimMat);
       rimA.renderOrder = rimB.renderOrder = 2;
       L = { sheet, tex, spikes, rimA, rimB, rimMat, seed: this.p.lanes.length * 13 + 5 };
@@ -234,9 +244,9 @@ export class FrostFx {
       const shake = W.flash * 0.06 * Math.sin(time * 70);
       W.mesh.position.set(W.x + shake, -3.4 * (1 - rise) - 3.4 * sink * sink, W.z);
       W.mesh.scale.set(W.hw * 2, 1 + (1 - rise) * 0.25, 1.3);
-      // cracks show as the wall weakens: emissive warms from cold blue to white on hits
+      // the wall pales as it weakens (a steady stream of hits must not wash it white)
       const dmg = 1 - Math.max(0, W.hp) / W.maxHp;
-      W.mesh.material.emissive.setRGB(0.04 + W.flash * 0.5 + dmg * 0.2, 0.12 + W.flash * 0.45 + dmg * 0.22, 0.28 + W.flash * 0.35 + dmg * 0.1);
+      W.mesh.material.emissive.setRGB(0.02 + W.flash * 0.1 + dmg * 0.3, 0.06 + W.flash * 0.1 + dmg * 0.32, 0.16 + W.flash * 0.08 + dmg * 0.22);
     }
     for (const V of this.p.waves) {
       V.mesh.visible = V.active;

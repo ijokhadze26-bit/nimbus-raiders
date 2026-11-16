@@ -204,16 +204,22 @@ let wallGeo = null, icicleGeo = null, spikeGeo = null;
 /** Ice wall slab: a row of crystal pillars, 1u wide (scaled to the lane width), ~3.2u tall, base at y = 0. */
 export function iceWallGeometry() {
   if (wallGeo) return wallGeo;
+  // a clear slab silhouette: blue ice blocks (staggered, slightly tilted), a frosty cap, crystals on top
   const parts = [
-    rock(0.5, '#4f9fe8', 81, { p: [0, 1.15, 0], s: [1.0, 2.3, 0.62], top: '#d8f2ff', jitter: 0.08 }),
-    rock(0.32, '#8fd0ff', 82, { p: [-0.3, 0.25, 0.18], s: [0.8, 0.8, 1.0], jitter: 0.2 }),
-    rock(0.32, '#8fd0ff', 83, { p: [0.32, 0.22, 0.15], s: [0.8, 0.7, 1.0], jitter: 0.2 }),
+    part(G.box(0.98, 1.3, 0.5), '#2f78d0', { p: [0, 0.65, 0] }),
+    part(G.box(0.5, 1.1, 0.48), '#3f8ee0', { p: [-0.25, 1.85, 0.01], r: [0, 0, 0.03] }),
+    part(G.box(0.48, 1.25, 0.47), '#2a6cc4', { p: [0.25, 1.9, -0.01], r: [0, 0, -0.03] }),
+    part(G.box(1.04, 0.16, 0.56), '#cfeeff', { p: [0, 1.32, 0] }),
+    part(G.box(0.56, 0.14, 0.54), '#e6f7ff', { p: [-0.25, 2.45, 0] }),
+    part(G.box(0.54, 0.14, 0.53), '#e6f7ff', { p: [0.25, 2.56, 0] }),
+    rock(0.3, '#7fc4f8', 82, { p: [-0.36, 0.15, 0.25], s: [0.8, 0.6, 0.9], jitter: 0.2 }),
+    rock(0.3, '#7fc4f8', 83, { p: [0.38, 0.12, 0.22], s: [0.8, 0.5, 0.9], jitter: 0.2 }),
   ];
-  const n = 6;
+  const n = 5;
   for (let i = 0; i < n; i++) {
-    const x = -0.42 + (i / (n - 1)) * 0.84;
-    const h = 0.7 + ((i * 5) % 3) * 0.3;
-    parts.push(crystal(0.09, h, i % 2 ? '#bfe8ff' : '#7cc4ff', { p: [x, 2.05, ((i * 3) % 3) * 0.05 - 0.05], r: [0, 0, (i - 2.5) * 0.12] }));
+    const x = -0.4 + (i / (n - 1)) * 0.8;
+    const h = 0.6 + ((i * 5) % 3) * 0.28;
+    parts.push(crystal(0.08, h, i % 2 ? '#bfe8ff' : '#6fb8f8', { p: [x, 2.5, 0], r: [0, 0, (i - 2) * 0.16] }));
   }
   wallGeo = merge(parts.map((g) => (g.index ? g.toNonIndexed() : g)));
   return wallGeo;

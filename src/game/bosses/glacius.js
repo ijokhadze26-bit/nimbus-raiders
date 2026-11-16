@@ -65,7 +65,7 @@ export class Glacius extends BaseBoss {
     let x = c.x;
     if (k % 2 === 1) {
       const dir = Math.abs(L.vx || 0) > 0.5 ? Math.sign(L.vx) : (c.x > 0 ? -1 : 1);
-      x = c.x + dir * (hw * 2 + 0.4);
+      x = c.x + dir * (hw * 2 + 1.0);
     }
     return clampX(x, 5 - hw * 0.6);
   }
