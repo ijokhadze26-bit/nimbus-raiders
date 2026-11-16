@@ -67,6 +67,6 @@ export const NEW_BOSS_SFX = {
 
 /** 'boss:attack' name -> sound (merged into bindings.js BOSS_ATTACK). */
 export const NEW_BOSS_ATTACK_SFX = {
-  freeze: 'frostFreeze', icewall: 'iceWall', iceBreak: 'iceBreak', icicle: 'icicle', pound: 'frostPound',
+  frostlane: 'frostFreeze', icewall: 'iceWall', iceBreak: 'iceBreak', icicle: 'icicle', pound: 'frostPound',
   bounce: 'gumSlam', gumjump: 'gumJump', spit: 'gumSpit',
 };

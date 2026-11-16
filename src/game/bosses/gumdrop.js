@@ -3,8 +3,10 @@
 //           hop where the squad fled to), then bounces back to his spot
 //   split   swells up and spits out a wave of small gummy Murklings (summon helper, candy mix)
 //   spit    sticky strawberry-syrup globs land on warning circles: members under a glob are lost and a syrup
-//           puddle stays behind that makes Pip wade slowly sideways
-// Always wobbling (jelly squash and stretch). Mini-boss: no safe-spot step. Death: melts into a sugar puddle.
+//           puddle stays behind that makes Pip wade slowly sideways (the shared BossEffects puddles, given the
+//           strawberry look; they only slow, so the autopilot is told about them only while no warning is up)
+// Always wobbling (jelly squash and stretch). Mini-boss: no safe-spot step. Death: melts into a sugar puddle
+// (killed mid-hop he drops to the road first instead of snapping down).
 import * as THREE from 'three';
 import { BaseBoss } from './base.js';
 import { summon, volley } from './attacks.js';
@@ -14,32 +16,29 @@ import { registerWarm } from '../warmup.js';
 const EYE1 = new THREE.Color('#ffffff'), EYE2 = new THREE.Color('#ffd0d0');
 const TINT1 = new THREE.Color(1, 1, 1), TINT2 = new THREE.Color(1.08, 0.86, 0.86);
 const WHITE = new THREE.Color('#ffffff');
-const discGeo = new THREE.CircleGeometry(1, 36).rotateX(-Math.PI / 2);
-const ringGeo = new THREE.RingGeometry(0.86, 1, 40).rotateX(-Math.PI / 2);
+const SYRUP_RIM = '#ffd0e4';
 const clampX = (x, lim = 4.2) => Math.max(-lim, Math.min(lim, x));
+const isGum = (p) => p.active && p.gum;
+const warningUp = (T) => { for (const h of T.active) if (!h.done) return true; return false; };
 
-const buildCached = () => { const m = buildGumdrop(); m.syrup = []; return m; };
-const syrupMat = () => new THREE.MeshBasicMaterial({ map: syrupTexture(), transparent: true, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
-const rimMat = () => new THREE.MeshBasicMaterial({ color: '#ffd0e4', transparent: true, depthWrite: false, toneMapped: false });
-// shader warm-up at boot (the first syrup puddle never hitches)
-registerWarm(() => [new THREE.Mesh(discGeo, syrupMat()), new THREE.Mesh(ringGeo, rimMat())]);
+// the shared puddle shader is warmed by warmup.js; this just uploads the strawberry texture at boot
+registerWarm(() => new THREE.Mesh(new THREE.CircleGeometry(1, 8), new THREE.MeshBasicMaterial({ map: syrupTexture(), transparent: true, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 })));
 
 export class GumdropGoliath extends BaseBoss {
-  static preload(game) { game.bosses.model('gumdrop', buildCached); }
+  static preload(game) { game.bosses.model('gumdrop', buildGumdrop); }
 
   buildModel() {
-    const m = this.game.bosses.model('gumdrop', buildCached);
+    const m = this.game.bosses.model('gumdrop', buildGumdrop);
     m.root.position.set(0, 0, 0); m.root.rotation.set(0, 0, 0);
     m.body.position.set(0, 0, 0); m.body.rotation.set(0, 0, 0); m.body.scale.setScalar(1);
     m.eyes.visible = true;
-    this.syrup = m.syrup;
-    for (const s of this.syrup) s.active = false;
     this.pose = { crouch: 0, squash: 0, swell: 0, spit: 0, air: 0, blink: 0, nextBlink: 1.5, wob: 0 };
     this.eyeCol = EYE1.clone();
     this.tint = TINT1.clone();
     this.prevLX = null;
     this.zonePool = [];
     this.hop = null; // { x0, z0, x1, z1, t, dur, h } while airborne
+    this.fallV = -1; // >= 0 while dropping to the road after a mid-hop death
     return m;
   }
 
@@ -113,7 +112,8 @@ export class GumdropGoliath extends BaseBoss {
       },
       cancel() {
         if (mark) T.cancel(mark);
-        self.hop = null; self.y = 0; // killed mid-hop: he melts where he is
+        self.hop = null; // killed mid-hop: he drops from where he is (update), then melts
+        if (self.y > 0) self.fallV = 0;
       },
     };
   }
@@ -143,22 +143,23 @@ export class GumdropGoliath extends BaseBoss {
     });
   }
 
-  // ---------------- syrup puddles (slow zones) ----------------
+  // ---------------- syrup puddles (slow zones: the shared BossEffects puddles in strawberry) ----------------
   puddle(x, z, r, life) {
-    let s = this.syrup.find((o) => !o.active);
-    if (!s) {
-      const mesh = new THREE.Mesh(discGeo, syrupMat()), rim = new THREE.Mesh(ringGeo, rimMat());
-      mesh.renderOrder = 1; rim.renderOrder = 2;
-      s = { mesh, rim };
-      this.syrup.push(s);
-    }
-    Object.assign(s, { active: true, x, z, r, life, t: 0, spin: (x * 1.7 + z * 0.3) % 6 });
-    this.game.scene.add(s.mesh); this.game.scene.add(s.rim);
+    // look 'syrup' where effects.puddle knows it; the strawberry texture + rim go on top either way
+    const o = this.effects.puddle(x, z, r, life, 'syrup');
+    if (!o.gooMap) o.gooMap = o.mesh.material.map;
+    o.mesh.material.map = syrupTexture();
+    o.rim.material.color.set(SYRUP_RIM);
+    o.gum = true;
+    return o;
   }
 
+  /** Live syrup puddles (pooled BossEffects puddle objects). */
+  get syrup() { return this.effects.puddles.filter(isGum); }
+
   slowAt(x, z) {
-    for (const s of this.syrup) {
-      if (!s.active || s.t < 0.15 || s.t > s.life - 0.3) continue;
+    for (const s of this.effects.puddles) {
+      if (!isGum(s) || s.t < 0.15 || s.t > s.life - 0.3) continue;
       const dx = x - s.x, dz = z - s.z;
       if (dx * dx + dz * dz < s.r * s.r * 0.85) return this.def.syrupSlow;
     }
@@ -167,7 +168,13 @@ export class GumdropGoliath extends BaseBoss {
 
   update(dt) {
     super.update(dt);
-    for (const s of this.syrup) if (s.active && (s.t += dt) >= s.life) s.active = false;
+    // killed mid-hop: fall to the road (the melt plays where he lands)
+    if (this.fallV >= 0) {
+      this.fallV += dt * 60;
+      this.y = Math.max(0, this.y - this.fallV * dt);
+      if (this.y === 0) { this.fallV = -1; this.pose.squash = 1; this.game.events.emit('fx:shake', { amount: 0.5 }); }
+      this.root.position.y = this.y;
+    }
     // airborne hop arc (logic: the hitbox follows the body)
     const h = this.hop;
     if (h && this.state === 'fight') {
@@ -186,11 +193,13 @@ export class GumdropGoliath extends BaseBoss {
       if (k < 1) L.x = this.prevLX + (L.x - this.prevLX) * k;
     }
     this.prevLX = L.x;
+    // syrup only slows: the autopilot avoids puddles only while no lethal warning is up (it would otherwise
+    // keep part of the squad under a bounce / spit circle to stay off the syrup). Flagged soft for any reader.
     const zones = this.dangerZones, pool = this.zonePool;
     zones.length = 0;
-    if (this.state === 'fight') for (const s of this.syrup) {
-      if (!s.active) continue;
-      const z = pool[zones.length] || (pool[zones.length] = { kind: 'circle', x: 0, z: 0, r: 0 });
+    if (this.state === 'fight' && !warningUp(this.game.telegraph)) for (const s of this.effects.puddles) {
+      if (!isGum(s)) continue;
+      const z = pool[zones.length] || (pool[zones.length] = { kind: 'circle', x: 0, z: 0, r: 0, soft: true });
       z.x = s.x; z.z = s.z; z.r = s.r * 0.9;
       zones.push(z);
     }
@@ -204,12 +213,14 @@ export class GumdropGoliath extends BaseBoss {
   }
 
   onDeath() {
-    this.hop = null; this.y = 0;
+    this.hop = null;
+    if (this.y > 0 && this.fallV < 0) this.fallV = 0;
     this.clearMinions();
   }
 
   disposeExtra() {
-    for (const s of this.syrup) { s.active = false; this.game.scene.remove(s.mesh); this.game.scene.remove(s.rim); }
+    // hand the pooled puddles back with their goo look (effects.clear() already hid them)
+    for (const s of this.effects.puddles) if (s.gum) { s.gum = false; s.mesh.material.map = s.gooMap; s.rim.material.color.set('#c8ff7a'); }
   }
 
   // ---------------- visuals ----------------
@@ -229,11 +240,11 @@ export class GumdropGoliath extends BaseBoss {
     m.body.rotation.z = Math.sin(t * 1.7) * 0.04;
     m.body.rotation.x = -p.spit * 0.18 + air * 0.08;
     m.crown.rotation.z = -0.22 + Math.sin(t * 3.1 + 0.6) * 0.08 + spring * 0.3;
-    m.arms.forEach((a, i) => {
-      const side = i ? 1 : -1;
+    for (let i = 0; i < m.arms.length; i++) {
+      const a = m.arms[i], side = i ? 1 : -1;
       a.rotation.z = side * (0.2 + Math.sin(t * 4 + i * 1.3) * 0.15 + p.swell * 0.8 + air * 1.1 + p.crouch * -0.3);
       a.rotation.x = -p.spit * 0.8;
-    });
+    }
     // blink
     p.nextBlink -= dt;
     if (p.nextBlink <= 0) { p.blink = 1; p.nextBlink = 1.8 + Math.random() * 2.5; }
@@ -268,21 +279,6 @@ export class GumdropGoliath extends BaseBoss {
     } else {
       m.body.position.x = 0;
       m.crown.position.set(0.25, 5.54, 0.1);
-    }
-    // syrup puddles
-    const time = this.game.time;
-    for (const s of this.syrup) {
-      s.mesh.visible = s.rim.visible = s.active;
-      if (!s.active) continue;
-      const grow = Math.min(1, s.t / 0.25), fade = Math.min(1, (s.life - s.t) / 0.4);
-      const w = 1 + Math.sin(time * 2.6 + s.spin) * 0.035;
-      s.mesh.position.set(s.x, 0.05, s.z);
-      s.mesh.scale.set(s.r * grow * w, 1, s.r * grow / w);
-      s.mesh.rotation.y = s.spin + time * 0.15;
-      s.mesh.material.opacity = 0.95 * fade;
-      s.rim.position.set(s.x, 0.07, s.z);
-      s.rim.scale.setScalar(s.r * grow * (1.02 + Math.sin(time * 5) * 0.03));
-      s.rim.material.opacity = (0.35 + 0.25 * Math.sin(time * 5 + s.spin)) * fade;
     }
   }
 }

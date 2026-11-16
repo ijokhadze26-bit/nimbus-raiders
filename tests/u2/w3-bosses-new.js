@@ -74,7 +74,7 @@ for (const q of ['high', 'low']) {
     ok(g.telegraph.active.length > tel0, `${tag}: freeze has no warning`);
     until(() => fr.lanes.some((l) => l.active), 200);
     const lane = fr.lanes.find((l) => l.active);
-    ok(!!lane && attacks.includes('freeze'), `${tag}: no frozen lane`);
+    ok(!!lane && attacks.includes('frostlane'), `${tag}: no frozen lane`);
     if (lane) {
       ok(b.dangerZones.some((z) => z.kind === 'lane' && Math.abs(z.x0 - lane.x0) < 1e-6), `${tag}: frozen lane not a danger zone`);
       const c0 = g.squad.count;
@@ -99,6 +99,23 @@ for (const q of ['high', 'low']) {
       frames(40);
       ok(wall.hp < wall.maxHp, `${tag}: wall took no bullets (${wall.hp}/${wall.maxHp})`);
       ok(b.dangerZones.some((z) => z.kind === 'lane' && Math.abs((z.x0 + z.x1) / 2 - wall.x) < 1e-6), `${tag}: wall shadow not a danger zone`);
+      // the wall blocks the squad: Pip cannot walk into its lane from outside, but can slide out from behind it
+      b.prevLX = wall.x - wall.hw - 0.6; Ld.x = wall.x;
+      b.update(0);
+      ok(Math.abs(Ld.x - (wall.x - wall.hw)) < 1e-6, `${tag}: Pip walked into the wall's lane (x ${Ld.x.toFixed(2)}, wall ${wall.x.toFixed(2)})`);
+      b.prevLX = wall.x + wall.hw + 0.6; Ld.x = wall.x - wall.hw - 1;
+      b.update(0);
+      ok(Math.abs(Ld.x - (wall.x + wall.hw)) < 1e-6, `${tag}: Pip walked through the wall (x ${Ld.x.toFixed(2)})`);
+      b.prevLX = wall.x; Ld.x = wall.x + wall.hw + 0.5;
+      b.update(0);
+      ok(Math.abs(Ld.x - (wall.x + wall.hw + 0.5)) < 1e-6, `${tag}: Pip cannot leave from behind the wall`);
+      // after its first few seconds the wall only soaks bullets
+      const t0 = wall.t; wall.t = wall.block + 0.05;
+      b.prevLX = wall.x - wall.hw - 0.6; Ld.x = wall.x;
+      b.update(0);
+      ok(Math.abs(Ld.x - wall.x) < 1e-6, `${tag}: wall still blocks after ${wall.block} s`);
+      wall.t = t0;
+      Ld.x = wall.x; b.prevLX = wall.x;
       wall.hp = Math.min(wall.hp, 1);
       until(() => wall.end >= 0, 120);
       ok(wall.broken && attacks.includes('iceBreak'), `${tag}: wall not shot apart`);
@@ -116,9 +133,11 @@ for (const q of ['high', 'low']) {
       frames(30);
     }
     ok(b.lockX === null, `${tag}: lockX left at ${b.lockX}`);
-    // phase 2: queues the shared safe-spot step (only runs if attacks.safeSpot exists), more lanes
+    // phase 2: queues the shared safe-spot step once (here when BaseBoss has no safe-spot scheduler, else in
+    // BaseBoss: never both), more lanes
     b.damage(b.hp - b.maxHp * 0.45);
-    ok(b.phase === 2 && b.safePending, `${tag}: phase ${b.phase}, safePending ${b.safePending}`);
+    const own = b.safeAuto === undefined;
+    ok(b.phase === 2 && b.safePending === own && (own || b.safeQueued), `${tag}: phase ${b.phase}, safePending ${b.safePending}, safeQueued ${b.safeQueued}`);
     force(b, 'freeze'); finish(b);
     ok(!b.safePending, `${tag}: safe-spot step not consumed`);
     force(b, 'freeze'); until(() => fr.lanes.filter((l) => l.active).length >= 2, 200);
@@ -162,12 +181,19 @@ for (const q of ['high', 'low']) {
     // spit: syrup puddle that slows Pip and is a danger zone
     g.squad.add(Math.max(0, 160 - g.squad.count), 'barrel');
     force(b, 'spit');
-    until(() => b.syrup.some((s) => s.active && s.t > 0.3), 300);
+    until(() => b.syrup.some((s) => s.active && s.t > 0.3) && !g.telegraph.active.some((h) => !h.done), 300);
     const s = b.syrup.find((o) => o.active);
     ok(!!s && attacks.includes('spit'), `${tag}: no syrup puddle`);
     if (s) {
       ok(b.slowAt(s.x, s.z) < 1 && b.slowAt(s.x + s.r * 3, s.z) === 1, `${tag}: slowAt wrong`);
-      ok(b.dangerZones.some((z) => z.kind === 'circle' && z.x === s.x), `${tag}: puddle not a danger zone`);
+      ok(b.dangerZones.some((z) => z.kind === 'circle' && z.x === s.x && z.soft), `${tag}: puddle not a soft danger zone`);
+      ok(s.mesh.material.map !== s.gooMap && b.effects.puddles.includes(s), `${tag}: puddle is not a strawberry BossEffects puddle`);
+      // a lethal warning is up: the slow-only puddle steps back so the bot dodges the warning first
+      const h = g.telegraph.circle(s.x + 3, s.z, 1.2, 1.0, { attack: 'test' });
+      b.update(0);
+      ok(!b.dangerZones.some((z) => z.x === s.x), `${tag}: puddle still a danger zone under a lethal warning`);
+      g.telegraph.cancel(h);
+      b.update(0);
     }
     finish(b);
     b.damage(b.hp - b.maxHp * 0.45);
@@ -176,7 +202,16 @@ for (const q of ['high', 'low']) {
     force(b, 'bounce'); ok(finish(b), `${tag}: phase 2 bounce never finished`);
     ok(b.model.glints.visible === (q === 'high'), `${tag}: glints visible ${b.model.glints.visible}`);
     g.squad.add(Math.max(0, 60 - g.squad.count), 'barrel');
+    // killed mid-hop: drops to the road over a few frames (no one-frame snap), then melts
+    force(b, 'bounce');
+    until(() => b.y > 3, 300);
+    const y0 = b.y;
     b.kill();
+    frames(1);
+    info[`${tag} mid-hop death y`] = Math.round(y0 * 10) / 10 + '->' + Math.round(b.y * 10) / 10;
+    ok(y0 > 3 && b.y > 0.5, `${tag}: snapped to the ground when killed mid-hop (y ${y0.toFixed(1)} -> ${b.y.toFixed(1)})`);
+    until(() => b.y === 0, 400);
+    ok(b.y === 0 && b.state === 'dying', `${tag}: never landed after the mid-hop death (y ${b.y}, ${b.state})`);
     until(() => g.state !== 'playing', 300);
     ok(!!(g.lastResult && g.lastResult.win), `${tag}: no win after the kill (${JSON.stringify(g.lastResult)})`);
   }

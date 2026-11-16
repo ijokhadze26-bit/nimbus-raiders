@@ -3,11 +3,13 @@
 //            for ~3 s: members inside freeze and break a few per second, Pip is slowed inside and cannot walk
 //            back in. Step out quickly.
 //   icewall  throws crystal walls that land just in front of the squad (the landing shards hit the front rows
-//            under the warning); a wall soaks every bullet aimed through it until shot apart or melted
+//            under the warning); a wall soaks every bullet aimed through it until shot apart or melted, and
+//            for its first few seconds Pip cannot walk into its lane (a squad already behind it can slide out)
 //   icicles  icicles fall onto warning circles on / around the squad
 //   pound    both fists hit the ice: frost shock crests race down 1-3 lane warnings toward the squad
 // Phase 2 below 50%: the rune and crown blaze, frost aura, more of everything; the shared safe-spot step
-// (attacks.safeSpot, if the bosses-upgrade build has it) runs once at the phase change.
+// (attacks.safeSpot) runs once at the phase change: queued by BaseBoss itself when it has the safe-spot
+// scheduler (`safeAuto` set), otherwise started here, and skipped when attacks.js has no safeSpot.
 import * as THREE from 'three';
 import { BaseBoss } from './base.js';
 import * as attacks from './attacks.js';
@@ -17,6 +19,8 @@ import { FrostFx, frostPools } from './frostfx.js';
 const GLOW1 = new THREE.Color('#7fe8ff'), GLOW2 = new THREE.Color('#e8fbff'), WHITE = new THREE.Color('#ffffff');
 const CRYS1 = new THREE.Color('#2c6ea8'), CRYS2 = new THREE.Color('#5ab8ff');
 const BLUE = '#2a7dff', ICE_RED = '#ff3a5a';
+// the shared safe-spot step in Glacius colours (icy blast; the sheet keeps its default danger colour)
+const SAFE_OPTS = { blast: '#9feeff' };
 const clampX = (x, lim = 4.2) => Math.max(-lim, Math.min(lim, x));
 
 export class Glacius extends BaseBoss {
@@ -51,7 +55,7 @@ export class Glacius extends BaseBoss {
   startAttack(id, spec) {
     if (this.safePending) {
       this.safePending = false;
-      if (typeof attacks.safeSpot === 'function') { const a = attacks.safeSpot(this, {}); if (a) return a; }
+      if (typeof attacks.safeSpot === 'function') { const a = attacks.safeSpot(this, this.safeSpotOpts()); if (a) return a; }
     }
     if (id === 'icewall') return this.wallAttack(spec);
     if (id === 'icicles') return this.icicleAttack(spec);
@@ -94,7 +98,7 @@ export class Glacius extends BaseBoss {
             self.frost.freezeLane(s.x - hw, s.x + hw, s.zNear, s.zFar, spec.life);
             self.pose.pound = 0.6;
             for (let k = 0; k < 3; k++) self.effects.glow(s.x, 0.5, s.zFar + ((k + 0.5) / 3) * (s.zNear - s.zFar), '#9feeff', hw * 3, 0.4);
-            game.events.emit('boss:attack', { attack: 'freeze', pos: { x: s.x, y: 0, z: (s.zFar + s.zNear) / 2 } });
+            game.events.emit('boss:attack', { attack: 'frostlane', pos: { x: s.x, y: 0, z: (s.zFar + s.zNear) / 2 } });
             game.events.emit('fx:shake', { amount: 0.3 });
           }
           if (!s.hit) pending = true;
@@ -137,7 +141,7 @@ export class Glacius extends BaseBoss {
           if (!w.hit && lt >= dur) {
             w.hit = true;
             const kills = self.killInBox(w.x, hw, w.zFar, w.zNear);
-            self.frost.wall(w.x, hw, w.wz, Math.max(1, self.maxHp * spec.hpFrac), spec.life);
+            self.frost.wall(w.x, hw, w.wz, Math.max(1, self.maxHp * spec.hpFrac), spec.life).block = spec.block ?? 2.5;
             game.gates.burst(w.x, 0.6, w.wz, hw * 1.6, 1.6, '#dff6ff', game.engine.quality === 'low' ? 6 : 14);
             self.effects.ring(w.x, w.wz, hw * 2, { color: '#cfefff' });
             game.events.emit('boss:attack', { attack: 'icewall', pos: { x: w.x, y: 0, z: w.wz } });
@@ -235,6 +239,9 @@ export class Glacius extends BaseBoss {
     };
   }
 
+  /** Look of the shared safe-spot step (read by BaseBoss when it runs the step itself). */
+  safeSpotOpts() { return SAFE_OPTS; }
+
   /** World position of a fist (throw origin). */
   handPos(side) { return { x: this.x + side * 3.2, y: 6.5, z: this.z + 1.2 }; }
 
@@ -250,6 +257,17 @@ export class Glacius extends BaseBoss {
       const lane = fr.frozenAt(L.x, L.z, 0.15), px = this.prevLX;
       if (lane && px > lane.x0 && px < lane.x1) L.x = px + (L.x - px) * 0.45;
       else if (lane) L.x = px < lane.x0 ? lane.x0 - 0.15 : lane.x1 + 0.15;
+    }
+    // fresh ice walls (first spec.block s): Pip cannot walk into a wall's lane from outside (one behind it may
+    // slide out); afterwards the wall only soaks bullets until it is shot apart or melts
+    if (this.prevLX !== null && fighting) {
+      const px = this.prevLX;
+      for (const w of fr.walls) {
+        if (!w.active || w.end >= 0 || w.t > w.block) continue;
+        const x0 = w.x - w.hw, x1 = w.x + w.hw;
+        if (px <= x0 && L.x > x0) L.x = x0;
+        else if (px >= x1 && L.x < x1) L.x = x1;
+      }
     }
     this.prevLX = L.x;
     if (fighting) for (const lane of fr.lanes) {
@@ -272,22 +290,25 @@ export class Glacius extends BaseBoss {
       }
     }
     // autopilot: frozen lanes + the shot-shadow behind each standing wall
-    const zones = this.dangerZones, pool = this.zonePool;
-    zones.length = 0;
+    this.dangerZones.length = 0;
     if (this.state === 'fight') {
-      const push = (x0, x1, zNear, zFar) => {
-        const z = pool[zones.length] || (pool[zones.length] = { kind: 'lane', x0: 0, x1: 0, zNear: 0, zFar: 0 });
-        z.x0 = x0; z.x1 = x1; z.zNear = zNear; z.zFar = zFar; z.x = (x0 + x1) / 2; z.z = (zNear + zFar) / 2;
-        zones.push(z);
-      };
-      for (const l of fr.lanes) if (l.active && l.t < l.life) push(l.x0, l.x1, l.zNear, l.zFar);
-      for (const w of fr.walls) if (w.active && w.end < 0) push(w.x - w.hw * 0.8, w.x + w.hw * 0.8, L.z + 10, w.z);
+      for (const l of fr.lanes) if (l.active && l.t < l.life) this.pushZone(l.x0, l.x1, l.zNear, l.zFar);
+      for (const w of fr.walls) if (w.active && w.end < 0) this.pushZone(w.x - w.hw * 0.8, w.x + w.hw * 0.8, L.z + 10, w.z);
     }
+  }
+
+  /** Appends a pooled lane-shaped danger zone (no per-step allocation). */
+  pushZone(x0, x1, zNear, zFar) {
+    const zones = this.dangerZones, pool = this.zonePool;
+    const z = pool[zones.length] || (pool[zones.length] = { kind: 'lane', x0: 0, x1: 0, zNear: 0, zFar: 0, x: 0, z: 0 });
+    z.x0 = x0; z.x1 = x1; z.zNear = zNear; z.zFar = zFar; z.x = (x0 + x1) / 2; z.z = (zNear + zFar) / 2;
+    zones.push(z);
   }
 
   onPhase2() {
     this.pose.roar = 1;
-    this.safePending = !this.mini;
+    // a BaseBoss with the safe-spot scheduler (bosses-upgrade: `safeAuto`) queues the step itself
+    this.safePending = !this.mini && this.safeAuto === undefined;
     const g = this.game;
     this.effects.ring(this.x, this.z + 1, 11, { color: '#dff6ff', life: 0.7 });
     g.gates.burst(this.x, 4, this.z + 2.5, 6, 4, '#bfefff', g.engine.quality === 'low' ? 10 : 24);

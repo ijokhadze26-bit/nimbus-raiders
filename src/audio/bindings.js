@@ -10,10 +10,10 @@ import { NEW_BOSS_ATTACK_SFX } from './sfxbossnew.js';
 
 const POP_PITCH = { grunt: 1, runner: 1.28, tank: 0.68, shield: 0.88, bomber: 1.1 };
 const BOSS_ATTACK = { slam: 'slam', roll: 'rumble', orb: 'orb', orbs: 'orb', volley: 'orb', summon: 'summon', puddle: 'summon', charge: 'charge', lightning: 'lightning', strike: 'lightning' };
-Object.assign(BOSS_ATTACK, NEW_BOSS_ATTACK_SFX); // Glacius + Gumdrop Goliath (update 3)
 
 export function bindAudio(audio, game) {
   const ev = game.events;
+  Object.assign(BOSS_ATTACK, NEW_BOSS_ATTACK_SFX); // Glacius + Gumdrop Goliath (update 3)
   const offs = [];
   const on = (name, fn) => offs.push(ev.on(name, (p) => fn(p || EMPTY)));
   const fx = (name, opts) => audio.fx(name, opts);

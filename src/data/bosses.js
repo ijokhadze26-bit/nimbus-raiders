@@ -86,7 +86,7 @@ export const BOSSES = {
     freezeRate: 0.45, freezeCap: 12,   // frozen-lane breaks per second: 1.2 + 0.45 x members inside, at most 12
     attacks: [
       { id: 'freeze', weight: 3, minPhase: 1, telegraph: 1.3, halfW: 1.3, halfW2: 1.45, count: 1, count2: 2, stagger: 0.6, life: 3.0 },
-      { id: 'icewall', weight: 2, minPhase: 1, telegraph: 1.2, halfW: 1.6, count: 1, count2: 2, stagger: 0.45, flight: 0.7, ahead: 2.6, reach: 1.4, hpFrac: 0.022, life: 5 },
+      { id: 'icewall', weight: 2, minPhase: 1, telegraph: 1.2, halfW: 1.6, count: 1, count2: 2, stagger: 0.45, flight: 0.7, ahead: 2.6, reach: 1.4, hpFrac: 0.022, life: 5, block: 2.5 },
       { id: 'icicles', weight: 3, minPhase: 1, telegraph: 1.15, radius: 1.25, count: 3, count2: 5, stagger: 0.22, spread: 2.6 },
       { id: 'pound', weight: 2, minPhase: 1, telegraph: 1.25, halfW: 1.4, count: 1, count2: 2, gap: 1.8, travel: 0.45 },
     ],
