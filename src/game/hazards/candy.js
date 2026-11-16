@@ -187,7 +187,7 @@ export const syrup = {
       const z0 = -o.to, z1 = -o.from, list = h.list;
       for (let i = 0; i < list.length; i++) {
         const e = list[i];
-        if (e.z > z0 && e.z < z1 && e.x > o.x0 - 0.3 && e.x < o.x1 + 0.3) st.slow(e, 0.5, 0.25);
+        if (e.z > z0 && e.z < z1 && e.x > o.x0 - 0.3 && e.x < o.x1 + 0.3 && !e.def.fly) st.slow(e, 0.5, 0.25); // Flaplings fly over
       }
     }
     return true;
