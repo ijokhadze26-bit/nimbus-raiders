@@ -1,7 +1,8 @@
 // Candy Kingdom hazards (update 3):
 //   jelly   { at, side:'L'|'R'|'both', frac?, pad?, gap?, height? }  a bouncy pad right before a hole across the
 //           whole road (cut ~230 u ahead via reserve): any of the squad touching the pad launches everyone
-//           over the hole (mods.airborne + lift arc); miss the pad and the hole takes whoever runs over it.
+//           over the hole (mods.airborne + lift arc). Miss it entirely and the jelly's wobbling rim still catches
+//           Pip and the half of the squad nearest the pad; the far half falls (never a one-mistake run end).
 //   syrup   { at, length, lane:'L'|'R'|'both', slow?, ease? }  sticky river: while Pip wades through it the run
 //           slows (mods.speedMul) and steering is heavy (mods.easeMul); enemies in it are slowed too.
 //   gumball { at, lane, count, spacing, roll, hp, zigzag? }  giant gumballs wait at the far end and roll down
@@ -23,13 +24,13 @@ const _c = { x: 0, z: 0, r: 0 };
 const other = (lane) => (lane === 'L' ? 'R' : 'L');
 const hasHit = (bl, t) => { for (let i = 0; i < bl.nh; i++) if (bl.hits[i] === t) return true; return false; };
 
+const inRect = (x, z, x0, x1, d0, d1) => x > x0 && x < x1 && -z > d0 && -z < d1;
 /** True when any of the squad (Pip or a sampled member) stands inside the rectangle. */
 function touches(sys, x0, x1, d0, d1) {
   const sq = sys.game.squad, L = sq.leader, ms = sq.members;
-  const on = (x, z) => x > x0 && x < x1 && -z > d0 && -z < d1;
-  if (!sq.pipGone && on(L.x, L.z)) return true;
+  if (!sq.pipGone && inRect(L.x, L.z, x0, x1, d0, d1)) return true;
   const stride = Math.max(1, Math.floor(ms.length / 60));
-  for (let i = 0; i < ms.length; i += stride) if (on(ms[i].x, ms[i].z)) return true;
+  for (let i = 0; i < ms.length; i += stride) if (inRect(ms[i].x, ms[i].z, x0, x1, d0, d1)) return true;
   return false;
 }
 
@@ -57,6 +58,8 @@ export const jelly = {
     const gap = sys.reserved.get(ev) || jelly.reserve(sys, ev);
     sys.reserved.delete(ev);
     const o = { ...l, gap, state: 'idle', launch: 0, span: 1, h: ev.height || 3.0, squish: 0, zone: null };
+    // while the jelly carries the squad over its own hole, only that hole is "solid" (other gaps still bite)
+    o.hole = (x, z) => -z >= l.g0 - 0.5 && -z <= l.g1 + 0.5;
     if (ev.side === 'L') o.zone = { kind: 'lane', x0: l.x1, x1: 8, zNear: -l.from + 1, zFar: -l.to, pad: 0.5, w: 4 };
     else if (ev.side === 'R') o.zone = { kind: 'lane', x0: -8, x1: l.x0, zNear: -l.from + 1, zFar: -l.to, pad: 0.5, w: 4 };
     const w = l.x1 - l.x0, len = l.to - l.from;
@@ -72,24 +75,50 @@ export const jelly = {
     o.vis = { group, pad, arrows };
     return o;
   },
+  launch(sys, o) {
+    const sq = sys.game.squad, c = sq.center(_c), dist = sys.dist;
+    o.state = 'air'; o.launch = dist; o.squish = 1;
+    o.span = Math.max(4, o.gap.to + 1.2 + (c.z + c.r - sq.leader.z) - dist);
+    sys.sfx('pop', { pitch: 0.55 }); sys.sfx('powerUp');
+  },
+  /** Missed the pad entirely: the far half of the drawn squad falls (Pip never), the rest bounce off the rim. */
+  miss(sys, o) {
+    const g = sys.game, sq = g.squad, ms = sq.members, n = ms.length, L = sq.leader;
+    if (n > 1 && !g.shielded()) {
+      const ds = ms.map((m) => Math.max(0, o.x0 - m.x, m.x - o.x1)).sort((a, b) => a - b); // once per miss
+      const th = ds[Math.floor(n / 2)], x0 = o.x0, x1 = o.x1, lx = L.x, lz = L.z;
+      const w = Math.max(1, sq.count / (n + (sq.pipGone ? 0 : 1)));
+      const lost = sq.fallCheck((x, z) => !(x === lx && z === lz) && Math.max(0, x0 - x, x - x1) > th);
+      // the unseen reserves go with the drawn ones (like sys.killIn)
+      let gone = lost, extra = Math.floor(lost * (w - 1));
+      if (extra > 0 && sq.count > extra) { sq.remove(extra, 'gap'); gone += extra; }
+      if (gone) sys.stats.kills.jelly = (sys.stats.kills.jelly || 0) + gone;
+    }
+    jelly.launch(sys, o);
+  },
   update(sys, o) {
     const dist = sys.dist, sq = sys.game.squad, L = sq.leader;
     if (o.state === 'idle') {
       if (dist > o.gap.to + 30) return false;
       if (o.zone && dist > o.from - 40) sys.danger.push(o.zone);
-      if (dist >= o.from - 0.5 && sys.live && touches(sys, o.x0 - 0.2, o.x1 + 0.2, o.from, o.to)) {
-        const c = sq.center(_c);
-        o.state = 'air'; o.launch = dist; o.squish = 1;
-        o.span = Math.max(4, o.gap.to + 1.2 + (c.z + c.r - L.z) - dist);
-        sys.sfx('pop', { pitch: 0.55 });
-        sys.sfx('powerUp');
-      }
+      if (dist < o.from - 0.5 || !sys.live) return true;
+      o.state = 'watch';
+    }
+    if (o.state === 'watch') {
+      // the jelly owns the fall check of its hole from here: the pad launches, a full miss loses the far half
+      sys.mods.airborne = true;
+      if (o.zone) sys.danger.push(o.zone);
+      if (!sys.live) return true;
+      if (touches(sys, o.x0 - 0.2, o.x1 + 0.2, o.from, o.to)) jelly.launch(sys, o);
+      else if (dist >= o.g0 - 0.3) jelly.miss(sys, o);
+      sys.fallUnless(o.hole);
       return true;
     }
     if (o.state === 'air') {
       const c = sq.center(_c);
       const u = (dist - o.launch) / o.span;
       sys.mods.airborne = true;
+      sys.fallUnless(o.hole);
       if (u < 1) sys.mods.lift = Math.max(sys.mods.lift, o.h * 4 * u * (1 - u));
       else if (-(c.z + c.r) > o.gap.to + 0.4) {
         o.state = 'done';
@@ -245,7 +274,8 @@ export const gumball = {
   visual(sys, color) {
     const pool = gumPool(sys);
     let v = pool.free.pop();
-    if (!v || v.low !== sys.low) {
+    if (v && v.low !== sys.low) { v.ball.material.dispose(); v = null; } // made for the other quality: drop it
+    if (!v) {
       const group = new THREE.Group();
       const ball = new THREE.Mesh(gumballGeometry(sys.low), gumballMaterial(color));
       ball.scale.setScalar(GUM_R);

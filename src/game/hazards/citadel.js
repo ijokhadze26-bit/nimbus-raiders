@@ -2,13 +2,14 @@
 //   platform  { at, length, w?, amp?, period? }  a hole across the whole road (cut ~230 u ahead) with a deck
 //             sliding side to side over it: while the squad crosses, members off the deck fall (mods.airborne
 //             pauses obstacles' fall check; sys.fallUnless keeps the deck solid). The deck is at least as wide as
-//             the blob plus a margin, so following it is the task, not squeezing onto it.
+//             the blob plus a margin (re-measured until the squad boards), so following it is the task, not
+//             squeezing onto it.
 //   lightning { at, length, every, r, warn }  strikes marked in advance (violet circles, a charge orb gathers),
 //             then a bolt kills inside (FALLER).
 //   wind      { at, length, dir:1|-1, push?, period? }  gust zone: arrows + streaks, pushes the squad sideways
 //             (mods.pushX, gusting) with weaker steering; members shoved past the road edge are blown off.
 //   collapse  { at, length, weak:'L'|'R', warn?, fast?, slow? }  a bridge segment (stone slabs over a hole)
-//             shakes once Pip steps on it, then crumbles from the back: the cracked `weak` lane faster than the
+//             shakes once Pip steps on it (>= 0.9 s warning), then crumbles from the back: the cracked `weak` lane faster than the
 //             squad runs (its stragglers fall), the solid lane slower (safe).
 import * as THREE from 'three';
 import { ROAD_HALF } from '../../config.js';
@@ -61,10 +62,9 @@ export const platform = {
     const res = sys.reserved.get(ev) || platform.reserve(sys, ev);
     sys.reserved.delete(ev);
     const [g0, g1] = holeSpan(ev);
-    const R = Math.max(0, sys.game.squad.center(_c).r - 0.3);
-    const w = Math.max(3, Math.min(9.2, Math.max(ev.w || 6, 2 * R * 0.8 + 1.4)));
-    const amp = Math.min(ev.amp ?? 1.5, Math.max(0.2, 5.4 - w / 2));
-    const o = { g0, g1, w, amp, period: ev.period || 4.4, ph: (ev.at % 5) * 0.7, x: 0, active: false, gap: res.gap };
+    const o = { g0, g1, w: 0, w0: 0, amp: 0, period: ev.period || 4.4, ph: (ev.at % 5) * 0.7, x: 0, active: false, boarded: false, gap: res.gap };
+    platform.size(sys, o, ev);
+    const w = o.w0 = o.w;
     o.zoneL = { kind: 'lane', x0: -9, x1: -w / 2, zNear: -g0 + 1, zFar: -g1, pad: 0.35, w: 2 };
     o.zoneR = { kind: 'lane', x0: w / 2, x1: 9, zNear: -g0 + 1, zFar: -g1, pad: 0.35, w: 2 };
     o.solid = (x, z) => { const d = -z; return d >= g0 - 0.5 && d <= g1 + 0.5 && Math.abs(x - o.x) < o.w / 2 + 0.1; };
@@ -90,13 +90,21 @@ export const platform = {
     o.x = platform.xAt(sys, o);
     return o;
   },
+  /** Deck width from the blob: kept up to date until the squad boards (gates / barrels on the way grow it). */
+  size(sys, o, ev) {
+    const R = Math.max(0, sys.game.squad.center(_c).r - 0.3);
+    o.w = Math.max(3, Math.min(9.2, Math.max(ev.w || 6, 2 * R * 0.8 + 1.4)));
+    o.amp = Math.min(ev.amp ?? 1.5, Math.max(0.2, 5.4 - o.w / 2));
+  },
   xAt(sys, o, dt = 0) { return o.amp * Math.sin(((sys.time + dt) * TAU) / o.period + o.ph); },
   update(sys, o) {
     const dist = sys.dist;
     if (dist > o.g1 + 30) return false;
-    o.x = platform.xAt(sys, o);
     o.active = overSpan(sys, o.g0, o.g1);
-    if (o.active) { sys.mods.airborne = true; sys.fallUnless(o.solid); }
+    if (o.active) o.boarded = true;
+    else if (!o.boarded) platform.size(sys, o, o.ev);
+    o.x = platform.xAt(sys, o);
+    if (o.active) { sys.mods.airborne = true; sys.fallUnless(o.solid, 'platform'); }
     if (zoneTime(sys, o.g0, o.g1)) {
       // where the deck will be when the squad reaches it (at most ~0.6 s ahead: the bot keeps re-aiming)
       const ta = Math.max(0, Math.min(0.6, (o.g0 - dist) / Math.max(1, sys.speed)));
@@ -110,6 +118,7 @@ export const platform = {
     const v = o.vis;
     if (!v) return;
     v.deck.position.x = o.x;
+    v.deck.scale.x = o.w / o.w0;
     v.glow.material.opacity = 0.75 + 0.25 * Math.sin(sys.time * 5 + o.g0);
   },
   release(sys, o) {
@@ -270,7 +279,7 @@ export const collapse = {
     const [g0, g1] = holeSpan(ev);
     const n = (g1 - g0) / TILE_LEN;
     const weak = ev.weak === 'R' ? 1 : 0;
-    const o = { g0, g1, n, weak, warn: ev.warn ?? 0.8, fast: ev.fast || 1.45, slow: ev.slow || 0.85, state: 'idle', t: 0, fall: new Float32Array(2 * n).fill(-1), gap: res.gap };
+    const o = { g0, g1, n, weak, warn: Math.max(0.9, ev.warn ?? 0.9), fast: ev.fast || 1.45, slow: ev.slow || 0.85, state: 'idle', t: 0, fall: new Float32Array(2 * n).fill(-1), gap: res.gap };
     o.solid = (x, z) => {
       const d = -z;
       if (d < g0 || d >= g1) return false;
@@ -317,7 +326,7 @@ export const collapse = {
       }
       if (gone === 2 * o.n) o.state = 'gone';
     }
-    if (overSpan(sys, o.g0, o.g1)) { sys.mods.airborne = true; sys.fallUnless(o.solid); }
+    if (overSpan(sys, o.g0, o.g1)) { sys.mods.airborne = true; sys.fallUnless(o.solid, 'collapse'); }
     if (zoneTime(sys, o.g0, o.g1)) sys.danger.push(o.zone);
     return true;
   },

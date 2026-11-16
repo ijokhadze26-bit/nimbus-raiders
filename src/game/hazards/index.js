@@ -1,7 +1,8 @@
 // World hazards (update 3, SPEC3 stage 2): lava, embers, cracking floors, geysers, ice, snowstorms, icicles,
 // avalanches, jelly pads, syrup, gumballs, chocolate falls, moving platforms, lightning, wind, collapsing
 // bridges. Level events { type:'hazard', kind, at, lane?, length?, ...params } (src/data/hazardplan.js places
-// them) spawn ~110 u ahead like obstacles.js (kinds with reserve() cut their holes ~230 u ahead); each kind
+// them) spawn ~110 u ahead like obstacles.js (kinds with reserve() cut their holes and spawn ~230 u ahead, so the
+// hole is never seen without its pad / deck / bridge); each kind
 // module (registry.js) owns its objects. Step order: after obstacles (game.step); sync after obstacles.
 // Every step `mods` is reset and then written by the active hazards; other systems read it:
 //   easeMul (squad steering), slide (0..1 ice momentum), pushX (u/s sideways), speedMul (forward speed),
@@ -17,7 +18,8 @@ import { registerWarm } from '../warmup.js';
 
 const SPAWN_AHEAD = 110;
 // kinds with reserve(sys, ev) claim their road earlier (a hazard-made gap must exist before its tiles come into
-// view; obstacles.js spawns level gaps 230 ahead too); create() then finds the result in sys.reserved.get(ev)
+// view; obstacles.js spawns level gaps 230 ahead too) and are created right away, so their pad / deck / bridge
+// is there as soon as the hole is (create() finds the reserve result in sys.reserved.get(ev))
 const RESERVE_AHEAD = 230;
 const HINT_AHEAD = 48;
 export const HINT_COLORS = { 2: '#ff8a3d', 3: '#8fe3ff', 4: '#ff7ad1', 5: '#b49dff' };
@@ -49,6 +51,7 @@ export class Hazards {
     this.time = 0;
     this.dt = 0;
     this.mods = freshMods();
+    this.speedMul = 1;
     this.danger = [];
     this.rng = new Rng(1);
     this.views = {};
@@ -69,6 +72,7 @@ export class Hazards {
     this.run = run;
     this.time = 0;
     freshMods(this.mods);
+    this.speedMul = 1;
     this.danger.length = 0;
     this.budget.clear();
     this.carry = 0;
@@ -89,6 +93,7 @@ export class Hazards {
   }
 
   update(dt) {
+    this.speedMul = this.mods.speedMul; // what the squad ran with this step (game.forwardSpeed), for sys.speed
     freshMods(this.mods);
     this.danger.length = 0;
     this.dt = dt;
@@ -100,18 +105,12 @@ export class Hazards {
     while (this.rcursor < evs.length && evs[this.rcursor].at - dist < RESERVE_AHEAD) {
       const e = evs[this.rcursor++];
       const def = KINDS[e.kind];
-      if (def && def.reserve) this.reserved.set(e, def.reserve(this, e));
+      if (def && def.reserve) { this.reserved.set(e, def.reserve(this, e)); this.spawn(e, def); }
     }
     while (this.cursor < evs.length && evs[this.cursor].at - dist < SPAWN_AHEAD) {
       const e = evs[this.cursor++];
       const def = KINDS[e.kind];
-      if (!def) continue;
-      const o = def.create(this, e);
-      if (!o) continue;
-      o.def = def; o.ev = e;
-      this.used.add(def);
-      this.list.push(o);
-      this.stats.spawned[e.kind] = (this.stats.spawned[e.kind] || 0) + 1;
+      if (def && !def.reserve) this.spawn(e, def);
     }
     for (let i = this.list.length - 1; i >= 0; i--) {
       const o = this.list[i];
@@ -121,6 +120,16 @@ export class Hazards {
       }
       if (!o.def.update(this, o, dt)) { o.def.release(this, o); this.list.splice(i, 1); }
     }
+  }
+
+  spawn(e, def) {
+    const o = def.create(this, e);
+    this.reserved.delete(e);
+    if (!o) return;
+    o.def = def; o.ev = e;
+    this.used.add(def);
+    this.list.push(o);
+    this.stats.spawned[e.kind] = (this.stats.spawned[e.kind] || 0) + 1;
   }
 
   sync(dt) {

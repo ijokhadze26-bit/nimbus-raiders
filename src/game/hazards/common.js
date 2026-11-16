@@ -8,8 +8,9 @@
 //     it (squad.remove, carried as a fraction), and a hazard costs a 900 squad the same share as a 90 squad.
 //   sys.laneRange(lane, out) -> {x0, x1}; sys.tele(kind, ...) telegraphs flagged `hazard` (the autopilot reads
 //     the matching sys.danger zones instead of dodging the paint); sys.sfx(name) / sys.fxB() / sys.shake(a).
-//   sys.addGap(gap) cuts a hazard-made hole (jelly, platform, collapse); sys.fallUnless(solid) is the gap fall
-//     for a hazard that carries the squad over its own hole (platform / bridge rectangles stay solid).
+//   sys.addGap(gap) cuts a hazard-made hole (jelly, platform, collapse); sys.fallUnless(solid, key?) is the gap
+//     fall for a hazard that carries the squad over its own hole (platform / bridge rectangles stay solid).
+//   sys.speed is the squad's real forward speed (run speed x the speedMul the last step used).
 // FALLER: the shared falling-object hazard (embers, icicles; later lightning): a telegraphed circle lands
 // on where the squad will be, the object drops during the last `fallT` seconds and kills inside on impact.
 import * as THREE from 'three';
@@ -23,7 +24,8 @@ const _c = { x: 0, z: 0, r: 0 };
 export const COMMON = {
   get low() { return this.game.engine.quality === 'low'; },
   get dist() { return -this.game.squad.leader.z; },
-  get speed() { return this.run ? this.run.speed : 9; },
+  // the squad's real forward speed (syrup's speedMul included: the multiplier the last step ran with)
+  get speed() { return this.run ? this.run.speed * (this.speedMul || 1) : 9; },
   get live() { const r = this.game.run; return !!(r && r.active && this.game.squad.count > 0); },
 
   /** x range of a lane: 'L' | 'R' | 'C' / 'both' (whole road). */
@@ -90,13 +92,16 @@ export const COMMON = {
   /**
    * While a hazard carries the squad over its own hole (moving platform, collapsing bridge) it sets
    * mods.airborne (obstacles' fall check pauses) and calls this instead: members over any hole fall (the
-   * usual gap fall, reason 'gap') unless solid(x, z) holds there.
+   * usual gap fall, reason 'gap') unless solid(x, z) holds there. With `key` (the hazard kind) the losses
+   * are also counted in stats.kills[key], so balance tools see these holes bite.
    */
-  fallUnless(solid) {
+  fallUnless(solid, key) {
     if (!this.live) return 0;
     this._solid = solid;
     if (!this._fallTest) this._fallTest = (x, z) => this.game.obstacles.overGap(x, z) && !this._solid(x, z);
-    return this.game.squad.fallCheck(this._fallTest);
+    const n = this.game.squad.fallCheck(this._fallTest);
+    if (n && key) this.stats.kills[key] = (this.stats.kills[key] || 0) + n;
+    return n;
   },
 
   /** Shared lazily built visuals of a kind (one set per kind per session). */

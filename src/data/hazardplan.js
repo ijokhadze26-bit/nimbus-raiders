@@ -116,7 +116,8 @@ export const MAKERS = {
   },
   collapse(r, { t, gentle }) {
     if (gentle) return { length: 16, weak: lanePick(r), warn: 1.0, fast: 1.35, slow: 0.8 };
-    return { length: 18 + 2 * Math.round(2 * t), weak: lanePick(r), warn: r2(0.85 - 0.2 * t), fast: r2(1.4 + 0.25 * t), slow: 0.85 };
+    // the shake warning never drops under 0.9 s (STAGE2 floor); the weak lane's faster fall carries the difficulty
+    return { length: 18 + 2 * Math.round(2 * t), weak: lanePick(r), warn: 0.9, fast: r2(1.6 + 0.5 * t), slow: 0.85 };
   },
 };
 

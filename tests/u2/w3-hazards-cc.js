@@ -3,11 +3,14 @@
 // 1. plan: every world 4-5 level gets hazards of its own world only, never over a gate / barrel / crate / gap /
 //    blade (lethal ones also off power-ups / coins), all before the final rush / arena, deterministic; the intro
 //    levels (L31, L41) teach every kind of their world once, with a hint.
-// 2. each kind on a scratch level: a jelly pad launches the squad over its hole (miss it and the hole takes
-//    them), syrup slows the run + steering + enemies, gumballs roll down a lane, crush members and burst when
+// 2. each kind on a scratch level: a jelly pad launches the squad over its hole (miss it entirely and the far
+//    half of the squad falls, Pip and the near half bounce off the rim), syrup slows the run + steering +
+//    enemies (sys.speed follows the real speed), gumballs roll down a lane, crush members and burst when
 //    shot, chocolate falls pour on a cycle, drown members and stop bullets, the moving platform carries whoever
 //    follows it (the rest fall), lightning strikes are marked (flagged hazard) and kill, wind pushes sideways
 //    and blows edge members off, a collapsing bridge drops the cracked lane under the squad and keeps the other.
+//    Hole kinds count their falls in hazards.stats.kills, the deck re-sizes to a blob that grew on the way, a
+//    hole-cutting kind exists as soon as its hole does, and the bridge's shake warning is >= 0.9 s.
 // 3. the hints and the autopilot (pro keeps far more of the squad than standing still; casual survives).
 //    The real levels on High / Low are tests/u2/w3-hazards-cc-levels.js. window.__shot saves pictures.
 const g = window.__game, d = g.debug;
@@ -73,7 +76,13 @@ ok(!lost.gap, `jelly: ${lost.gap} fell although the squad hit the pad`);
 info.jellyHit = { lift: Math.round(lift * 10) / 10, squad: g.squad.count };
 custom(JE); reset();
 steps(360, 4.5);
-ok(lost.gap > 0 || g.squad.count === 0, `jelly: Pip alone missed the pad and did not fall (${JSON.stringify(lost)})`);
+ok(!lost.gap && g.run.active && !g.squad.pipGone, `jelly: Pip alone missed the pad and fell (${JSON.stringify(lost)})`);
+custom(JE); d.give('troops', 40); reset();
+const before = g.squad.count;
+steps(360, 3.2);
+const missKills = hz.stats.kills.jelly || 0;
+ok(lost.gap > 5 && lost.gap < before * 0.7 && !g.squad.pipGone && missKills === lost.gap, `jelly: a full miss lost ${lost.gap} of ${before} (kills.jelly ${missKills}, Pip gone ${g.squad.pipGone})`);
+info.jellyMiss = { before, lost: lost.gap || 0 };
 custom([{ ...JE[0], side: 'both' }]); d.give('troops', 30); reset();
 steps(360, 4.5);
 ok(!lost.gap, `jelly: full-width pad dropped ${lost.gap}`);
@@ -82,8 +91,12 @@ ok(!lost.gap, `jelly: full-width pad dropped ${lost.gap}`);
 custom([{ type: 'hazard', kind: 'syrup', at: 20, length: 30, lane: 'both', slow: 0.6, ease: 0.4 }, { type: 'horde', at: 55, count: 10, mix: { grunt: 1 }, lane: 'both' }]);
 d.give('troops', 60);
 let minSpeed = 99, minEase = 1, slowed = 0;
+let sysMin = 99;
 for (let i = 0; i < 300; i++) {
-  g.input.setTarget(i < 200 ? 0 : 3); g.step(1 / 60);
+  g.input.setTarget(i < 200 ? 0 : 3); const d0 = g.run.dist; g.step(1 / 60);
+  // sys.speed is the speed the squad really ran with this step
+  if (i > 0) ok(Math.abs(hz.speed / 60 - (g.run.dist - d0)) < 0.02, `syrup: sys.speed ${hz.speed} vs ran ${(g.run.dist - d0) * 60}`);
+  sysMin = Math.min(sysMin, hz.speed);
   minSpeed = Math.min(minSpeed, g.forwardSpeed(1 / 60)); minEase = Math.min(minEase, hz.mods.easeMul);
   for (const e of g.horde.list) if (e.slowT > 0 && e.slowPct >= 0.5) slowed++;
 }
@@ -92,7 +105,9 @@ ok(slowed > 0, 'syrup: no enemy slowed');
 for (let i = 0; i < 600 && g.run.dist < 54; i++) steps(1, 0);
 steps(30, 0);
 ok(g.run.phase === 'run' && Math.abs(g.forwardSpeed(1 / 60) - 10) < 0.01, `syrup: speed not restored (${g.forwardSpeed(1 / 60)})`);
-info.syrup = { minSpeed: Math.round(minSpeed * 100) / 100, slowed };
+ok(Math.abs(hz.speed - 10) < 0.01, `syrup: sys.speed ${hz.speed} after the river`);
+ok(sysMin < 7, `syrup: sys.speed never dropped (${sysMin})`);
+info.syrup = { minSpeed: Math.round(minSpeed * 100) / 100, sysMin: Math.round(sysMin * 100) / 100, slowed };
 
 // gumball: rolls down its lane, crushes members standing there; shot down by a big squad it bursts
 const GB = { type: 'hazard', kind: 'gumball', at: 40, lane: 'L', count: 1, spacing: 10, roll: 6, hp: 60, length: 20 };
@@ -142,6 +157,17 @@ steps(480, 4.6);
 const edge = lost.gap || 0;
 ok(Math.max(...xs) - Math.min(...xs) > 2, `platform: deck did not move (${Math.min(...xs)}..${Math.max(...xs)})`);
 ok(edge > follow + 15, `platform: follow lost ${follow}, edge lost ${edge}`);
+ok((hz.stats.kills.platform || 0) === edge, `platform: kills.platform ${hz.stats.kills.platform} vs fell ${edge}`);
+// the deck is sized to the blob that boards it, not to the blob when it was built
+custom([{ ...PL[0], at: 80, w: 4 }], { theme: 'citadel' }); d.give('troops', 5);
+steps(5, 0);
+const pw0 = live('platform') && live('platform').w;
+d.give('troops', 200);
+steps(60, 0);
+const pl = live('platform'), pw1 = pl && pl.w;
+g.sync(1 / 60);
+ok(pw0 && pw1 > pw0 + 1 && Math.abs(pl.vis.deck.scale.x - pw1 / pl.w0) < 1e-6, `platform: deck ${pw0} -> ${pw1} after the squad grew (scale ${pl && pl.vis.deck.scale.x})`);
+info.platformGrow = [pw0, pw1];
 info.platform = { follow, edge, w: hz.list.length ? live('platform')?.w : null };
 
 // lightning: marked (flagged) strikes kill under them
@@ -168,14 +194,30 @@ info.wind = { blown, upwind: lost.wind || 0 };
 // collapse: the cracked lane falls away under the squad, the solid lane holds
 const CO = [{ type: 'hazard', kind: 'collapse', at: 40, length: 24, weak: 'L', warn: 0.6, fast: 1.6, slow: 0.85 }];
 custom(CO, { theme: 'citadel' }); d.give('troops', 60); reset();
+steps(1, -2.5);
+ok(live('collapse') && live('collapse').warn >= 0.9, `collapse: shake warning ${live('collapse') && live('collapse').warn} < 0.9 s`);
 let shook = false;
 for (let i = 0; i < 480; i++) { g.input.setTarget(-2.5); g.step(1 / 60); const o = live('collapse'); if (o && o.state !== 'idle') shook = true; if (i === 290) await shot('collapse'); }
-const weakLost = lost.gap || 0;
+const weakLost = lost.gap || 0, weakKills = hz.stats.kills.collapse || 0;
 custom(CO, { theme: 'citadel' }); d.give('troops', 60); reset();
 steps(480, 2.6);
 ok(shook && weakLost > 5, `collapse: shook ${shook}, weak lane lost ${weakLost}`);
+ok(weakKills === weakLost, `collapse: kills.collapse ${weakKills} vs fell ${weakLost}`);
 ok((lost.gap || 0) < weakLost / 3, `collapse: solid lane lost ${lost.gap || 0} (weak ${weakLost})`);
 info.collapse = { weak: weakLost, solid: lost.gap || 0 };
+
+// a hole-cutting kind is built the moment its hole is cut (no bare pit in view before the bridge / pad / deck)
+custom([{ type: 'hazard', kind: 'collapse', at: 330, length: 20, weak: 'L' }, { type: 'hazard', kind: 'jelly', at: 290, side: 'L', frac: 0.6, pad: 3.5, gap: 8, length: 15 }, { type: 'hazard', kind: 'platform', at: 370, length: 16, w: 6 }], { theme: 'citadel', length: 460 });
+let bare = 0, cut = 0;
+for (let i = 0; i < 900 && g.run.active && g.run.dist < 300; i++) {
+  g.input.setTarget(0); g.step(1 / 60);
+  for (const gp of g.obstacles.gaps) {
+    if (!gp.hazard) continue;
+    cut++;
+    if (!hz.list.some((o) => o.gap === gp && o.ev.kind === gp.hazard)) bare++;
+  }
+}
+ok(cut > 0 && bare === 0, `hole kinds: ${bare} of ${cut} hole-steps had no pad / deck / bridge`);
 
 // ---------------- 3. hints, autopilot ----------------
 const hints = [];
