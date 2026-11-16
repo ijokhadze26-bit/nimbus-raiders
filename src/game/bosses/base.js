@@ -7,6 +7,8 @@
 import { bossDef, cadenceFor } from '../../data/bosses.js';
 import { bossMul } from '../../data/matchups.js';
 import { HIT } from '../../config.js';
+import { applySkin, tintGlows, boulderTint } from './skins.js';
+import { themeWorld } from '../../data/themes.js';
 
 const FROZEN_MUL = 1.25;
 
@@ -21,7 +23,10 @@ export class BaseBoss {
     this.game = game;
     this.def = bossDef(cfg.type);
     this.type = this.def.type;
-    this.name = this.def.name;
+    // update 3: a world skin renames the boss (cfg.name / subtitle from bossLook) and recolours the model
+    this.name = cfg.name || this.def.name;
+    this.subtitle = cfg.subtitle || this.def.subtitle;
+    this.skin = cfg.skin || null;
     this.tier = cfg.tier || 1;
     this.maxHp = cfg.hp || this.def.hp;
     this.hp = this.maxHp;
@@ -48,6 +53,8 @@ export class BaseBoss {
     this.c = { x: 0, z: 0, r: 0 };
     this.model = this.buildModel();
     this.root = this.model.root;
+    const th = game.world && game.world.theme;
+    this.skinState = applySkin(this.root, this.skin, th && themeWorld(th.id) !== 'sky' ? th.blob : null);
     this.root.visible = true;
     this.root.rotation.set(0, 0, 0);
     game.scene.add(this.root);
@@ -103,7 +110,7 @@ export class BaseBoss {
       if (f >= 1) {
         this.y = 0; this.z = this.homeZ;
         this.state = 'intro'; this.t = 0;
-        game.events.emit('boss:spawn', { type: this.type, name: this.name, hp: this.maxHp });
+        game.events.emit('boss:spawn', { type: this.type, name: this.name, subtitle: this.subtitle, skin: this.skin, hp: this.maxHp });
         game.events.emit('boss:hp', { hp: this.hp, max: this.maxHp });
         this.onLanded();
       }
@@ -131,7 +138,14 @@ export class BaseBoss {
     this.root.position.set(this.x, this.y, this.z);
   }
 
-  sync(dt) { this.animate(dt, this.time); }
+  sync(dt) {
+    this.animate(dt, this.time);
+    if (this.skinState) {
+      tintGlows(this.skinState);
+      const b = this.boulders && this.boulders[0];
+      if (b && b.mesh) boulderTint(this.skinState, b.mesh.material.color);
+    }
+  }
 
   // ---------------- damage ----------------
   sweep(b, x, z0, z1) {
@@ -262,6 +276,8 @@ export class BaseBoss {
 
   /** Detaches the (cached, reused) model from the scene; geometry/materials stay alive for the next spawn. */
   dispose() {
+    const b = this.boulders && this.boulders[0];
+    if (b && b.mesh && this.skinState) b.mesh.material.color.setRGB(1, 1, 1);
     this.offTarget();
     this.game.scene.remove(this.root);
     if (this.effects) this.effects.clear();

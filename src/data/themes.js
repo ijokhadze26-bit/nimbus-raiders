@@ -1,11 +1,19 @@
 // Visual themes for the sky bridge. Colors are sRGB hex strings.
 // sun.az / sun.el in degrees: az 0 = straight ahead (-Z), positive = to the right.
 
+// Update 3: road.trimGlow / dividerGlow (+ intensities) colour the emissive of the trim and divider; weather is an
+// optional GPU-animated particle layer around the camera ({ kind: 'snow' | 'ember' | 'sparkle' | 'rain', color,
+// count, size }); flash = occasional lightning ({ every: [min, max] s, power }); blob = colour of the soft
+// enemy/boss contact shadows.
 const base = {
-  road: { a: '#ffffff', b: '#e2f6f3', side: '#dcecff', under: '#9db7dc', trim: '#f4c24f', divider: '#a8d6ff', dividerTop: '#e9f6ff' },
+  road: { a: '#ffffff', b: '#e2f6f3', side: '#dcecff', under: '#9db7dc', trim: '#f4c24f', divider: '#a8d6ff', dividerTop: '#e9f6ff',
+    trimGlow: '#b8801a', trimGlowI: 0.35, dividerGlow: '#4f8fd8', dividerGlowI: 0.18 },
   island: { grass: '#7fdc6a', grassDark: '#4fb85a', rock: '#c9a77f', rockDark: '#8f7563', crystal: '#7ff0ff' },
   stars: 0,
   fog: { near: 70, far: 210 },
+  weather: null,
+  flash: null,
+  blob: '#2a3f7a',
 };
 
 function theme(t) {
@@ -82,6 +90,140 @@ export const THEMES = {
     stars: 1,
   }),
 };
+
+// ---------------- update 3: world themes (worlds 2-5) ----------------
+Object.assign(THEMES, {
+  forge: theme({
+    id: 'forge', name: 'Volcanic Forge',
+    sky: { top: '#2a0b0c', mid: '#7a1e12', horizon: '#ff7a32', bottom: '#ff9a48' },
+    sun: { color: '#ffc070', az: -6, el: 2.4, size: 4.6, glow: 1.3, moon: false },
+    hemi: { sky: '#ffe0c8', ground: '#8a3a22', intensity: 2.0 },
+    dir: { color: '#ffc89a', intensity: 2.0 },
+    cloud: { light: '#6a4038', shade: '#3a2220', emissive: 0.22 },
+    sea: { light: '#ffd24a', shade: '#ff5a14', deep: '#5a1006' },
+    road: { a: '#8c7872', b: '#7a6762', side: '#4a3632', under: '#2e201e', trim: '#ff8a2a', divider: '#5a4440', dividerTop: '#ff9a3a',
+      trimGlow: '#ff5a10', trimGlowI: 0.85, dividerGlow: '#ff4a10', dividerGlowI: 0.35 },
+    island: { grass: '#4a3632', grassDark: '#2e201e', rock: '#5e423a', rockDark: '#3a2824', crystal: '#ff8a2a' },
+    fog: { near: 60, far: 195 },
+    weather: { kind: 'ember', color: '#ffae4a', count: 260, size: 0.22 },
+    blob: '#1a0806',
+  }),
+  forgeNight: theme({
+    id: 'forgeNight', name: 'Forge Night',
+    sky: { top: '#07020a', mid: '#2a0810', horizon: '#9a2a10', bottom: '#b83614' },
+    sun: { color: '#ffd0a0', az: 5, el: 4.0, size: 2.4, glow: 0.7, moon: true },
+    hemi: { sky: '#ffbea8', ground: '#5a1c14', intensity: 1.7 },
+    dir: { color: '#ffa884', intensity: 1.7 },
+    cloud: { light: '#3e2224', shade: '#1e0e12', emissive: 0.18 },
+    sea: { light: '#ffa62a', shade: '#b8280a', deep: '#220402' },
+    road: { a: '#7c6a66', b: '#6c5a56', side: '#3e2c2a', under: '#261a18', trim: '#ff7a1a', divider: '#4e3a36', dividerTop: '#ff8a2a',
+      trimGlow: '#ff4a0a', trimGlowI: 1.0, dividerGlow: '#ff3a0a', dividerGlowI: 0.45 },
+    island: { grass: '#3e2c2a', grassDark: '#261a18', rock: '#523834', rockDark: '#30201e', crystal: '#ff7a1a' },
+    stars: 0.55,
+    fog: { near: 55, far: 185 },
+    weather: { kind: 'ember', color: '#ff9a3a', count: 300, size: 0.24 },
+    blob: '#140504',
+  }),
+  frost: theme({
+    id: 'frost', name: 'Frozen Peaks',
+    sky: { top: '#4f9ae6', mid: '#9ed2f6', horizon: '#e2f4ff', bottom: '#f2faff' },
+    sun: { color: '#ffffff', az: -6, el: 4.0, size: 2.0, glow: 0.8, moon: false },
+    hemi: { sky: '#ffffff', ground: '#a6c6e6', intensity: 2.15 },
+    dir: { color: '#f2f8ff', intensity: 1.9 },
+    cloud: { light: '#ffffff', shade: '#c4dcf2', emissive: 0.36 },
+    sea: { light: '#ffffff', shade: '#d4e6f6', deep: '#a8c8e8' },
+    road: { a: '#f6fbff', b: '#dcecf8', side: '#bcd8f0', under: '#86aad0', trim: '#7fe0ff', divider: '#c8e6ff', dividerTop: '#ffffff',
+      trimGlow: '#3aa8e0', trimGlowI: 0.4, dividerGlow: '#7ac8ff', dividerGlowI: 0.22 },
+    island: { grass: '#f4faff', grassDark: '#5f9ab8', rock: '#9cc0de', rockDark: '#6a94bc', crystal: '#9ff4ff' },
+    fog: { near: 60, far: 195 },
+    weather: { kind: 'snow', color: '#ffffff', count: 320, size: 0.28 },
+    blob: '#4a6a9a',
+  }),
+  frostDusk: theme({
+    id: 'frostDusk', name: 'Frost Dusk',
+    sky: { top: '#34479a', mid: '#9a8ad2', horizon: '#ffc8da', bottom: '#ffe2ec' },
+    sun: { color: '#ffe0ea', az: 5, el: 2.0, size: 3.2, glow: 1.0, moon: false },
+    hemi: { sky: '#f4ecff', ground: '#9a8ac8', intensity: 2.0 },
+    dir: { color: '#ffe6f0', intensity: 1.9 },
+    cloud: { light: '#fbeefa', shade: '#b4a6d8', emissive: 0.32 },
+    sea: { light: '#fff2f8', shade: '#cac2e8', deep: '#9c9cd2' },
+    road: { a: '#f8f8ff', b: '#e4e6fa', side: '#c4c8ec', under: '#8a8cc4', trim: '#9fe8ff', divider: '#d0d4ff', dividerTop: '#ffffff',
+      trimGlow: '#5a9ae0', trimGlowI: 0.4, dividerGlow: '#8a9aff', dividerGlowI: 0.22 },
+    island: { grass: '#f8f4ff', grassDark: '#6a7ab8', rock: '#a8a8d8', rockDark: '#7a78b4', crystal: '#b8f4ff' },
+    stars: 0.35,
+    fog: { near: 58, far: 190 },
+    weather: { kind: 'snow', color: '#fff4fa', count: 320, size: 0.28 },
+    blob: '#5a5a9a',
+  }),
+  candy: theme({
+    id: 'candy', name: 'Candy Kingdom',
+    sky: { top: '#ff7ac8', mid: '#ffb4de', horizon: '#c6fff0', bottom: '#e2fff7' },
+    sun: { color: '#fff4c8', az: -5, el: 3.4, size: 2.8, glow: 1.0, moon: false },
+    hemi: { sky: '#fff4fb', ground: '#e8a0d0', intensity: 2.1 },
+    dir: { color: '#fff2e8', intensity: 2.0 },
+    cloud: { light: '#ffeaf7', shade: '#ffa8dc', emissive: 0.36 },
+    sea: { light: '#ffe6f4', shade: '#ffb0dc', deep: '#c6a6f2' },
+    road: { a: '#ffffff', b: '#ff9ccf', side: '#ff7ac0', under: '#c4509a', trim: '#6affd2', divider: '#ff5aa8', dividerTop: '#ffd0ea',
+      trimGlow: '#2ac89a', trimGlowI: 0.4, dividerGlow: '#ff3a90', dividerGlowI: 0.25 },
+    island: { grass: '#ff9ad6', grassDark: '#ff5ab4', rock: '#c98a4a', rockDark: '#7a4a2a', crystal: '#7affd8' },
+    weather: { kind: 'sparkle', color: '#ffffff', count: 150, size: 0.18 },
+    blob: '#8a3a7a',
+  }),
+  candyDusk: theme({
+    id: 'candyDusk', name: 'Candy Dusk',
+    sky: { top: '#4e36a6', mid: '#c46ac8', horizon: '#ffb8a6', bottom: '#ffd6c6' },
+    sun: { color: '#ffe0d0', az: 4, el: 1.9, size: 3.6, glow: 1.15, moon: false },
+    hemi: { sky: '#ffeefa', ground: '#b67ac8', intensity: 2.0 },
+    dir: { color: '#ffe0e6', intensity: 1.95 },
+    cloud: { light: '#ffe2f0', shade: '#c88ad4', emissive: 0.32 },
+    sea: { light: '#ffdcee', shade: '#e09ad6', deep: '#9a7ad6' },
+    road: { a: '#fff8fc', b: '#f08ac8', side: '#d86ab8', under: '#9a4090', trim: '#7affd8', divider: '#ff6ab4', dividerTop: '#ffd6ee',
+      trimGlow: '#3ad8aa', trimGlowI: 0.45, dividerGlow: '#ff4a9a', dividerGlowI: 0.28 },
+    island: { grass: '#f88ad0', grassDark: '#d84aa8', rock: '#b87a40', rockDark: '#6a3e24', crystal: '#8affe0' },
+    stars: 0.35,
+    weather: { kind: 'sparkle', color: '#fff0fa', count: 170, size: 0.2 },
+    blob: '#6a2a6a',
+  }),
+  citadel: theme({
+    id: 'citadel', name: 'Storm Citadel',
+    sky: { top: '#160c2c', mid: '#34225c', horizon: '#7a5ab0', bottom: '#8a6abc' },
+    sun: { color: '#d8c4ff', az: -7, el: 5.0, size: 2.4, glow: 0.55, moon: false },
+    hemi: { sky: '#e4d8ff', ground: '#4a3a6a', intensity: 1.95 },
+    dir: { color: '#e8dcff', intensity: 1.85 },
+    cloud: { light: '#6e6090', shade: '#3a3058', emissive: 0.24 },
+    sea: { light: '#7a6a9c', shade: '#40345e', deep: '#1e1638' },
+    road: { a: '#9a9ab0', b: '#86869e', side: '#56526e', under: '#34304a', trim: '#b88aff', divider: '#6a6488', dividerTop: '#d8c4ff',
+      trimGlow: '#8a4aff', trimGlowI: 0.75, dividerGlow: '#7a4aff', dividerGlowI: 0.35 },
+    island: { grass: '#5a5672', grassDark: '#3a3650', rock: '#3e3a52', rockDark: '#26223a', crystal: '#c49aff' },
+    fog: { near: 55, far: 180 },
+    weather: { kind: 'rain', color: '#b8a8ff', count: 260, size: 0.5 },
+    flash: { every: [4, 9], power: 1.3 },
+    blob: '#0e0820',
+  }),
+  citadelNight: theme({
+    id: 'citadelNight', name: 'Citadel Night',
+    sky: { top: '#06030f', mid: '#180e34', horizon: '#46307a', bottom: '#52388a' },
+    sun: { color: '#e6dcff', az: 5, el: 4.4, size: 2.6, glow: 0.7, moon: true },
+    hemi: { sky: '#cfc0ff', ground: '#3a2c5e', intensity: 1.9 },
+    dir: { color: '#dcd0ff', intensity: 1.8 },
+    cloud: { light: '#4e4472', shade: '#262040', emissive: 0.22 },
+    sea: { light: '#5a4c82', shade: '#2e2450', deep: '#120c28' },
+    road: { a: '#8a8aa4', b: '#767690', side: '#4a4662', under: '#2a2640', trim: '#c49aff', divider: '#5e5880', dividerTop: '#e0d0ff',
+      trimGlow: '#9a5aff', trimGlowI: 0.9, dividerGlow: '#8a5aff', dividerGlowI: 0.45 },
+    island: { grass: '#4e4a68', grassDark: '#322e48', rock: '#36324a', rockDark: '#1e1a30', crystal: '#d0a8ff' },
+    stars: 0.7,
+    fog: { near: 52, far: 175 },
+    weather: { kind: 'rain', color: '#a898ff', count: 280, size: 0.5 },
+    flash: { every: [3.5, 8], power: 1.5 },
+    blob: '#0a0618',
+  }),
+});
+
+/** World key of a theme id ('forgeNight' -> 'forge'); sky themes and unknown ids -> 'sky'. */
+export function themeWorld(id) {
+  const m = /^(forge|frost|candy|citadel)/.exec(id || '');
+  return m ? m[1] : 'sky';
+}
 
 export const THEME_ORDER = ['noon', 'dawn', 'sunset', 'dusk', 'storm', 'night'];
 

@@ -7,6 +7,11 @@ import { toonGradient } from '../models/materials.js';
 import { QUALITY } from '../config.js';
 import { markInstances } from '../core/pool.js';
 import { buildGapView, disposeGapView } from '../models/obstacles.js';
+import { Weather } from './weather.js';
+import { registerWarm } from './warmup.js';
+
+// the weather points compile at boot with everything else (first forge / frost run never stalls)
+registerWarm((game) => { const w = game.world && game.world.weather; return w ? new THREE.Points(w.mesh.geometry, w.material) : null; });
 
 const AHEAD = 196, BEHIND = 24;
 const ROWS = Math.ceil((AHEAD + BEHIND) / TILE_LEN) + 2;
@@ -84,6 +89,7 @@ export class World {
     this.islandData = [];
     this.islandMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
     this.islands = null;
+    this.weather = new Weather(scene);
     this.rng = mulberry(7);
     this.buildClouds();
     this.setTheme('noon');
@@ -96,6 +102,7 @@ export class World {
     this.puffs.count = low ? LOW_PUFFS.sea : SEA_PUFFS;
     this.skyPuffs.count = low ? LOW_PUFFS.sky : SKY_PUFFS;
     this.sea.uniforms.uOctaves.value = low ? 2 : 4;
+    this.weather.setQuality(q);
     // The road covers about half the screen at a grazing angle: 8x anisotropic trilinear filtering was ~6 ms
     // of a software-rendered phone frame. Low samples one mip level, no anisotropy (a bit softer far away;
     // the switch re-uploads one 256x128 canvas).
@@ -152,7 +159,12 @@ export class World {
     this.hemi.color.set(t.hemi.sky); this.hemi.groundColor.set(t.hemi.ground); this.hemi.intensity = t.hemi.intensity;
     this.sun.color.set(t.dir.color); this.sun.intensity = t.dir.intensity;
     this.trimMat.color.set(t.road.trim);
+    this.trimMat.emissive.set(t.road.trimGlow); this.trimMat.emissiveIntensity = t.road.trimGlowI;
     this.dividerMat.color.set(t.road.divider);
+    this.dividerMat.emissive.set(t.road.dividerGlow); this.dividerMat.emissiveIntensity = t.road.dividerGlowI;
+    this.weather.set(t.weather);
+    // storm themes: an occasional lightning flash (light intensities only, cosmetic rng)
+    this.flash = t.flash ? { t: 1.5 + this.rng() * 2, k: 0, n: 0 } : null;
     this.cloudMat.color.set(t.cloud.light);
     this.cloudMat.emissive.set(t.cloud.light); this.cloudMat.emissiveIntensity = t.cloud.emissive;
     this.skyCloudMat.color.set(t.cloud.light);
@@ -227,12 +239,14 @@ export class World {
     this.animateGaps();
     this.updatePuffs(camZ);
     this.updateIslands(camZ);
+    if (this.flash) this.updateFlash(dt);
     // sky/sea follow camera
     this.sky.mesh.position.set(focusX * 0.3, 0, camZ);
     this.sky.uniforms.uTime.value = this.time;
     this.sea.mesh.position.set(0, -16, camZ);
     this.sea.uniforms.uCam.value.set(focusX, 0, camZ);
     this.sea.uniforms.uTime.value = this.time;
+    this.weather.sync(this.time, focusX, camZ, this.game.engine.renderer.domElement.height || 800);
     // shadow camera follows the squad tightly (snapped to texels to avoid shimmer)
     const snap = (QUALITY.shadowExtent * 2) / QUALITY.shadowMapSize;
     const tx = Math.round(focusX / snap) * snap, tz = Math.round((focusZ - 5) / snap) * snap;
@@ -267,6 +281,19 @@ export class World {
     markInstances(this.road.instanceMatrix, n);
     if (this.road.instanceColor) markInstances(this.road.instanceColor, n);
     markInstances(this.divider.instanceMatrix, nd);
+  }
+
+  /** Lightning: a double flicker of the sky light every few seconds (flash.every = [min, max] s). */
+  updateFlash(dt) {
+    const f = this.flash, t = this.theme, ev = t.flash.every || [4, 9];
+    f.t -= dt;
+    if (f.t <= 0) {
+      f.k = 1;
+      if (f.n === 0 && this.rng() < 0.6) { f.n = 1; f.t = 0.12; } else { f.n = 0; f.t = ev[0] + this.rng() * (ev[1] - ev[0]); }
+    }
+    f.k = Math.max(0, f.k - dt * 6);
+    this.hemi.intensity = t.hemi.intensity + f.k * (t.flash.power || 1.4);
+    this.sun.intensity = t.dir.intensity + f.k * (t.flash.power || 1.4) * 0.5;
   }
 
   updatePuffs(camZ) {

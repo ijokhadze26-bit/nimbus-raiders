@@ -82,3 +82,31 @@ export function bossDef(type) { return BOSSES[type] || BOSSES.grawlstone; }
 export function cadenceFor(def, tier = 1, phase = 1) {
   return (1 + 0.2 * (Math.max(1, tier) - 1)) * (phase === 2 ? def.phase2Cadence : 1);
 }
+
+// ---------------- update 3: world skins ----------------
+// Level data may give cfg.skin ('forge' | 'frost' | 'candy' | 'citadel'): the model is recoloured
+// (game/bosses/skins.js) and these pairs get their own name on the boss card + HP bar.
+export const BOSS_SKIN_NAMES = {
+  'grawlstone:forge': { name: 'MAGMA GRAWLSTONE', subtitle: 'THE LAVA COLOSSUS' },
+  'grawlstone:frost': { name: 'GLACIUS', subtitle: 'THE FROST GIANT' },
+  'grawlstone:candy': { name: 'GUMDROP GOLIATH', subtitle: 'THE CHEWY GIANT' },
+  'ironhorn:frost': { name: 'FROSTHORN', subtitle: 'THE ICE RHINO' },
+  'mothermurk:candy': { name: 'CANDY QUEEN', subtitle: 'RULER OF THE SWEETS' },
+  'oculon:citadel': { name: 'OCULON', subtitle: 'THE CITADEL EYE' },
+};
+
+// Bosses whose own class lands in stage 2: until then they fight as a skinned Grawlstone under their own name.
+export const BOSS_STANDINS = {
+  glacius: { type: 'grawlstone', skin: 'frost', name: 'GLACIUS', subtitle: 'THE FROST GIANT' },
+  gumdrop: { type: 'grawlstone', skin: 'candy', name: 'GUMDROP GOLIATH', subtitle: 'THE CHEWY GIANT' },
+};
+
+/** Resolved look of a level boss cfg: { type (a real class), skin (or null), name, subtitle }. */
+export function bossLook(cfg = {}) {
+  const real = !!BOSSES[cfg.type];
+  const stand = real ? null : BOSS_STANDINS[cfg.type] || null;
+  const type = real ? cfg.type : stand ? stand.type : 'grawlstone';
+  const skin = cfg.skin || (stand && stand.skin) || null;
+  const named = stand || BOSS_SKIN_NAMES[type + ':' + skin] || BOSSES[type];
+  return { type, skin, name: named.name, subtitle: named.subtitle };
+}

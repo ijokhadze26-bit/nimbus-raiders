@@ -5,6 +5,7 @@
 import { weaponDef } from '../data/weapons.js';
 import { bindWeapons } from './bindweapons.js';
 import { bindHeroes } from './bindheroes.js';
+import { runTrackFor } from './tracks.js';
 
 const POP_PITCH = { grunt: 1, runner: 1.28, tank: 0.68, shield: 0.88, bomber: 1.1 };
 const BOSS_ATTACK = { slam: 'slam', roll: 'rumble', orb: 'orb', orbs: 'orb', volley: 'orb', summon: 'summon', puddle: 'summon', charge: 'charge', lightning: 'lightning', strike: 'lightning' };
@@ -21,6 +22,9 @@ export function bindAudio(audio, game) {
   let holdUntil = 0;       // context time until which a stinger owns the stage
   let runStartedAt = -10;
 
+  // update 3: the run track follows the run's world (game.run.world, see game/worldlook.js); bosses keep 'boss'
+  const runTrack = () => runTrackFor(game.run && game.run.world);
+
   function wantedTrack() {
     const s = game.state;
     if (s === 'boot') return null;
@@ -28,7 +32,7 @@ export function bindAudio(audio, game) {
       const ph = game.run && game.run.phase;
       if (ph === 'boss') return game.boss && game.boss.alive === false ? null : 'boss';
       if (ph === 'won' || ph === 'lost') return null;
-      return 'run';
+      return runTrack();
     }
     return 'title';
   }
@@ -57,7 +61,8 @@ export function bindAudio(audio, game) {
     if (!m) return;
     const cur = m.current;
     // retry from a run: restart the run track from the top (unless game:state just started it)
-    if (!(cur && cur.name === 'run' && now() - cur.t0 < 0.5)) m.play('run', { restart: true, fade: 0.6 });
+    const track = runTrack();
+    if (!(cur && cur.name === track && now() - cur.t0 < 0.5)) m.play(track, { restart: true, fade: 0.6 });
     runStartedAt = now();
   });
   on('run:phase', (p) => {

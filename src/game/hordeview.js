@@ -2,7 +2,7 @@
 // Shieldbearer shields, Fizzbomb fuse sparks, instanced blob shadows and bomber blast puffs.
 import * as THREE from 'three';
 import { ENEMY_TYPES, ENEMIES } from '../data/enemies.js';
-import { buildMurklingGeometry, buildShieldGeometry, buildSparkGeometry } from '../models/murklings.js';
+import { buildMurklingGeometry, buildShieldGeometry, buildSparkGeometry, murklingBodyColor } from '../models/murklings.js';
 import { fxToonMaterial, blobShadowTexture } from '../models/materials.js';
 import { XF, writeXfYawRoll, writeXfYaw, markInstances } from '../core/pool.js';
 import { part, merge, G } from '../models/util.js';
@@ -54,9 +54,40 @@ export class HordeView {
     this.blastMesh.frustumCulled = false; this.blastMesh.count = 0; this.blastMesh.renderOrder = 7;
     scene.add(this.shields, this.sparks, this.blobs, this.blastMesh);
     this.blastData = [];
+    this.skin = 'sky';
+    this.skinCache = new Map(); // 'type:skin' -> Float32Array vertex colours
+    this.bodyColors = ENEMY_TYPES.map((t) => murklingBodyColor(t));
   }
 
-  reset() { this.blastData.length = 0; }
+  reset() {
+    this.blastData.length = 0;
+    const run = this.game.run;
+    this.setSkin((run && run.world) || 'sky');
+    const th = this.game.world && this.game.world.theme;
+    this.blobs.material.color.set((th && th.blob) || '#2a3f7a');
+  }
+
+  /**
+   * World skin (update 3): swaps the vertex colours of the existing per-type geometries in place (same parts,
+   * same vertex count, so no new mesh, material or shader program). Arrays are cached per type + skin.
+   */
+  setSkin(skin) {
+    if (skin === this.skin) return;
+    this.skin = skin;
+    ENEMY_TYPES.forEach((t, i) => {
+      const key = t + ':' + skin;
+      let arr = this.skinCache.get(key);
+      if (!arr) {
+        const g = buildMurklingGeometry(t, skin);
+        arr = g.attributes.color.array;
+        g.dispose();
+        this.skinCache.set(key, arr);
+      }
+      const col = this.meshes[i].mesh.geometry.attributes.color;
+      if (col.array.length === arr.length) { col.array.set(arr); col.needsUpdate = true; }
+      this.bodyColors[i] = murklingBodyColor(t, skin);
+    });
+  }
 
   blast(x, z, r) {
     if (this.blastData.length >= MAX_BLASTS) this.blastData.shift();
