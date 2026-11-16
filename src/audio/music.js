@@ -100,6 +100,7 @@ class Player {
           if (n[0] !== s) continue;
           const len = n[2] * this.stepDur;
           if (p.inst === 'mallet') I.mallet(ctx, wet, t, n[1], v, 0.15);
+          else if (p.inst === 'brass') I.brass(ctx, wet, t, n[1], len, v);
           else I.lead(ctx, wet, t, n[1], len, v, p.inst === 'leadSaw' ? 'sawtooth' : 'square');
         }
         continue;

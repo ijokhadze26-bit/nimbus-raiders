@@ -36,6 +36,8 @@ import { Loadout } from './loadout.js';
 import { autoLoadout } from './autopilot2.js';
 import { cameraGoal, snapCamera, updateCamera } from './camera.js';
 import { createZoneViews } from '../models/weapons/zones.js';
+import { Finish } from './finish.js';
+import { worldFor } from './worldlook.js';
 
 const ATTRACT_COUNT = 9;
 
@@ -105,6 +107,7 @@ export class Game {
     for (const s of this.systems) s.init(this);
     this.endless.init(this);
     this.zoneViews = createZoneViews(this);
+    this.finish = new Finish(); this.finish.init(this); // update 3 finish arch
 
     if (this.quality.setting === 'low') this.applyQuality('low');
     this.debug = createDebug(this);
@@ -159,6 +162,7 @@ export class Game {
     this.runOpts = { ...opts, hero, weapon };
     this.run = new Run(def, mode, this.events);
     this.run.hero = hero; this.run.weapon = weapon;
+    const world = worldFor(def, mode); this.run.world = world.key; this.run.worldId = world.id; // update 3 looks
     this.run.killsBy = { weapon: 0, ability: 0, helper: 0, other: 0 };
     if (mode === 'endless') this.endless.start(this.run, seed); else this.endless.stop();
     this.timeScale = 1;
@@ -167,6 +171,7 @@ export class Game {
     this.world.setTheme(def.theme);
     this.world.setGaps([]);
     this.world.reset();
+    this.finish.reset(this.run);
     this.bullets.reset();
     this.heroes.reset(this.run, hero);
     this.loadout.applyLook(hero);
@@ -255,6 +260,7 @@ export class Game {
     this.weapons.enabled = false;
     this.world.setTheme('noon');
     this.world.reset();
+    this.finish.reset(null);
     this.snapCamera();
     this.setState('title');
   }

@@ -333,7 +333,7 @@ export class Horde {
       if (run.killsBy) run.killsBy[KILL_CAT[cause] || 'other']++;
     }
     const p = this.diePos; p.x = e.x; p.y = 0.5; p.z = e.z;
-    if (this.game.events.wants('enemy:die')) this.game.events.emit('enemy:die', { type: e.def.id, pos: p, color: e.def.color });
+    if (this.game.events.wants('enemy:die')) this.game.events.emit('enemy:die', { type: e.def.id, pos: p, color: this.view.bodyColors[e.type] || e.def.color });
     if (e.def.blastRadius && cause !== 'contact') this.queueBlast(e.x, e.z, e.def.blastRadius, cause === 'blast' ? CHAIN_DELAY : 0.02);
   }
 

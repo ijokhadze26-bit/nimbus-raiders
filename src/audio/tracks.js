@@ -86,3 +86,123 @@ export const TRACKS = {
     ],
   },
 };
+
+// ---------------- update 3: world run tracks ----------------
+const MEL_FORGE = {
+  0: [[0, 64, 2], [2, 67, 2], [4, 71, 4], [8, 69, 2], [10, 67, 2], [12, 66, 2], [14, 67, 2]],
+  1: [[0, 72, 6], [6, 71, 2], [8, 67, 4], [12, 64, 4]],
+  2: [[0, 69, 2], [2, 72, 2], [4, 76, 4], [8, 74, 2], [10, 72, 2], [12, 71, 4]],
+  3: [[0, 71, 4], [4, 75, 4], [8, 78, 6], [14, 75, 2]],
+  4: [[0, 76, 2], [2, 74, 2], [4, 71, 4], [8, 72, 2], [10, 71, 2], [12, 69, 2], [14, 67, 2]],
+  5: [[0, 67, 4], [4, 72, 4], [8, 76, 6], [14, 74, 2]],
+  6: [[0, 72, 3], [3, 71, 3], [6, 69, 2], [8, 72, 4], [12, 76, 4]],
+  7: [[0, 75, 4], [4, 71, 4], [8, 63, 2], [10, 66, 2], [12, 71, 4]],
+};
+
+const MEL_FROST = {
+  0: [[0, 81, 4], [4, 84, 4], [8, 88, 6]],
+  1: [[0, 84, 4], [4, 81, 2], [6, 77, 6], [12, 79, 4]],
+  2: [[0, 79, 4], [4, 83, 4], [8, 84, 8]],
+  3: [[0, 83, 4], [4, 79, 4], [8, 76, 8]],
+  4: [[0, 76, 2], [2, 81, 2], [4, 84, 4], [8, 86, 4], [12, 84, 4]],
+  5: [[0, 81, 6], [6, 77, 2], [8, 79, 4], [12, 77, 4]],
+  6: [[0, 76, 4], [4, 79, 4], [8, 84, 4], [12, 83, 4]],
+  7: [[0, 83, 8], [8, 81, 8]],
+};
+
+const MEL_CANDY = {
+  0: [[0, 76, 1], [2, 79, 1], [4, 84, 2], [6, 79, 1], [8, 76, 2], [10, 79, 2], [12, 72, 4]],
+  1: [[0, 81, 2], [2, 79, 1], [3, 76, 1], [4, 72, 2], [8, 76, 1], [10, 81, 2], [12, 84, 4]],
+  2: [[0, 77, 1], [2, 81, 1], [4, 84, 2], [6, 81, 1], [8, 77, 2], [10, 81, 2], [12, 79, 4]],
+  3: [[0, 79, 2], [2, 83, 2], [4, 86, 4], [8, 83, 2], [10, 79, 2], [12, 74, 4]],
+  4: [[0, 84, 1], [2, 83, 1], [4, 79, 2], [6, 76, 1], [8, 79, 2], [10, 84, 2], [12, 88, 4]],
+  5: [[0, 84, 2], [2, 81, 2], [4, 76, 4], [8, 72, 2], [10, 76, 2], [12, 81, 4]],
+  6: [[0, 77, 2], [2, 81, 2], [4, 84, 2], [6, 89, 4], [12, 88, 2], [14, 86, 2]],
+  7: [[0, 86, 2], [2, 83, 2], [4, 79, 2], [6, 74, 2], [8, 79, 4], [12, 72, 4]],
+};
+
+const MEL_CITADEL = {
+  0: [[0, 74, 4], [4, 77, 2], [6, 81, 6], [12, 79, 2], [14, 77, 2]],
+  1: [[0, 82, 6], [6, 81, 2], [8, 77, 4], [12, 74, 4]],
+  2: [[0, 79, 4], [4, 76, 2], [6, 72, 2], [8, 76, 4], [12, 79, 4]],
+  3: [[0, 81, 8], [8, 73, 4], [12, 76, 4]],
+  4: [[0, 86, 4], [4, 84, 2], [6, 81, 6], [12, 77, 2], [14, 81, 2]],
+  5: [[0, 82, 4], [4, 86, 4], [8, 89, 6], [14, 86, 2]],
+  6: [[0, 86, 3], [3, 82, 3], [6, 79, 2], [8, 82, 4], [12, 74, 4]],
+  7: [[0, 76, 4], [4, 73, 4], [8, 69, 8]],
+};
+
+Object.assign(TRACKS, {
+  // Volcanic Forge: heavy and stompy. E minor, syncopated heavy kick, low gritty bass, power stabs, saw lead
+  forge: {
+    bpm: 112, swing: 0, bars: 16, gain: 0.82, delayBeats: 0.5,
+    chords: ['Em', 'C', 'Am', 'B'],
+    parts: [
+      { inst: 'kickH', pat: 'x..x..x.x..x..x.', fills: { 7: 'x..x..x.x.x.x.x.', 15: 'x..x..x.x.xxxxxx' }, v: 1 },
+      { inst: 'snareF', pat: '....x.......x...', fills: { 15: '....x.......xxxx' }, v: 0.9 },
+      { inst: 'hat', pat: 'x.x.x.x.x.x.x.x.', v: 0.45 },
+      { inst: 'tom', pat: 'x.x.x.x.x.x.x.x.', only: [7, 15], v: 0.7 },
+      { inst: 'crash', pat: 'x...............', only: [0, 8], v: 0.8 },
+      { inst: 'bass', pat: 'r-.rr-.rr-.ro-f-', lo: 28, v: 0.95, bright: 0.35 },
+      { inst: 'stab', pat: 'x.......x..x....', lo: 52, from: 0, to: 8, v: 0.55 },
+      { inst: 'pad', lo: 52, v: 0.4 },
+      { inst: 'leadSaw', mel: MEL_FORGE, from: 8, to: 16, v: 0.78 },
+    ],
+  },
+  // Frozen Peaks: airy and slower. A minor sevenths, soft half-time beat, bell arpeggios + a high bell tune
+  frost: {
+    bpm: 92, swing: 0.08, bars: 16, gain: 0.95, delayBeats: 0.75,
+    chords: ['Am7', 'Fmaj7', 'Cmaj7', 'Em7'],
+    parts: [
+      { inst: 'kick', pat: 'x.........x.....', v: 0.55 },
+      { inst: 'rim', pat: '........x.......', v: 0.6 },
+      { inst: 'shaker', pat: 'o.o.o.o.o.o.o.o.', v: 0.45 },
+      { inst: 'hat', pat: '..............x.', v: 0.3, open: true },
+      { inst: 'riser', pat: 'x...............', only: [15], v: 0.4 },
+      { inst: 'bass', pat: 'r-------f---r---', lo: 33, v: 0.7, bright: 0.25 },
+      { inst: 'pad', lo: 57, v: 0.8 },
+      { inst: 'mallet', pat: 'r..f..o..t..F...', lo: 69, v: 0.42 },
+      { inst: 'pluck', pat: 'r...f...o...f...', lo: 57, from: 0, to: 8, v: 0.35 },
+      { inst: 'mallet', mel: MEL_FROST, from: 8, to: 16, v: 0.8 },
+    ],
+  },
+  // Candy Kingdom: bouncy and playful. C major, swung, skipping bass, mallet tune then a square-lead answer
+  candy: {
+    bpm: 134, swing: 0.14, bars: 16, gain: 0.88, delayBeats: 0.75,
+    chords: ['C', 'Am', 'F', 'G'],
+    parts: [
+      { inst: 'kick', pat: 'x.....x.x...x...', v: 0.85 },
+      { inst: 'clap', pat: '....x.......x...', v: 0.8 },
+      { inst: 'shaker', pat: 'o.x.o.x.o.x.o.x.', v: 0.6 },
+      { inst: 'hat', pat: '..x...x...x...x.', v: 0.35, open: true },
+      { inst: 'crash', pat: 'x...............', only: [0, 8], v: 0.7 },
+      { inst: 'riser', pat: 'x...............', only: [15], v: 0.5 },
+      { inst: 'bass', pat: 'r..ro..rf..ro.t.', lo: 36, v: 0.8, bright: 0.7 },
+      { inst: 'pad', lo: 60, v: 0.45 },
+      { inst: 'pluck', pat: 'r.t.f.t.R.f.t.f.', lo: 60, from: 0, to: 8, v: 0.55 },
+      { inst: 'mallet', mel: MEL_CANDY, from: 0, to: 8, v: 0.85 },
+      { inst: 'lead', mel: MEL_CANDY, from: 8, to: 16, v: 0.8 },
+    ],
+  },
+  // Storm Citadel: epic and driving. D minor with a harmonic-minor A, 16th bass, stabs, brass hero theme
+  citadel: {
+    bpm: 140, swing: 0, bars: 16, gain: 0.8, delayBeats: 0.5,
+    chords: ['Dm', 'Bb', 'C', 'A', 'Dm', 'Bb', 'Gm', 'A'],
+    parts: [
+      { inst: 'kickH', pat: 'x...x...x...x.x.', fills: { 7: 'x...x...x.x.x.xx', 15: 'x.x.x.x.xxxxxxxx' }, v: 1 },
+      { inst: 'snareF', pat: '....x.......x...', fills: { 15: '....x...x.x.xxxx' }, v: 0.9 },
+      { inst: 'hat', pat: 'xoxoxoxoxoxoxoxo', v: 0.55 },
+      { inst: 'tom', pat: '..........x.x.x.', only: [7, 15], v: 0.8 },
+      { inst: 'crash', pat: 'x...............', only: [0, 8], v: 0.8 },
+      { inst: 'riser', pat: 'x...............', only: [7, 15], v: 0.7 },
+      { inst: 'bass', pat: 'rrrorrrorrrorrfo', lo: 26, v: 0.75, bright: 0.55 },
+      { inst: 'pad', lo: 50, v: 0.55 },
+      { inst: 'stab', pat: 'x..x..x...x..x..', lo: 50, from: 0, to: 8, v: 0.6 },
+      { inst: 'pluck', pat: 'rfRfrfRfrfRfrfRf', lo: 62, from: 8, to: 16, v: 0.35 },
+      { inst: 'brass', mel: MEL_CITADEL, from: 8, to: 16, v: 0.9 },
+    ],
+  },
+});
+
+/** Run track of a world key ('sky' -> 'run'). */
+export function runTrackFor(world) { return world && world !== 'sky' && TRACKS[world] ? world : 'run'; }

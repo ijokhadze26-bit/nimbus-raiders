@@ -10,6 +10,8 @@ import { weaponIcon } from './icons2.js';
 import { MAX_MK, mkLabel, weaponDef, weaponUiColor } from '../data/weapons.js';
 import { mountAbility } from './hudability.js';
 import { fmt } from './ui.js';
+import { WORLDS } from '../data/worlds.js';
+import { isCampaign } from '../game/worldlook.js';
 
 const _v = new THREE.Vector3();
 
@@ -76,6 +78,8 @@ export class Hud {
     root.appendChild(this.card);
     this.banner = el('div', 'tier-banner hidden');
     root.appendChild(this.banner);
+    this.worldBanner = el('div', 'world-banner hidden'); // update 3: "WORLD 2 · VOLCANIC FORGE" at a level start
+    root.appendChild(this.worldBanner);
     this.hpFrac = 1; this.lagFrac = 1;
     this.bossShown = false; this.fillW = -1; this.lagW = -1;
     this.pendingGain = false; this.pendingLoss = false; this.pulse = null; this.lossUntil = 0;
@@ -143,6 +147,19 @@ export class Hud {
     this.el.classList.toggle('hinting', this.hintOn);
     this.compact = null; this.faded = null;
     this.banner.classList.add('hidden');
+    this.showWorldBanner(run, p);
+  }
+
+  /** Campaign level start: world number + name and the level name, 2 s CSS animation, never blocks input. */
+  showWorldBanner(run, p) {
+    clearTimeout(this.worldT);
+    const w = run && isCampaign(run.def, p.mode) ? WORLDS[(run.worldId || 1) - 1] : null;
+    if (!w) { this.worldBanner.classList.add('hidden'); return; }
+    this.worldBanner.style.setProperty('--wc', w.color);
+    this.worldBanner.innerHTML = `<div class="wb-world">WORLD ${w.id} · ${w.name}</div><div class="wb-level">${esc(run.name || 'LEVEL ' + p.levelId)}</div>`;
+    this.worldBanner.classList.remove('hidden');
+    restartAnim(this.worldBanner);
+    this.worldT = setTimeout(() => this.worldBanner.classList.add('hidden'), 2000);
   }
 
   /** Badge: weapon icon, short name, "Mk III" and 5 pips in the weapon's own colour. */
@@ -285,6 +302,7 @@ export class Hud {
       if (state !== 'result') this.hideBoss(true);
       else this.bossBar.classList.add('hidden');
       this.banner.classList.add('hidden');
+      this.worldBanner.classList.add('hidden'); clearTimeout(this.worldT);
     }
   }
 
@@ -351,6 +369,8 @@ export class Hud {
   }
 }
 
+const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' };
+function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ESC[c]); }
 function el(tag, cls) { const e = document.createElement(tag); e.className = cls; return e; }
 // Restarting a CSS animation by reading offsetWidth forces a synchronous layout of the whole HUD (it ran on
 // every coin pickup). Rewinding the element's running animations does the same without layout.

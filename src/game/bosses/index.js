@@ -7,6 +7,8 @@ import { Ironhorn } from './ironhorn.js';
 import { TempestKing } from './tempestking.js';
 import { BossEffects } from './effects.js';
 import { warmBoss } from '../warmup.js';
+import { bossLook } from '../../data/bosses.js';
+import { prepare } from './skins.js';
 
 export const BOSS_CLASSES = {
   grawlstone: Grawlstone,
@@ -32,16 +34,24 @@ export class Bosses {
   /** Builds the level's boss model ahead of time (called at run start, when frames are cheap). */
   preload(cfg) {
     if (!cfg) return;
-    const Cls = BOSS_CLASSES[cfg.type] || Grawlstone;
+    const look = bossLook(cfg);
+    const Cls = BOSS_CLASSES[look.type] || Grawlstone;
     if (Cls.preload) Cls.preload(this.game);
-    warmBoss(this.game, BOSS_CLASSES[cfg.type] ? cfg.type : 'grawlstone');
+    warmBoss(this.game, BOSS_CLASSES[look.type] ? look.type : 'grawlstone');
+    // world skin: remapped vertex colours are computed now (run start), the spawn only copies them in
+    const m = this.models.get(look.type);
+    if (look.skin && m && m.root) prepare(m.root, look.skin);
   }
 
-  /** Spawns the level boss; unknown types fall back to Grawlstone until their class exists. */
+  /**
+   * Spawns the level boss. Unknown types fall back to Grawlstone until their class exists (glacius /
+   * gumdrop fight as a frost / candy Grawlstone under their own name, see bossLook); cfg.skin recolours.
+   */
   spawn(cfg) {
     this.clear();
-    const Cls = BOSS_CLASSES[cfg.type] || Grawlstone;
-    this.active = new Cls(this.game, { ...cfg, type: BOSS_CLASSES[cfg.type] ? cfg.type : 'grawlstone' });
+    const look = bossLook(cfg);
+    const Cls = BOSS_CLASSES[look.type] || Grawlstone;
+    this.active = new Cls(this.game, { ...cfg, type: look.type, skin: look.skin, name: look.name, subtitle: look.subtitle });
     this.game.boss = this.active;
     return this.active;
   }
