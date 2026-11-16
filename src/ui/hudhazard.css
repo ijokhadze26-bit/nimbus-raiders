@@ -1,0 +1,18 @@
+/* update 3: hazard hint line under the top bar (ui/hudhazard.js) */
+.hazard-hint {
+  --hc: #ffd34d;
+  position: absolute; left: 50%; top: calc(var(--safe-t, 0px) + 118px); z-index: 3; pointer-events: none;
+  max-width: calc(100% - 32px); padding: 7px 16px 9px; border-radius: 14px; text-align: center; white-space: nowrap;
+  font-size: min(18px, 4.6cqw); letter-spacing: 0.5px; color: #fff;
+  background: rgba(20, 16, 40, 0.72); border: 3px solid var(--hc); box-shadow: 0 4px 0 var(--outline, #1b3a8a), 0 0 22px var(--hc);
+  transform: translateX(-50%);
+  animation: hazard-in 2.8s cubic-bezier(.2, 1.2, .4, 1) both;
+}
+.hazard-hint.hidden { display: none; }
+.hazard-hint .hh-head { color: var(--hc); -webkit-text-stroke: 4px var(--outline, #1b3a8a); paint-order: stroke fill; }
+.hazard-hint .hh-tail { -webkit-text-stroke: 4px var(--outline, #1b3a8a); paint-order: stroke fill; }
+@keyframes hazard-in {
+  0% { transform: translate(-50%, -14px) scale(0.85); opacity: 0; } 10% { transform: translate(-50%, 0) scale(1.06); opacity: 1; }
+  18% { transform: translate(-50%, 0) scale(1); } 86% { opacity: 1; } 100% { transform: translate(-50%, -8px); opacity: 0; }
+}
+@container (max-width: 360px) { .hazard-hint { white-space: normal; } }

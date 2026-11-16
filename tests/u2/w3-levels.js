@@ -64,7 +64,8 @@ ok(Math.abs(L.getLevel(20).reward - 260) <= 30 && Math.abs(L.getLevel(50).reward
 // L1-15 beats unchanged: the old length stays the beat layout; a bossless level only adds the 24 u rush tail
 for (let id = 1; id <= 15; id++) { const lv = L.getLevel(id); ok(lv.layout + (lv.finish ? 24 : 0) === lv.length, `L${id} layout ${lv.layout} / length ${lv.length}`); }
 // deterministic generation
-for (const id of [16, 23, 33, 43, 50]) { const { world, kind, ...lv } = L.getLevel(id); eq(JSON.stringify(GEN.generateLevel(id)), JSON.stringify(lv), `L${id} regenerates identically`); }
+// (stage 2: the world hazards are added on top by data/hazardplan.js, so they are left out of the comparison)
+for (const id of [16, 23, 33, 43, 50]) { const { world, kind, ...lv } = L.getLevel(id); lv.events = lv.events.filter((e) => e.type !== 'hazard'); eq(JSON.stringify(GEN.generateLevel(id)), JSON.stringify(lv), `L${id} regenerates identically`); }
 info.table = L.LEVELS.map((l) => `${l.id}${l.boss ? '[' + l.boss.type + (l.boss.skin ? '/' + l.boss.skin : '') + (l.boss.mini ? ' mini' : '') + ']' : ''}`).join(' ');
 
 // ---------------- 2. bossless run: wins at length, nothing hurts after the win ----------------

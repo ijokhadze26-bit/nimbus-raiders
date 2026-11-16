@@ -12,6 +12,7 @@ import { mountAbility } from './hudability.js';
 import { fmt } from './ui.js';
 import { WORLDS } from '../data/worlds.js';
 import { isCampaign } from '../game/worldlook.js';
+import { mountHazardHint } from './hudhazard.js';
 
 const _v = new THREE.Vector3();
 
@@ -110,6 +111,7 @@ export class Hud {
     ev.on('power:end', (p) => this.hidePower(p.kind));
     this.abilityMount = this.el.querySelector('.hud-ability-mount');
     this.ability = mountAbility(this, this.abilityMount) || null;
+    this.hazardHint = mountHazardHint(this); // update 3: world hazard hint line
     this.onState(game.state);
   }
 

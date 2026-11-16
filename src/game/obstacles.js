@@ -125,7 +125,8 @@ export class Obstacles {
       if (b.z > L.z + 16) { this.release(b); this.blades[i] = this.blades[this.blades.length - 1]; this.blades.pop(); }
     }
 
-    if (live && this.gaps.length) {
+    // update 3: a jelly launch (game.hazards.mods.airborne) carries the squad over holes
+    if (live && this.gaps.length && !(game.hazards && game.hazards.mods.airborne)) {
       const back = -(c.z + c.r) - 1, front = dist + 1;
       for (const g of this.gaps) {
         if (g.from < front && g.to > back) { squad.fallCheck(this.overGap); break; }

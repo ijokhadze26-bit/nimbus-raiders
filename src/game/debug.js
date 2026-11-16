@@ -134,6 +134,7 @@ export function createDebug(game) {
       game.horde.skipAll();
       game.barrels.skipAll();
       if (game.obstacles) game.obstacles.skipAll();
+      if (game.hazards) game.hazards.skipAll();
       if (game.pickups) game.pickups.skipAll();
       if (game.crates) game.crates.skipAll();
       game.snapCamera();
@@ -156,6 +157,8 @@ export function createDebug(game) {
         pipGone: game.squad.pipGone,
       };
     },
+    /** Update 3 world hazards: live objects, current mods, danger zone count, spawn / kill tallies. */
+    worldHazards() { return game.hazards ? game.hazards.state() : null; },
     killBoss() { if (game.boss && game.boss.kill) game.boss.kill(); return debug.state(); },
     /** Throwaway arena run against one boss: bossTest('oculon', { weapon: id | mk, mk, hero, squad, hp, tier }). */
     bossTest(type, opts) { return bossTest(game, type, opts); },

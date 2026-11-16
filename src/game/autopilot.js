@@ -3,6 +3,8 @@
 // strong > line up with worthwhile barrels (and never run into an unbroken one) > in the boss arena, stand
 // in front of the boss. Blades and gaps are a hard filter on the final x: the whole formation (not just Pip)
 // is tested against each hazard; power tokens (and coins when idle) are grabbed when the path is safe.
+// Update 3 world hazards: their telegraphs (flagged `hazard`) are not dodged as boss attacks; the squad keeps out
+// of game.hazards.danger zones instead (same hard filter as blades / gaps, zones may carry pad / shift / w).
 // Skill profiles (balance tests): 'pro' plays perfectly; 'casual' / 'novice' react late, misjudge close gate
 // calls, often judge a gate by its current number, dodge telegraphs late (or not at all), wobble and clip
 // hazard edges. Their randomness comes from the bot's own seeded rng (one seed per run), never game.rng.
@@ -127,7 +129,7 @@ export class Autopilot {
   decide() {
     const game = this.game;
     const L = game.squad.leader;
-    const tel = game.telegraph ? game.telegraph.active : [];
+    const tel = this.bossTel(game.telegraph ? game.telegraph.active : []);
     // live boss hazards that outlast their warning (charges, laser sweeps, quake crests, goo puddles)
     const zones = game.boss && game.boss.dangerZones;
     let x = null;
@@ -158,6 +160,17 @@ export class Autopilot {
     if (!seen.length) this.targetX = this.avoidHazards(this.targetX);
     this.targetX = Math.max(-TARGET_CLAMP, Math.min(TARGET_CLAMP, this.targetX));
     return this.targetX;
+  }
+
+  /** Telegraphs minus world-hazard ones (those are read as game.hazards.danger zones, see hazardLoss). */
+  bossTel(list) {
+    let n = 0;
+    for (let i = 0; i < list.length; i++) if (list[i].hazard) n++;
+    if (!n) return list;
+    const out = this.telBuf || (this.telBuf = []);
+    out.length = 0;
+    for (let i = 0; i < list.length; i++) if (!list[i].hazard) out.push(list[i]);
+    return out;
   }
 
   /** Candidate x that keeps the most members out of the marked areas. */
@@ -307,7 +320,8 @@ export class Autopilot {
    */
   hazardLoss(cx) {
     const game = this.game, obs = game.obstacles;
-    if (!obs || (!obs.blades.length && !obs.gaps.length)) return 0;
+    const dz = game.hazards ? game.hazards.danger : null;
+    if ((!obs || (!obs.blades.length && !obs.gaps.length)) && !(dz && dz.length)) return 0;
     const squad = game.squad, L = squad.leader, ms = squad.members;
     const speed = Math.max(1, game.run ? game.run.speed : 9);
     const dx = cx - L.x;
@@ -336,7 +350,31 @@ export class Autopilot {
       if (!squad.pipGone && over(cx, L.z)) loss += 3;
       for (let i = 0; i < ms.length; i += stride) if (over(clampX(ms[i].tx + dx), ms[i].tz)) loss += stride;
     }
+    if (dz) for (const zn of dz) loss += this.zoneLoss(zn, cx, dx, back, stride);
     return loss;
+  }
+
+  /**
+   * World-hazard danger zone: members whose shifted x crosses it before the whole zone is behind them (a
+   * column ahead of the squad, like the gap test). 'casual' / 'novice' miss some zones and clip their edges.
+   */
+  zoneLoss(zn, cx, dx, back, stride) {
+    const p = this.p, squad = this.game.squad, L = squad.leader, ms = squad.members;
+    if (p.dodgeMiss && this.roll(zn, 'miss') < p.dodgeMiss) return 0;
+    if (p.dodgeDelay) { // noticed late, like a telegraph (dodgeDelay includes the output delay)
+      if (!this.seen.has(zn)) this.seen.set(zn, this.clock);
+      if (this.clock - this.seen.get(zn) < Math.max(0, p.dodgeDelay - p.react)) return 0;
+    }
+    const pad = (zn.pad ?? 0.3) - (p.clip && this.roll(zn, 'clip') < p.clip ? p.clipPad : 0);
+    const circle = zn.kind === 'circle';
+    const near = circle ? zn.z + zn.r : zn.zNear, far = circle ? zn.z - zn.r : zn.zFar;
+    if (L.z - near > (this.look || HAZ_LOOK) || far > back + pad) return 0;
+    const sh = zn.shift || 0, w = zn.w ?? 1;
+    const inX = circle ? (x) => Math.abs(x + sh - zn.x) < zn.r + pad : (x) => x + sh > zn.x0 - pad && x + sh < zn.x1 + pad;
+    let loss = 0;
+    if (!squad.pipGone && inX(cx) && L.z > far - pad) loss += 3;
+    for (let i = 0; i < ms.length; i += stride) if (ms[i].tz > far - pad && inX(clampX(ms[i].tx + dx))) loss += stride;
+    return loss * w;
   }
 
   /** Keeps x when it is clean, otherwise the nearby candidate that loses the fewest members. */

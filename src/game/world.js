@@ -34,6 +34,7 @@ export class World {
     this.gapViews = new Map(); // gap object -> dressing (lips, depth walls, pit shade, chevrons)
     this.baseRow = null;
     this.camZ = 0;
+    this.fogK = 1; this.darkK = 0;   // update 3 hazards: snowstorm fog pull-in, darkness (game.hazards.mods)
 
     // Sky + sea
     this.sky = createSky();
@@ -178,6 +179,7 @@ export class World {
     this.islands.frustumCulled = false;
     this.scene.add(this.islands);
     this.baseRow = null;
+    this.fogK = 1; this.darkK = 0;
     this.clearGapViews();
     this.syncGapViews();
   }
@@ -240,6 +242,7 @@ export class World {
     this.updatePuffs(camZ);
     this.updateIslands(camZ);
     if (this.flash) this.updateFlash(dt);
+    this.updateHazardAir(dt);
     // sky/sea follow camera
     this.sky.mesh.position.set(focusX * 0.3, 0, camZ);
     this.sky.uniforms.uTime.value = this.time;
@@ -252,6 +255,22 @@ export class World {
     const tx = Math.round(focusX / snap) * snap, tz = Math.round((focusZ - 5) / snap) * snap;
     this.sun.target.position.set(tx, 0, tz);
     this.sun.position.set(tx + 7, 18, tz + 9);
+  }
+
+  /** Snowstorm fog (mods.fogMul pulls fog near / far in) and darkness (mods.dark dims the sky light), eased. */
+  updateHazardAir(dt) {
+    const hz = this.game.hazards, run = this.game.run;
+    const fm = hz && run ? hz.mods.fogMul : 1, dk = hz && run ? hz.mods.dark : 0;
+    if (fm === 1 && this.fogK === 1 && dk === 0 && this.darkK === 0) return;
+    const k = Math.min(1, dt * 2.5);
+    this.fogK += (fm - this.fogK) * k;
+    this.darkK += (dk - this.darkK) * k;
+    if (Math.abs(this.fogK - 1) < 0.003) this.fogK = 1;
+    if (this.darkK < 0.003) this.darkK = 0;
+    const t = this.theme;
+    this.scene.fog.near = t.fog.near * this.fogK; this.scene.fog.far = t.fog.far * this.fogK;
+    if (!this.flash) { this.hemi.intensity = t.hemi.intensity * (1 - 0.55 * this.darkK); this.sun.intensity = t.dir.intensity * (1 - 0.55 * this.darkK); }
+    else if (this.darkK > 0) { this.hemi.intensity *= 1 - 0.55 * this.darkK; this.sun.intensity *= 1 - 0.55 * this.darkK; }
   }
 
   updateRoad(focusZ) {

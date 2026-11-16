@@ -38,6 +38,7 @@ import { cameraGoal, snapCamera, updateCamera } from './camera.js';
 import { createZoneViews } from '../models/weapons/zones.js';
 import { Finish } from './finish.js';
 import { worldFor } from './worldlook.js';
+import { Hazards } from './hazards/index.js';
 
 const ATTRACT_COUNT = 9;
 
@@ -103,7 +104,8 @@ export class Game {
     this.zones = new Zones();
     this.heroes = new HeroSystem();
     this.crates = new Crates();
-    this.systems = [this.world, this.bullets, this.squad, this.status, this.zones, this.heroes, this.helpers, this.weapons, this.gates, this.horde, this.barrels, this.telegraph, this.bosses, this.obstacles, this.pickups, this.powers, this.crates, this.autopilot];
+    this.hazards = new Hazards(); // update 3 world hazards (mods / danger read by squad, world, obstacles, autopilot)
+    this.systems = [this.world, this.bullets, this.squad, this.status, this.zones, this.heroes, this.helpers, this.weapons, this.gates, this.horde, this.barrels, this.telegraph, this.bosses, this.obstacles, this.hazards, this.pickups, this.powers, this.crates, this.autopilot];
     for (const s of this.systems) s.init(this);
     this.endless.init(this);
     this.zoneViews = createZoneViews(this);
@@ -199,6 +201,7 @@ export class Game {
     this.barrels.reset(run);
     this.helpers.reset();
     this.obstacles.reset(run);
+    this.hazards.reset(run);
     this.pickups.reset(run);
     this.powers.reset();
     this.status.reset();
@@ -324,7 +327,7 @@ export class Game {
   forwardSpeed(dt) {
     const run = this.run;
     if (!run) return 0;
-    if (run.phase === 'run') return run.speed;
+    if (run.phase === 'run') return run.speed * this.hazards.mods.speedMul;
     if (run.phase === 'won') return Math.max(0, this.squad.speed - 10 * dt);
     return 0;
   }
@@ -345,6 +348,7 @@ export class Game {
       run.stats.maxSquad = Math.max(run.stats.maxSquad, this.squad.count);
       this.gates.update(dt);
       this.obstacles.update(dt);
+      this.hazards.update(dt);
       this.pickups.update(dt);
       this.powers.update(dt);
       this.heroes.update(dt);
@@ -417,6 +421,7 @@ export class Game {
     this.horde.sync(dt);
     this.helpers.sync(dt);
     this.obstacles.sync(dt);
+    this.hazards.sync(dt);
     this.pickups.sync(dt);
     this.powers.sync(dt);
     this.telegraph.sync(dt);

@@ -331,8 +331,15 @@ export class Squad {
     this.time += dt;
     const L = this.leader;
     const px = L.x;
-    const ease = MOVE.ease * (this.game.heroes ? this.game.heroes.easeMul : 1);
-    L.x += (targetX - L.x) * (1 - Math.exp(-ease * dt));
+    const hz = this.game.hazards ? this.game.hazards.mods : null; // update 3 world hazards (ice, avalanche, syrup)
+    const ease = MOVE.ease * (this.game.heroes ? this.game.heroes.easeMul : 1) * (hz ? hz.easeMul : 1);
+    if (hz && hz.slide > 0 && dt > 0) {
+      // ice: the leader keeps its sideways velocity and only slowly turns toward the line it is steered to
+      const want = Math.max(-11, Math.min(11, (targetX - L.x) * Math.min(ease, 6)));
+      L.vx += (want - L.vx) * (1 - Math.exp(-(1.6 + 14 * (1 - hz.slide)) * dt));
+      L.x += L.vx * dt;
+    } else L.x += (targetX - L.x) * (1 - Math.exp(-ease * dt));
+    if (hz && hz.pushX) L.x += hz.pushX * dt;
     L.x = Math.max(-MEMBER_CLAMP, Math.min(MEMBER_CLAMP, L.x));
     L.vx = dt > 0 ? (L.x - px) / dt : 0;
     this.speed = forward;
@@ -382,6 +389,8 @@ export class Squad {
     this.cheer += ((phase === 'won' ? 1 : 0) - this.cheer) * Math.min(1, dt * 4);
     const L = this.leader;
     this.leaderRig.sync(t);
+    const lift = this.game.hazards ? this.game.hazards.mods.lift : 0; // jelly launch arc (visual only)
+    if (lift && !this.pipGone && !this.pipFall.on) this.pip.root.position.y = lift;
     const arr = this.raiders.instanceMatrix.array;
     let n = 0;
     const rb = Math.max(0.3, this.runBlend);
@@ -394,7 +403,7 @@ export class Squad {
       const sc = p < 1 ? popScale(p) : 1;
       _e.set(-0.16 * rb, (m.tx - m.x) * -0.25, sn * 0.12 * rb);
       _q.setFromEuler(_e);
-      _m.compose(_p.set(m.x, bob, m.z), _q, _s.set(sc, sc * (1 - Math.abs(Math.cos(ph)) * 0.05 * rb), sc));
+      _m.compose(_p.set(m.x, bob + lift, m.z), _q, _s.set(sc, sc * (1 - Math.abs(Math.cos(ph)) * 0.05 * rb), sc));
       _m.toArray(arr, n * 16);
       n++;
     }

@@ -144,7 +144,15 @@ export function bindAudio(audio, game) {
   // ---------------- boss ----------------
   on('boss:spawn', () => { fx('bossLand'); dip(0.45, 1.4); });
   on('boss:phase', () => { fx('roar', { len: 1.1, f0: 92 }); dip(0.35, 0.8); });
-  on('boss:telegraph', (p) => { fx('warn', { duration: p.duration }); dip(0.3, 0.25); });
+  let hazWarn = -10;
+  on('boss:telegraph', (p) => {
+    if (p.attack === 'hazard') { // update 3 world hazards: a softer, throttled warning (no music dip)
+      if (now() - hazWarn > 0.9) { hazWarn = now(); fx('warn', { duration: Math.min(0.6, p.duration || 0.6) }); }
+      return;
+    }
+    fx('warn', { duration: p.duration }); dip(0.3, 0.25);
+  });
+  on('hazard:sfx', (p) => { if (p.sfx) fx(p.sfx, p.opts); });
   on('boss:attack', (p) => { fx(BOSS_ATTACK[p.attack] || 'slam'); if (p.attack === 'slam') dip(0.3, 0.3); });
   on('boss:defeated', () => {
     if (audio.music) audio.music.stop(1.0);

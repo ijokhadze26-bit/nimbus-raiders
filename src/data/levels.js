@@ -14,6 +14,7 @@ import { P, C, B, H, K, U, X, O, Xd, Od, a, x, dv, mv, G, GR, GRS, M5, M6, TW, l
 import { FAVOURS, CRATES, placeCrates } from './levelcrates.js';
 import { generateLevels } from './levelgen.js';
 import { worldOf, levelKind, TOTAL_LEVELS } from './worlds.js';
+import { planHazards } from './hazardplan.js';
 
 export {
   gate, barrel, horde, blade, gap, powerup, coins, crate, START, ARENA, RUSH_TAIL, TIER_CROWD, TIER_EXP, RAMP_EXP, BROOD,
@@ -342,6 +343,8 @@ for (const l of HAND) { l.favours = FAVOURS[l.id] || []; l.crates = CRATES[l.id]
 
 export const LEVELS = [...HAND, ...generateLevels()];
 for (const l of LEVELS) { l.world = worldOf(l.id).id; l.kind = levelKind(l.id); }
+// update 3 world hazards (lava, embers, ice, ...) for worlds 2-5: added after the beats, never moving them
+for (const l of LEVELS) planHazards(l);
 
 const BY_ID = new Map(LEVELS.map((l) => [l.id, l]));
 export function getLevel(id) { return BY_ID.get(Number(id)) || null; }
