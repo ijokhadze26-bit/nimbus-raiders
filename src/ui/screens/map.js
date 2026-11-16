@@ -1,6 +1,6 @@
 // Level map: a vertical winding path of 15 nodes climbing through the clouds (level 1 at the bottom).
 // Nodes are locked / unlocked / current with earned stars; opens scrolled to the current node.
-// Tap a node to start it; the big footer button plays the current level.
+// Tap a node (or the big footer button) to open the pre-level LOADOUT screen for that level (update 2).
 import { screenEl, coinPill, el } from '../ui.js';
 import { icon } from '../icons.js';
 import { getLevel, LEVEL_COUNT, LAST_LEVEL } from '../../data/levels.js';
@@ -117,7 +117,7 @@ export function createMap(ui) {
 
   function start(id) {
     if (id > current()) return;
-    ui.game.startLevel(id);
+    ui.nav('loadout', { levelId: id });
   }
 
   return {

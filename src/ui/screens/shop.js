@@ -1,12 +1,14 @@
-// Shop: Upgrades / Hero / Weapons tabs. Buying spends saved coins (debounced autosave), equips persist.
+// Shop: Upgrades / Pip Outfits / Gun Paint tabs. Buying spends saved coins (debounced autosave), equips persist.
+// Update 2: the old weapon skins are GUN PAINT (they recolour the gun bodies only, per Mk); same ids and prices.
 import { screenEl, coinPill, el, bump, fmt } from '../ui.js';
 import { icon } from '../icons.js';
 import { UPGRADES, upgradeCost, upgradeLabel } from '../../data/shop.js';
 import { HERO_SKINS, WEAPON_SKINS } from '../../data/skins.js';
-import { WEAPONS } from '../../data/weapons.js';
+import { weaponDef } from '../../data/weapons.js';
 import { buySkin, buyUpgrade, equipSkin } from '../../save/progress.js';
 
-const TABS = [['upgrades', 'UPGRADES'], ['hero', 'HERO'], ['weapons', 'WEAPONS']];
+const TABS = [['upgrades', 'UPGRADES'], ['hero', 'PIP OUTFITS'], ['weapons', 'GUN PAINT']];
+const PAINT_NOTE = 'Gun paint recolours your guns. Each weapon keeps its own bullets and effects.';
 
 export function createShop(ui) {
   const root = screenEl('shop');
@@ -27,6 +29,7 @@ export function createShop(ui) {
     for (const b of root.querySelectorAll('.tab')) b.classList.toggle('on', b.dataset.tab === tab);
     list.className = `shop-list list-${tab}`;
     list.innerHTML = tab === 'upgrades' ? upgradesHtml(ui.save.data) : skinsHtml(ui.save.data, tab);
+    if (tab === 'weapons') list.insertAdjacentHTML('afterbegin', `<div class="paint-note">${icon('tier')}<span>${PAINT_NOTE}</span></div>`);
   }
 
   /** Re-render buttons/levels in place (keeps scroll); `flashId` gets the purchase animation. */
@@ -106,7 +109,7 @@ function skinsHtml(d, tab) {
     else if (owned) action = `<button type="button" class="btn btn-sm btn-blue" data-act="equip" data-id="${s.id}">EQUIP</button>`;
     else action = costBtn('buy-skin', s.id, s.cost, d.coins);
     const hint = !owned && s.unlock?.threeStars ? `<div class="skin-hint">${icon('star')}${icon('star')}${icon('star')} ${threes}/${s.unlock.threeStars} levels</div>` : '';
-    const preview = tab === 'hero' ? heroPreview(s) : weaponPreview(s);
+    const preview = tab === 'hero' ? heroPreview(s) : weaponPreview(s, d.arsenal?.selected);
     return `<div class="card skin-card r-${s.rarity} ${isEq ? 'is-eq' : ''} ${owned ? 'owned' : ''}" data-id="${s.id}">
       <div class="rarity">${s.rarity.toUpperCase()}</div>
       <div class="skin-prev">${preview}</div>
@@ -136,20 +139,13 @@ export function heroPreview(s) {
   </svg>`;
 }
 
-/** Six tier bullets (shape per tier) in the skin's colors. */
-export function weaponPreview(s) {
-  const cols = WEAPONS.map((w, i) => (s.tiers ? s.tiers[i] : { color: w.color, core: w.style.core, trail: w.style.trail || w.color }));
-  const SIZE = { bolt: [9, 24], tracer: [8, 38], laser: [5, 44], beam: [13, 40] };
-  const shapes = cols.map((c, i) => {
-    const cx = 20 + (i % 3) * 30, cy = 28 + Math.floor(i / 3) * 46;
-    const shape = WEAPONS[i].style.shape;
-    if (shape === 'orb' || shape === 'nova') {
-      const r = shape === 'nova' ? 12 : 9;
-      return `<circle cx="${cx}" cy="${cy}" r="${r + 6}" fill="${c.trail}" opacity=".3"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="${c.color}"/><circle cx="${cx - r * 0.15}" cy="${cy - r * 0.15}" r="${r * 0.5}" fill="${c.core}"/>`;
-    }
-    const [w, h] = SIZE[shape] || SIZE.bolt;
-    const x = cx - w / 2, y = cy - h / 2;
-    return `<rect x="${x - 3}" y="${y - 3}" width="${w + 6}" height="${h + 6}" rx="${(w + 6) / 2}" fill="${c.trail}" opacity=".3"/><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${w / 2}" fill="${c.color}"/><rect x="${cx - w / 4}" y="${y + 3}" width="${w / 2}" height="${h - 6}" rx="${w / 4}" fill="${c.core}"/>`;
-  }).join('');
-  return `<svg viewBox="0 0 100 100" class="wpn-svg ${s.prism ? 'prism' : ''}" aria-hidden="true">${shapes}</svg>`;
+/** Gun silhouettes in the paint's five Mk colours ('factory' = the equipped weapon's own gun colours). */
+export function weaponPreview(s, weaponId = 'thunderclap') {
+  const def = weaponDef(weaponId);
+  const cols = [0, 1, 2, 3, 4].map((i) => (s.tiers ? s.tiers[i].color : (def.gunTint && def.gunTint[i]) || def.look.mk[i].color));
+  const at = [[4, 8], [52, 8], [28, 38], [4, 68], [52, 68]];
+  const guns = cols.map((c, i) => `<g transform="translate(${at[i][0]} ${at[i][1]})"><path d="M2 7h24l4-3h10v8H30l-3 2H17l-3 10H6l3-10H2z" fill="${c}" stroke="#1b3a8a" stroke-width="2.4" stroke-linejoin="round"/>`
+    + `<path d="M5 9h18" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity=".55"/><text x="20" y="27" font-size="8" font-family="sans-serif" font-weight="800" fill="#1b3a8a">${['I', 'II', 'III', 'IV', 'V'][i]}</text></g>`).join('');
+  return `<svg viewBox="0 0 100 100" class="wpn-svg ${s.prism ? 'prism' : ''}" aria-hidden="true">${guns}</svg>`;
 }
+

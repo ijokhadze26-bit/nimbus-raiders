@@ -256,3 +256,42 @@
 .endless-points { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; width: min(320px, 100%); }
 .endless-points li { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 14px; background: rgba(20, 10, 60, 0.35); font-family: var(--font-body); font-weight: 800; font-size: 14px; color: #f1e8ff; }
 .endless-points .ico { font-size: 24px; color: #ffd34d; flex: none; }
+
+/* ---------- update 2: result unlock cards, hero coin tag, practice result ---------- */
+.res-coins .hero-bonus { background: #ff5fc8; }
+.unlock-cards { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+.ucard {
+  display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 8px; border-radius: 16px; color: #fff;
+  background: linear-gradient(180deg, #b07dff, #7036e0); border: 3px solid #3b1a80; box-shadow: 0 4px 0 #3b1a80;
+  animation: ucard-in 0.5s cubic-bezier(.2, 1.6, .4, 1) 1.2s both;
+}
+.ucard.h { background: linear-gradient(180deg, #ff9a8f, #ff3b4e); border-color: #8e0f22; box-shadow: 0 4px 0 #8e0f22; }
+.ucard-ico { flex: none; width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center; font-size: 34px; background: #fff; border: 2px solid var(--outline); }
+.ucard-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; -webkit-text-stroke: 3px var(--outline); paint-order: stroke fill; }
+.ucard-k { display: block; font-size: 11.5px; letter-spacing: 0.5px; color: #fff3b8; }
+.ucard-t b { font-weight: 400; font-size: 17px; line-height: 1.05; }
+.ucard-b { flex: none; min-height: 44px; min-width: 64px; padding: 2px 10px 4px; font-size: 17px; border-radius: 14px; -webkit-text-stroke-width: 3px; }
+@keyframes ucard-in { from { opacity: 0; transform: scale(0.6) translateY(10px); } to { opacity: 1; transform: none; } }
+.panel-result.practice .prac-ico { display: flex; gap: 14px; font-size: 58px; filter: drop-shadow(0 4px 0 rgba(27, 58, 138, 0.35)); }
+.panel-result.practice .stat .num { font-size: 18px; }
+.panel-result.practice .tip { text-align: center; }
+.sq-btn.sq-wide { width: 116px; }
+.paint-note {
+  grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 16px;
+  font-family: var(--font-body); font-weight: 800; font-size: 13.5px; line-height: 1.25; color: #fff;
+  background: rgba(10, 28, 80, 0.45); border: 2px solid rgba(255, 255, 255, 0.85);
+}
+.paint-note .ico { flex: none; font-size: 26px; color: #ffe36b; }
+
+/* update 2: three tabs with longer names (PIP OUTFITS / GUN PAINT) stay on one line */
+.tabs .tab { white-space: nowrap; font-size: clamp(13px, 4.3cqw, 18px); }
+/* short frames: a win with unlock cards still fits (ribbon on screen) */
+@container (max-height: 700px) {
+  .panel.panel-result { gap: 8px; padding-top: 42px; padding-bottom: 16px; }
+  .big-stars { height: 68px; }
+  .bs1, .bs3 { width: 52px; height: 52px; }
+  .bs2 { width: 68px; height: 68px; margin-bottom: 10px; }
+  .res-btns { gap: 10px; margin-top: 2px; }
+  .res-coins .amt { font-size: 28px; }
+  .res-coins .coin-ico { font-size: 36px; }
+}
