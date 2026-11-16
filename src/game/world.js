@@ -96,6 +96,11 @@ export class World {
     this.puffs.count = low ? LOW_PUFFS.sea : SEA_PUFFS;
     this.skyPuffs.count = low ? LOW_PUFFS.sky : SKY_PUFFS;
     this.sea.uniforms.uOctaves.value = low ? 2 : 4;
+    // The road covers about half the screen at a grazing angle: 8x anisotropic trilinear filtering was ~6 ms
+    // of a software-rendered phone frame. Low samples one mip level, no anisotropy (a bit softer far away;
+    // the switch re-uploads one 256x128 canvas).
+    const tex = this.roadMat.map, aniso = low ? 1 : 8, minF = low ? THREE.LinearMipmapNearestFilter : THREE.LinearMipmapLinearFilter;
+    if (tex.anisotropy !== aniso || tex.minFilter !== minF) { tex.anisotropy = aniso; tex.minFilter = minF; tex.needsUpdate = true; }
   }
 
   /** Cosmetic layout of puffs/islands (own RNG so gameplay determinism is untouched). */
