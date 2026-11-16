@@ -260,13 +260,14 @@ for (const q of ['high', 'low']) {
           locked++;
           const front = g.squad.leader.z - Math.max(...of(w1).map((e) => e.z));
           if (locked === 10) a0 = front;
-          if (locked === 70) a1 = front;
+          if (locked === 70) { a1 = front; await shot(`wave-hold-${q}`); }
         }
       }
       I.hold = { a0: r2(a0), a1: r2(a1), locked };
       ok(a0 !== null && a1 !== null && Math.abs(a1 - a0) < 0.6 && a0 < 42 && a0 > 30, `${q} held wave drifts ${a0} -> ${a1}`);
       // released after the probe broke + the world-2 pause; then charges at x1.25
       ok(w1.go && rushes.length === 1 && rushes[0].index === 1, `${q} no release (${rushes.length})`);
+      frames(20); await shot(`wave-rush-${q}`);
       ok(w1.wait >= WAVES.pause[2] - 0.02 || w1.holdT > 8.9, `${q} pause ${r2(w1.wait)} < ${WAVES.pause[2]}`);
       const e1 = of(w1).sort((a, b) => a.z - b.z)[0];
       ok(e1 && e1.wmul === 1.25, `${q} rush speed mul ${e1 && e1.wmul}`);

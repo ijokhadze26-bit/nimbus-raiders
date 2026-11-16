@@ -35,12 +35,14 @@ export function initAi(h) {
   h.shots = [];
   h.shotPool = [];
   h.pulses = [];
+  h.pulsePool = [];
   h.aiStats = { dodges: 0, sprints: 0, heals: 0, healed: 0, broods: 0, spits: 0, splatKills: 0, booms: 0, boomKills: 0, dives: 0 };
 }
 
 export function resetAi(h) {
   for (const s of h.shots) h.shotPool.push(s);
   h.shots.length = 0;
+  for (const p of h.pulses) h.pulsePool.push(p);
   h.pulses.length = 0;
   h.fire.fill(0); h.fireN = 0; h.fireT = 0;
   for (const k in h.aiStats) h.aiStats[k] = 0;
@@ -184,13 +186,15 @@ export function heal(h, e, dt) {
 /** Expanding ring (kind 0 = heal) drawn by hordefx.js. */
 function pulse(h, x, z, r, kind) {
   const p = h.pulses;
-  if (p.length >= MAX_PULSES) p.shift();
-  p.push({ x, z, r, t: 0, kind });
+  if (p.length >= MAX_PULSES) h.pulsePool.push(p.shift());
+  const o = h.pulsePool.length ? h.pulsePool.pop() : { x: 0, z: 0, r: 0, t: 0, kind: 0 };
+  o.x = x; o.z = z; o.r = r; o.t = 0; o.kind = kind;
+  p.push(o);
 }
 
 export function updatePulses(h, dt) {
   const p = h.pulses;
-  for (let i = p.length - 1; i >= 0; i--) { p[i].t += dt; if (p[i].t > 0.6) p.splice(i, 1); }
+  for (let i = p.length - 1; i >= 0; i--) { p[i].t += dt; if (p[i].t > 0.6) { const o = p[i]; p[i] = p[p.length - 1]; p.pop(); h.pulsePool.push(o); } }
 }
 
 // ---------------- Broodling Hive ----------------
