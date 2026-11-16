@@ -19,6 +19,7 @@ const VERT = /* glsl */`
 attribute vec4 aPosSize;
 attribute vec4 aColor;
 attribute vec4 aExt;
+uniform float uMaxK; // Low: largest quad size per unit of view depth (caps sprites near the camera)
 varying vec2 vUv;
 varying vec4 vColor;
 varying float vShape;
@@ -35,12 +36,14 @@ void main() {
   vec4 clip;
   if (shape > 4.5 && shape < 6.5) {
     float a = aExt.x, c = cos(a), s = sin(a);
+    size = min(size, uMaxK * max(0.05, -(viewMatrix * vec4(aPosSize.xyz, 1.0)).z));
     vec2 q = vec2(c * position.x - s * position.y, s * position.x + c * position.y) * size;
     clip = projectionMatrix * (viewMatrix * vec4(aPosSize.xyz + vec3(q.x, 0.0, q.y), 1.0));
   } else if (shape > 0.5 && shape < 1.5 || shape > 2.5 && shape < 3.5 || shape > 7.5) {
     // perspective-correct streak: head = particle, tail = particle - dir (world), quad spans tail..head
     vec3 H = (viewMatrix * vec4(aPosSize.xyz, 1.0)).xyz;
     vec3 T = (viewMatrix * vec4(aPosSize.xyz - aExt.xyz, 1.0)).xyz;
+    size = min(size, uMaxK * max(0.05, -H.z));
     vec2 sd = H.xy / max(0.05, -H.z) - T.xy / max(0.05, -T.z);
     float L = length(sd);
     vec2 ax = L > 0.00001 ? sd / L : vec2(0.0, 1.0);
@@ -50,6 +53,7 @@ void main() {
     clip = projectionMatrix * vec4(P, 1.0);
   } else {
     vec4 mv = viewMatrix * vec4(aPosSize.xyz, 1.0);
+    size = min(size, uMaxK * max(0.05, -mv.z));
     float a = aExt.x, c = cos(a), s = sin(a);
     mv.xy += vec2(c * position.x - s * position.y, s * position.x + c * position.y) * size;
     clip = projectionMatrix * mv;
@@ -116,6 +120,10 @@ void main() {
   gl_FragColor = vec4(col * a, a * (1.0 - vAdd));
 }`;
 
+// Low: a sprite is never drawn wider than LOW_MAX_K x its view depth (~1/3 of the screen height at fov 52), so a
+// puff or ground ring passing close to the camera can't fill the phone screen (software fill rate). High: no cap.
+const LOW_MAX_K = 0.3, NO_CAP = 1e6;
+
 const FIELDS = ['px', 'py', 'pz', 'vx', 'vy', 'vz', 'age', 'life', 's0', 's1', 'r0', 'g0', 'b0', 'r1', 'g1', 'b1',
   'al', 'add', 'shape', 'grav', 'drag', 'str', 'rot', 'spin', 'fade', 'flo'];
 
@@ -143,6 +151,7 @@ export class Particles {
     this.attrs = [this.aPos, this.aCol, this.aExt];
     this.mat = new THREE.ShaderMaterial({
       vertexShader: VERT, fragmentShader: FRAG,
+      uniforms: { uMaxK: { value: NO_CAP } },
       transparent: true, depthWrite: false, depthTest: true, side: THREE.DoubleSide,
       blending: THREE.CustomBlending, blendEquation: THREE.AddEquation,
       blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
@@ -155,7 +164,10 @@ export class Particles {
     scene.add(this.mesh);
   }
 
-  setQuality(q) { this.cap = q === 'low' ? Math.min(this.capacity, 700) : this.capacity; }
+  setQuality(q) {
+    this.cap = q === 'low' ? Math.min(this.capacity, 700) : this.capacity;
+    this.mat.uniforms.uMaxK.value = q === 'low' ? LOW_MAX_K : NO_CAP;
+  }
 
   get free() { return this.cap - this.n; }
 

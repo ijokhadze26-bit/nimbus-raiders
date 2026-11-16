@@ -3,8 +3,9 @@
 // fx/flashes.js; this module
 //   - drains game.weapons.fxq every frame into the one-shot recipes (recipes.js): chain arcs (<= 60 segments/s
 //     High, 30 Low), bounce streaks, candy splats, puddles, freezes, shatters, splits, holes, turret drops;
-//   - runs the continuous emitters: ember streaks off live flames (<= 90/s High, 40 Low) + the Mk V ember ring
-//     burst every 0.5 s, burning-enemy smoke (<= 20/s), black-hole inward streaks (<= 40/s High, 16 Low) and the
+//   - runs the continuous emitters: ember streaks off live flames (<= 90/s High, 40 Low), flame puffs (120/s High,
+//     34 Low) + the Mk V ember ring burst every 0.5 s, burning-enemy smoke (<= 20/s, 7 Low), black-hole inward
+//     streaks (<= 40/s High, 16 Low; on Low none from holes the squad has passed) and the
 //     Mk V accretion stars, caramel bubble pops + amber specks on stuck enemies, Mk V gear spark trails, Mk V
 //     candy sparkle trails, violet motes behind Void orbs;
 //   - plays the crate pickup burst (crate:take).
@@ -84,7 +85,7 @@ export function installWeaponFx(fx) {
         P.spawn(STREAK, b.x + rnd(-0.2, 0.2), b.y + 0.1, b.z, rnd(-1.5, 1.5), rnd(1.5, 3.5), b.vz * 0.4, rnd(0.25, 0.45), 0.06, 0.02, i & 1 ? core : c, 1, 0.85, -2, 1, 0.05);
       }
       // licking fire puffs ride the flames (yellow core -> red tips)
-      for (let i = 0, n = tickAcc(A, 'flame', lo ? 50 : 120, dt); i < n; i++) {
+      for (let i = 0, n = tickAcc(A, 'flame', lo ? 34 : 120, dt); i < n; i++) {
         const b = sampleStyle(active, beh.style);
         if (!b || b.dist > (b.data || 15)) continue;
         const s = 0.35 + 0.5 * Math.min(1, b.dist / (b.data || 15));
@@ -105,7 +106,7 @@ export function installWeaponFx(fx) {
     // ---- burning enemies: smoke puffs ----
     const list = g.horde.list;
     if (list.length) {
-      for (let i = 0, n = tickAcc(A, 'smoke', lo ? 10 : 20, dt); i < n; i++) {
+      for (let i = 0, n = tickAcc(A, 'smoke', lo ? 7 : 20, dt); i < n; i++) {
         let j = (Math.random() * list.length) | 0;
         for (let k = 0; k < 16; k++, j = (j + 1) % list.length) {
           const e = list[j];
@@ -119,11 +120,12 @@ export function installWeaponFx(fx) {
       }
     }
     // ---- black holes: inward streaks, Mk V accretion stars ----
-    const Z = g.zones, holes = Z.holes;
+    const Z = g.zones, holes = Z.holes, lz = lo ? g.squad.leader.z : Infinity;
     if (holes.length) {
       const n = tickAcc(A, 'hole', lo ? 16 : 40, dt);
       for (let i = 0; i < n; i++) {
         const h = holes[i % holes.length], r = Z.holeR(h), a = Math.random() * TAU;
+        if (h.z > lz) continue; // Low: the hole's disc shrinks away once the squad is past it
         const x = h.x + Math.cos(a) * r, z = h.z + Math.sin(a) * r;
         P.spawn(STREAK, x, rnd(0.2, 0.9), z, -Math.cos(a) * r * 2.2, -0.2, -Math.sin(a) * r * 2.2, 0.4, 0.07, 0.02, i & 1 ? 0xff4bd8 : 0xb44bff, 0.9, 0.85, 0, 0, 0.06);
         if (id === 'voidsiphon' && mk >= 5 && (i & 1)) {
@@ -137,6 +139,7 @@ export function installWeaponFx(fx) {
     if (pud.length) {
       for (let i = 0, n = tickAcc(A, 'bubble', (lo ? 1.5 : 3) * pud.length, dt); i < n; i++) {
         const p = pud[(Math.random() * pud.length) | 0], a = Math.random() * TAU, rr = Math.sqrt(Math.random()) * p.r * 0.8;
+        if (p.z > lz) continue;
         P.spawn(RING, p.x + Math.cos(a) * rr, 0.12, p.z + Math.sin(a) * rr, 0, 0.3, 0, 0.3, 0.05, 0.35, 0xf6c46a, 0.9, 0.2);
       }
       if (list.length) {
