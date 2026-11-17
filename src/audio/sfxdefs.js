@@ -4,6 +4,7 @@
 import { tone, noise, bell, mtof } from './synth.js';
 import { BOSS_SFX } from './sfxboss.js';
 import { NEW_BOSS_SFX } from './sfxbossnew.js';
+import { PROP_SFX } from './sfxprops.js';
 import { ENEMY_SFX } from './sfxenemies.js';
 import { WEAPON_SFX } from './sfxweapons.js';
 import { HERO_SFX } from './sfxheroes.js';
@@ -224,6 +225,7 @@ export const SFX = {
 
   ...BOSS_SFX,
   ...NEW_BOSS_SFX,
+  ...PROP_SFX,
   ...ENEMY_SFX,
   ...WEAPON_SFX,
   ...HERO_SFX,
