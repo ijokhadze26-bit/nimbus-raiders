@@ -32,6 +32,8 @@ const CAGE_IDX = new Set([1, 3, 6, 8]);       // level index in its world (0..9)
 const fam = (e) => (e.op === 'add' && e.value > 0 ? 'add' : 'mul');
 const mixedRow = (row) => row.gates.some((g) => fam(g) === 'add') && row.gates.some((g) => fam(g) === 'mul');
 const isPair = (row) => row.gates.length === 2 && row.gates.some((g) => g.lane === 'L') && row.gates.some((g) => g.lane === 'R');
+/** A row with a climbing x/÷ ladder: it stays a full-width, unchained gate (a narrow or replaced ladder breaks its shoot-to-climb economy). */
+const ladderRow = (row) => row.gates.some((g) => g.op !== 'add' && (g.hitsPerStep ?? 12) < FIX);
 const free = (row) => row.gates.every((g) => !g.hidden && !g.chain && !g.ramp && !g.three);
 const addSpec = (value, max) => ({ op: 'add', value, max: Math.max(value, max) });
 const mulSpec = (rung, moving) => ({ op: rung >= 3 ? 'mul' : 'div', rung, hitsPerStep: FIX, ...(moving ? { moving } : {}) });
@@ -48,6 +50,7 @@ function blockers(def) {
   for (const e of def.events) {
     if (e.type === 'hazard' && e.kind !== 'snow') out.push([e.at, e.at + (e.length || 0), e.lane || 'both']);
     else if (e.type === 'gap' || e.type === 'blade') out.push([e.at, e.at + (e.length || 0), e.lane || 'both']);
+    else if (e.type === 'crate') out.push([e.at - 12, e.at + 12, e.lane]); // crates keep 12 u clear of every event (levelcrates)
   }
   return out;
 }
@@ -101,7 +104,8 @@ function planLanes3(def, rows, r, spans) {
   for (const row of picked) {
     const [l, rt] = row.gates[0].lane === 'L' ? row.gates : [row.gates[1], row.gates[0]];
     l.lane = 'L3'; rt.lane = 'R3';
-    for (const g of row.gates) { g.three = true; delete g.moving; }
+    // a narrow ladder catches ~3/4.4 of the fire: it climbs that much faster, so its shoot-to-climb economy holds
+    for (const g of row.gates) { g.three = true; delete g.moving; if (g.op !== 'add' && (g.hitsPerStep ?? 12) < FIX) g.hitsPerStep = Math.max(1, Math.round((g.hitsPerStep ?? 12) * 3 / 4.4)); }
     const best = bestAdd(row.gates);
     let mid;
     if (best > 0 && r.chance(0.5)) { const v = Math.max(1, Math.round(best * 0.6)); mid = addSpec(v, v + Math.round(best * 0.25)); }
@@ -139,11 +143,11 @@ function planChain(def, rows, r) {
   const cand = [];
   for (let i = 0; i + 1 < rows.length; i++) {
     const a = rows[i], b = rows[i + 1];
-    if (mixed(a) && isPair(b) && free(b) && a.at > START + 20 && b.at - a.at < 150 && b.at < span - ARENA - 6) cand.push(i);
+    if (mixed(a) && isPair(b) && free(b) && !ladderRow(b) && a.at > START + 20 && b.at - a.at < 150 && b.at < span - ARENA - 6) cand.push(i);
   }
   if (!cand.length) return 0;
   const i = cand[r.int(0, cand.length - 1)];
-  const len = def.world >= 3 && def.kind === 'normal' && idx >= 5 && rows[i + 2] && isPair(rows[i + 2]) && free(rows[i + 2]) && rows[i + 2].at < span - ARENA - 6 ? 3 : 2;
+  const len = def.world >= 3 && def.kind === 'normal' && idx >= 5 && rows[i + 2] && isPair(rows[i + 2]) && free(rows[i + 2]) && !ladderRow(rows[i + 2]) && rows[i + 2].at < span - ARENA - 6 ? 3 : 2;
   const id = def.id * 10 + 1;
   const first = rows[i];
   const sideA = first.gates.find((g) => fam(g) === 'add').lane;
