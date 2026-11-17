@@ -217,7 +217,8 @@ export class BaseBoss {
 
   /** Element-aware damage (SPEC2 §1.5): matchup multiplier, +25% while frozen. el 'neutral' = 1. */
   damageTyped(d, el = 'neutral') {
-    this.damage(d * bossMul(el, this.type) * (this.frozenT > 0 ? FROZEN_MUL : 1));
+    const F = this.game.formation; // update 3 stage 4: formation (Wedge +20%) x combo boost
+    this.damage(d * bossMul(el, this.type) * (this.frozenT > 0 ? FROZEN_MUL : 1) * (F ? F.bossK : 1));
   }
 
   damage(d) {

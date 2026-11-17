@@ -6,6 +6,7 @@ import { weaponDef } from '../data/weapons.js';
 import { bindWeapons } from './bindweapons.js';
 import { bindHeroes } from './bindheroes.js';
 import { bindEnemies } from './sfxenemies.js';
+import { bindControls } from './sfxcontrols.js';
 import { runTrackFor } from './tracks.js';
 import { NEW_BOSS_ATTACK_SFX } from './sfxbossnew.js';
 
@@ -172,6 +173,7 @@ export function bindAudio(audio, game) {
 
   offs.push(...(bindWeapons(audio, game) || []), ...(bindHeroes(audio, game) || []));
   offs.push(...bindEnemies(audio, game)); // update 3 Murklings + horde waves
+  offs.push(...bindControls(audio, game)); // update 3 stage 4 dodge / combo / formation
   return offs;
 }
 

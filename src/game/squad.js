@@ -1,7 +1,9 @@
 // Squad: count, leader (Pip or another hero, see leader.js), phyllotaxis formation of instanced Raiders, pop-in,
 // removal with death pops. Logic (update) is render-free so debug.simulate() is fast; sync() writes instance
 // matrices once per frame. Update 2: every member loss first asks game.heroes.absorb(reason) (Guard points,
-// Sugar Shield); the sideways ease is MOVE.ease x the hero's Speed.
+// Sugar Shield); the sideways ease is MOVE.ease x the hero's Speed. Update 3 stage 4: slots follow the run's
+// formation (game/formation.js Line / Wedge / Circle shapes), a dodge roll (game/dodge.js) skips one loss event
+// and makes the squad hop + spin, Circle may shrug off an enemy touch.
 import * as THREE from 'three';
 import { FORMATION, MEMBER_CLAMP, MOVE } from '../config.js';
 import { buildRaiderGeometry, buildRaiderLowGeometry, buildRaiderGunGeometry, buildRaiderShadowGeometry, RAIDER_MUZZLE } from '../models/raider.js';
@@ -146,17 +148,23 @@ export class Squad {
   }
 
   add(n, reason = 'gate') { return this.setCount(this.count + n, reason); }
-  /** Removes n members; each loss first asks the hero to absorb it (Guard, Sugar Shield). */
+  /** Removes n members; a dodge roll skips the whole event, else each loss asks Circle / the hero (Guard, Sugar Shield). */
   remove(n, reason = 'horde') {
-    const H = this.game.heroes;
-    let k = n;
-    if (H) { k = 0; for (let i = 0; i < n; i++) if (!H.absorb(reason)) k++; }
+    if (n > 0 && this.game.dodge && this.game.dodge.absorb(reason)) return 0;
+    let k = 0;
+    for (let i = 0; i < n; i++) if (!this.spared(reason)) k++;
     return k > 0 ? this.setCount(this.count - k, reason) : 0;
+  }
+
+  /** One member loss cancelled by the Circle formation's shrug-off or the hero (Guard, Sugar Shield)? */
+  spared(reason) {
+    const g = this.game;
+    return !!((g.formation && g.formation.absorb(reason)) || (g.heroes && g.heroes.absorb(reason)));
   }
 
   /** Kills one specific rendered member (index into members) — e.g. enemy contact. */
   killMember(i, reason = 'horde') {
-    if (this.game.heroes && this.game.heroes.absorb(reason)) return;
+    if ((this.game.dodge && this.game.dodge.absorb(reason)) || this.spared(reason)) return;
     if (i < 0 || i >= this.members.length) { this.setCount(this.count - 1, reason); return; }
     const m = this.members[i];
     for (let k = i; k < this.members.length - 1; k++) this.members[k] = this.members[k + 1];
@@ -177,10 +185,13 @@ export class Squad {
   /** Blob center + radius (formation disc behind the leader). Writes into out {x, z, r}. */
   center(out) {
     const n = this.members.length;
-    const R = C * Math.sqrt(n + 0.5);
     out.x = this.leader.x;
-    out.z = this.leader.z + (n ? FORMATION.leaderGap + R * 0.85 : 0);
-    out.r = n ? R + 0.3 : 0.5;
+    if (!n) { out.z = this.leader.z; out.r = 0.5; return out; }
+    const F = this.game.formation;
+    if (!F) { const R = C * Math.sqrt(n + 0.5); out.z = this.leader.z + FORMATION.leaderGap + R * 0.85; out.r = R + 0.3; return out; }
+    const sh = F.shape(n);
+    out.z = this.leader.z + (sh.front + sh.back) * 0.5;
+    out.r = Math.max(sh.halfW, (sh.back - sh.front) * 0.5) + 0.3;
     return out;
   }
 
@@ -312,10 +323,15 @@ export class Squad {
   leaderPos() { return { x: this.leader.x, y: 0, z: this.leader.z }; }
 
   slotTarget(m, i) {
-    const n = this.members.length;
-    const R = C * Math.sqrt(n + 0.5);
-    const cx = this.leader.x, cz = this.leader.z + FORMATION.leaderGap + R * 0.85;
-    let tx = cx + SLOT_X[i], tz = cz + SLOT_Z[i];
+    const n = this.members.length, F = this.game.formation;
+    let tx, tz;
+    if (F) { // formation shape: x' = sx x, z' = sz z + k |x'| around the shape's disc centre
+      const sh = F.shape(n), x = SLOT_X[i] * sh.sx;
+      tx = this.leader.x + x; tz = this.leader.z + sh.off + SLOT_Z[i] * sh.sz + sh.k * Math.abs(x);
+    } else {
+      const R = C * Math.sqrt(n + 0.5);
+      tx = this.leader.x + SLOT_X[i]; tz = this.leader.z + FORMATION.leaderGap + R * 0.85 + SLOT_Z[i];
+    }
     const dx = tx - this.leader.x, dz = tz - this.leader.z;
     const d2 = dx * dx + dz * dz, cl = FORMATION.leaderClear;
     if (d2 < cl * cl) {
@@ -391,6 +407,12 @@ export class Squad {
     this.leaderRig.sync(t);
     const lift = this.game.hazards ? this.game.hazards.mods.lift : 0; // jelly launch arc (visual only)
     if (lift && !this.pipGone && !this.pipFall.on) this.pip.root.position.y = lift;
+    const roll = this.game.dodge ? this.game.dodge.amount() : 0; // dodge roll: hop + flip (visual only)
+    if (!this.pipGone && !this.pipFall.on && (roll > 0 || this.pipRolled)) {
+      this.pipRolled = roll > 0;
+      this.pip.root.position.y += roll > 0 ? Math.sin(roll * Math.PI) * 1.4 : 0;
+      this.pip.root.rotation.x = roll > 0 ? -roll * Math.PI * 2 : 0;
+    }
     const arr = this.raiders.instanceMatrix.array;
     let n = 0;
     const rb = Math.max(0.3, this.runBlend);
@@ -401,9 +423,14 @@ export class Squad {
       const bob = Math.abs(sn) * 0.1 * rb + (this.cheer > 0.01 ? Math.max(0, Math.sin(t * 8 + m.ph)) * 0.4 * this.cheer : 0);
       const p = m.pop;
       const sc = p < 1 ? popScale(p) : 1;
-      _e.set(-0.16 * rb, (m.tx - m.x) * -0.25, sn * 0.12 * rb);
+      let hop = 0, spin = 0;
+      if (roll > 0) { // staggered by distance behind Pip so the roll ripples back through the squad
+        const u = Math.max(0, Math.min(1, roll * 1.35 - Math.min(0.35, (m.z - L.z) * 0.04)));
+        hop = Math.sin(u * Math.PI) * 1.05; spin = u * Math.PI * 2 * (m.ph > Math.PI ? 1 : -1);
+      }
+      _e.set(-0.16 * rb, (m.tx - m.x) * -0.25, sn * 0.12 * rb + spin);
       _q.setFromEuler(_e);
-      _m.compose(_p.set(m.x, bob + lift, m.z), _q, _s.set(sc, sc * (1 - Math.abs(Math.cos(ph)) * 0.05 * rb), sc));
+      _m.compose(_p.set(m.x, bob + lift + hop, m.z), _q, _s.set(sc, sc * (1 - Math.abs(Math.cos(ph)) * 0.05 * rb), sc));
       _m.toArray(arr, n * 16);
       n++;
     }

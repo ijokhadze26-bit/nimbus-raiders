@@ -40,6 +40,9 @@ import { Finish } from './finish.js';
 import { worldFor } from './worldlook.js';
 import { Hazards } from './hazards/index.js';
 import { eliteDef } from '../data/elite.js';
+import { Dodge } from './dodge.js';
+import { Combo } from './combo.js';
+import { Formation } from './formation.js';
 
 const ATTRACT_COUNT = 9;
 
@@ -106,7 +109,8 @@ export class Game {
     this.heroes = new HeroSystem();
     this.crates = new Crates();
     this.hazards = new Hazards(); // update 3 world hazards (mods / danger read by squad, world, obstacles, autopilot)
-    this.systems = [this.world, this.bullets, this.squad, this.status, this.zones, this.heroes, this.helpers, this.weapons, this.gates, this.horde, this.barrels, this.telegraph, this.bosses, this.obstacles, this.hazards, this.pickups, this.powers, this.crates, this.autopilot];
+    this.dodge = new Dodge(); this.combo = new Combo(); this.formation = new Formation(); // update 3 stage 4 controls
+    this.systems = [this.combo, this.formation, this.dodge, this.world, this.bullets, this.squad, this.status, this.zones, this.heroes, this.helpers, this.weapons, this.gates, this.horde, this.barrels, this.telegraph, this.bosses, this.obstacles, this.hazards, this.pickups, this.powers, this.crates, this.autopilot];
     for (const s of this.systems) s.init(this);
     this.endless.init(this);
     this.zoneViews = createZoneViews(this);
@@ -214,6 +218,7 @@ export class Game {
     this.crates.reset(run);
     this.telegraph.reset();
     this.bosses.reset();
+    this.dodge.reset(); this.combo.reset(run); this.formation.reset();
     this.shake.reset();
     this.slow.left = 0;
   }
@@ -350,6 +355,7 @@ export class Game {
       const run = this.run;
       this.input.update(dt);
       const target = this.autopilot.enabled ? this.autopilot.update(dt) : this.input.targetX;
+      this.formation.update(dt); this.dodge.update(dt);
       this.squad.update(dt, target, this.forwardSpeed(dt));
       run.update(dt, -this.squad.leader.z);
       run.stats.maxSquad = Math.max(run.stats.maxSquad, this.squad.count);
@@ -368,6 +374,7 @@ export class Game {
       this.weapons.updateBehaviour(dt);
       this.telegraph.update(dt);
       this.bosses.update(dt);
+      this.combo.update();
       if (run.phase === 'run' && run.dist >= run.length - (run.boss ? 2 : 0)) {
         if (run.boss) { run.setPhase('boss'); this.bosses.spawn(run.boss); }
         else this.win();

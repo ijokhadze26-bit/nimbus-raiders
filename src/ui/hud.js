@@ -14,6 +14,7 @@ import { WORLDS } from '../data/worlds.js';
 import { isCampaign } from '../game/worldlook.js';
 import { mountHazardHint } from './hudhazard.js';
 import { mountBossAlerts } from './hudboss.js';
+import { mountControls } from './hudcontrols.js';
 
 const _v = new THREE.Vector3();
 
@@ -114,6 +115,7 @@ export class Hud {
     this.abilityMount = this.el.querySelector('.hud-ability-mount');
     this.ability = mountAbility(this, this.abilityMount) || null;
     this.hazardHint = mountHazardHint(this); // update 3: world hazard hint line
+    this.controls = mountControls(this); // update 3 stage 4: combo meter, formation button, dodge chip + hint
     this.onState(game.state);
   }
 
@@ -352,6 +354,7 @@ export class Hud {
       this.updatePowers();
     }
     if (this.ability && this.ability.update) this.ability.update();
+    if (this.controls) this.controls.update();
     this.flushSquadPulse(now);
     if (this.lossUntil && now >= this.lossUntil) { this.lossUntil = 0; this.bubble.classList.remove('loss'); }
     if (this.bossShown) {

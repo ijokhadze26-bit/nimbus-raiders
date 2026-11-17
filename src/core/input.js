@@ -1,8 +1,11 @@
 // Input: relative pointer drag (mouse + touch), keyboard arrows / A-D.
 // Exposes targetX (world units, clamped) and axis (-1..1). Ignores presses on UI controls.
+// Update 3: a quick, mostly upward flick (>= SWIPE.dist px within SWIPE.time ms, |dy| > SWIPE.ratio x |dx|) or
+// W / ArrowUp fires onSwipeUp callbacks (the dodge roll) - once per press; sideways steering is unaffected.
 import { MOVE, TARGET_CLAMP } from '../config.js';
 
 const UI_SELECTOR = 'button, a, input, select, [data-ui]';
+export const SWIPE = { dist: 60, time: 380, ratio: 1.4 };
 
 export class Input {
   constructor(surface) {
@@ -17,6 +20,8 @@ export class Input {
     this.lastPx = 0;
     this.gestureFns = [];
     this.lastActivity = 0;
+    this.swipeFns = [];
+    this.startPy = 0; this.startT = 0; this.swiped = false;
 
     surface.addEventListener('pointerdown', (e) => this.down(e));
     window.addEventListener('pointermove', (e) => this.move(e), { passive: true });
@@ -32,6 +37,9 @@ export class Input {
   /** fn() runs on the first user gesture (pointer or key), e.g. to unlock audio. */
   onGesture(fn) { this.gestureFns.push(fn); }
   fireGesture() { const f = this.gestureFns; this.gestureFns = []; f.forEach((fn) => { try { fn(); } catch (e) { console.error(e); } }); }
+  /** fn() runs on every swipe up / W / ArrowUp (update 3 dodge roll). */
+  onSwipeUp(fn) { this.swipeFns.push(fn); }
+  fireSwipe() { if (!this.enabled) return; for (const fn of this.swipeFns) { try { fn(); } catch (e) { console.error(e); } } }
 
   down(e) {
     this.fireGesture();
@@ -45,6 +53,8 @@ export class Input {
     this.lastPx = e.clientX;
     this.startTarget = this.targetX;
     this.lastActivity = performance.now();
+    this.startPy = e.clientY; this.startT = this.lastActivity; this.swiped = false;
+    this.swipeX = e.clientX; this.swipeTarget = this.targetX;
   }
 
   move(e) {
@@ -57,6 +67,23 @@ export class Input {
     // Pushed past the road edge: re-anchor so the overshoot is forgotten and reversing responds at once.
     if (raw !== this.targetX) { this.startTarget = this.targetX; this.startPx = e.clientX; }
     this.lastActivity = performance.now();
+    if (!this.swiped) this.swipeCheck(e.clientX, e.clientY, this.lastActivity);
+  }
+
+  /** Swipe up: far enough, fast enough and mostly vertical since the press (a re-press starts over). */
+  swipeCheck(x, y, now) {
+    const dy = this.startPy - y, dx = Math.abs(x - this.swipeX);
+    if (now - this.startT > SWIPE.time) {
+      // a slow drag: slide the window so a later quick flick in the same press still counts
+      this.startPy = y; this.swipeX = x; this.startT = now; this.swipeTarget = this.targetX;
+      return;
+    }
+    if (dy >= SWIPE.dist && dy > dx * SWIPE.ratio) {
+      this.swiped = true;
+      // the flick's small sideways drift must not steer: back to where the flick began, re-anchored
+      this.setTarget(this.swipeTarget); this.startTarget = this.targetX; this.startPx = x;
+      this.fireSwipe();
+    }
   }
 
   up(e) {
@@ -70,6 +97,7 @@ export class Input {
     const k = e.key;
     if (k === 'ArrowLeft' || k === 'a' || k === 'A') this.keys.left = isDown;
     else if (k === 'ArrowRight' || k === 'd' || k === 'D') this.keys.right = isDown;
+    else if (k === 'ArrowUp' || k === 'w' || k === 'W') { if (isDown && !e.repeat) this.fireSwipe(); }
     else return;
     e.preventDefault();
   }
