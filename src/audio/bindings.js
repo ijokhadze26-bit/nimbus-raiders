@@ -121,6 +121,7 @@ export function bindAudio(audio, game) {
   // ---------------- squad ----------------
   on('squad:lost', (p) => { if (p.reason !== 'gap') fx('oof'); });
   on('squad:change', (p) => { if (p.reason === 'barrel' && p.delta > 0) fx('troops'); });
+  on('cliff:collapse', () => fx('rumble'));
   on('obstacle:kill', (p) => { if (p.kind === 'blade') fx('slice'); else if (p.kind === 'gap') fx('fall'); });
 
   // ---------------- pickups / powers / helpers ----------------

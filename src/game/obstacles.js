@@ -1,7 +1,13 @@
 // Obstacles: spinning blades (static or sliding within the lane; kill members they sweep, max 1 per 0.06s,
 // cannot be shot) and road gaps (the world removes the tiles and dresses the hole; members over a hole fall,
 // see squad.fallCheck). Level events: blade {at, lane, speed?, moving?:{range, speed}|true, dx?},
-// gap {at, lane, length}. Emits obstacle:kill { kind:'blade'|'gap', pos }.
+// gap {at, lane, length, inner?, style?}. Emits obstacle:kill { kind:'blade'|'gap', pos }.
+// Road shapes built on gaps:
+//   inner  = how far from the centre line the void starts (default: the whole lane). An L and an R gap
+//            with the same inner over the same stretch make a narrow bridge; a short one is an edge bite.
+//   style 'cliff' = the road is still there when it comes into view and breaks away as the squad closes in
+//            (visual only: the void is real from the start, so the autopilot and every test see one rule).
+//            Emits cliff:collapse { lane, pos } once when it goes.
 import { LANES, MEMBER_CLAMP } from '../config.js';
 import { buildBladeVisual, BLADE_R, ROTOR_Y } from '../models/obstacles.js';
 import { TILE_LEN } from '../models/props.js';
@@ -13,6 +19,7 @@ const TOUCH = 0.2;          // member body radius added to the blade radius
 const SPIN = 9;             // rad/s default rotor speed
 const EDGE = 0.3;           // broken lips overhang the hole: fall only once clearly over the void
 const SIDE = 0.22;          // |x| beyond the divider half-width where a lane hole starts
+const COLLAPSE_AT = 40;     // a cliff breaks away when its near edge is this far ahead of Pip
 const GLINT_A = 3.8;        // world angle where the rotor catches the sun (front-left, toward the camera)
 
 export class Obstacles {
@@ -78,7 +85,12 @@ export class Obstacles {
   makeGap(e) {
     const from = Math.floor(e.at / TILE_LEN) * TILE_LEN;
     const to = Math.max(from + TILE_LEN, Math.ceil((e.at + (e.length || 8)) / TILE_LEN) * TILE_LEN);
-    return { lane: e.lane === 'L' || e.lane === 'R' ? e.lane : 'C', from, to, at: e.at };
+    const lane = e.lane === 'L' || e.lane === 'R' ? e.lane : 'C';
+    const inner = lane !== 'C' && e.inner > SIDE ? Math.min(e.inner, MEMBER_CLAMP - 0.6) : 0;
+    // side = |x| beyond which the lane is void; open = the tiles are gone (cliffs open when the squad closes in)
+    return { lane, from, to, at: e.at, inner, side: inner || SIDE, style: e.style === 'cliff' ? 'cliff' : 'hole', open: e.style !== 'cliff', sign: e.sign !== false && !(e.chain && !e.first), label: e.label || '',
+      // chained pieces (a funnel's steps) are drawn as one hole: only the ends get a broken lip and chevrons
+      capNear: !(e.chain && !e.first), capFar: !(e.chain && !e.last) };
   }
 
   /** Predicted x of a blade t seconds from now (autopilot). */
@@ -93,7 +105,7 @@ export class Obstacles {
     for (let i = 0; i < gs.length; i++) {
       const g = gs[i];
       if (d <= g.from + EDGE || d >= g.to - EDGE) continue;
-      if (g.lane === 'C' || (g.lane === 'R' ? x > SIDE : x < -SIDE)) return true;
+      if (g.lane === 'C' || (g.lane === 'R' ? x > g.side : x < -g.side)) return true;
     }
     return false;
   }
@@ -113,6 +125,13 @@ export class Obstacles {
     while (this.cursor.gap < ge.length && ge[this.cursor.gap].at - dist < GAP_AHEAD) { this.gaps.push(this.makeGap(ge[this.cursor.gap++])); changed = true; }
     for (let i = this.gaps.length - 1; i >= 0; i--) if (this.gaps[i].to < dist - 40) { this.gaps.splice(i, 1); changed = true; }
     if (changed) game.world.setGaps(this.gaps);
+    for (let i = 0; i < this.gaps.length; i++) {
+      const g = this.gaps[i];
+      if (g.open || g.from - dist > COLLAPSE_AT) continue;
+      g.open = true;
+      const x = g.lane === 'C' ? 0 : (g.lane === 'R' ? 1 : -1) * (g.side + (MEMBER_CLAMP + 0.25 - g.side) / 2);
+      if (game.events.wants('cliff:collapse')) game.events.emit('cliff:collapse', { lane: g.lane, from: g.from, to: g.to, pos: { x, y: 0, z: -g.from } });
+    }
 
     const live = run.active && squad.count > 0;
     const c = squad.center(this.c);

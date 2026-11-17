@@ -201,9 +201,9 @@ export function buildBladeVisual() {
 }
 
 // ---------------- gaps ----------------
-/** Lane hole span in x: [x0, x1]. */
-export function gapSpan(lane) {
-  const inner = DIVIDER.width / 2, outer = ROAD_HALF + 0.1;
+/** Lane hole span in x: [x0, x1]. `edge` (> 0) = the hole only starts that far from the centre line. */
+export function gapSpan(lane, edge = 0) {
+  const inner = edge > 0 ? edge : DIVIDER.width / 2, outer = ROAD_HALF + 0.1;
   if (lane === 'L') return [-outer, -inner];
   if (lane === 'R') return [inner, outer];
   return [-outer, outer];
@@ -314,13 +314,37 @@ export function chevronGlowTexture() {
   }, { repeatY: true }));
 }
 
+/** Warning board for cliffs and narrow bridges: hazard-striped frame, red headline, an arrow to the safe side. */
+export function cliffSignTexture(head, text) {
+  return once(`sign:${head}:${text}`, () => canvasTex(512, 200, (g, w, h) => {
+    g.fillStyle = '#20263a'; g.fillRect(0, 0, w, h);
+    g.save();
+    g.beginPath(); g.rect(8, 8, w - 16, h - 16); g.clip();
+    for (let i = -h; i < w + h; i += 44) { g.fillStyle = '#ffc531'; g.beginPath(); g.moveTo(i, 0); g.lineTo(i + 22, 0); g.lineTo(i + 22 - h, h); g.lineTo(i - h, h); g.closePath(); g.fill(); }
+    g.restore();
+    g.fillStyle = '#fff6d6'; g.fillRect(22, 22, w - 44, h - 44);
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = '900 54px "Lilita One", "Arial Black", sans-serif';
+    g.fillStyle = '#e02634'; g.fillText(head, w / 2, 62);
+    g.font = '900 62px "Lilita One", "Arial Black", sans-serif';
+    g.fillStyle = '#20263a'; g.fillText(text, w / 2, 132, w - 70);
+  }));
+}
+
 /**
  * Gap dressing for one hole (world space). lane L|R|C, from/to = distance range (tile aligned).
- * Returns { group, chev, glow } — chev/glow materials animate (scroll + pulse) in World.sync.
+ * opts: inner (void starts this far from the centre line), style 'cliff' (jagged broken edge along the
+ * whole length), sign (warning board beside the road; default on for cliffs and narrow bridges).
+ * Returns { group, hole, chev, glow, sign }: chev/glow materials animate (scroll + pulse) in World.sync;
+ * `hole` holds everything that only makes sense once the tiles are gone (a cliff shows it when it opens).
  */
-export function buildGapView(theme, lane, from, to) {
-  const group = new THREE.Group();
-  const [x0, x1] = gapSpan(lane);
+export function buildGapView(theme, lane, from, to, opts = {}) {
+  const root = new THREE.Group();
+  const group = new THREE.Group();   // the hole itself
+  root.add(group);
+  const edge = opts.inner > 0 ? opts.inner : 0;
+  const cliff = opts.style === 'cliff';
+  const [x0, x1] = gapSpan(lane, edge);
   const width = x1 - x0;
   const len = to - from;
   const zNear = -from, zFar = -to;
@@ -331,7 +355,8 @@ export function buildGapView(theme, lane, from, to) {
   far.position.set(x1, 0, zFar);
   far.rotation.y = Math.PI;
   far.receiveShadow = near.receiveShadow = true;
-  group.add(near, far);
+  if (opts.capNear !== false) group.add(near);
+  if (opts.capFar !== false) group.add(far);
 
   const wallMat = cache.wallMat || (cache.wallMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true, fog: true }));
   const wall = (w, x, z, ry) => {
@@ -342,10 +367,18 @@ export function buildGapView(theme, lane, from, to) {
     m.renderOrder = 2;
     group.add(m);
   };
-  wall(width, (x0 + x1) / 2, zFar + 0.02, 0);                     // far cut face (faces the camera)
+  if (opts.capFar !== false) wall(width, (x0 + x1) / 2, zFar + 0.02, 0); // far cut face (faces the camera)
   if (lane !== 'C') {
     const xi = lane === 'R' ? x0 + 0.01 : x1 - 0.01;
     wall(len, xi, (zNear + zFar) / 2, Math.PI / 2);              // inner side under the divider
+    if (cliff || edge) {
+      // the long broken edge of a cliff / narrow bridge: the same jagged lip, run along the road
+      const side = new THREE.Mesh(gapLipGeometry(len, theme, Math.round(from) * 3 + (lane === 'R' ? 1 : 2)), lipMat);
+      if (lane === 'L') { side.position.set(x1, 0, zNear); side.rotation.y = Math.PI / 2; }
+      else { side.position.set(x0, 0, zFar); side.rotation.y = -Math.PI / 2; }
+      side.receiveShadow = true;
+      group.add(side);
+    }
   }
   const pitMat = cache.pitMat || (cache.pitMat = new THREE.MeshBasicMaterial({ map: gapPitTexture(), transparent: true, depthWrite: false, fog: true }));
   const pit = new THREE.Mesh(cache.unitPlane || (cache.unitPlane = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)), pitMat);
@@ -371,8 +404,32 @@ export function buildGapView(theme, lane, from, to) {
   glow.scale.set(cw * 1.12, 1, cl);
   glow.position.set(cx, 0.03, zNear + 0.55 + cl / 2);
   glow.renderOrder = 2;
-  group.add(chev, glow);
-  return { group, chev, glow, textures: [chevTex, glowTex] };
+  if (opts.capNear !== false) root.add(chev, glow);
+
+  // warning board on a post beside the doomed side, a little before the edge
+  let sign = null;
+  if (lane !== 'C' && opts.sign !== false && (cliff || edge)) {
+    const dir = lane === 'L' ? 1 : -1; // +1: safe side is to the right
+    const head = opts.label || (cliff ? 'CLIFF!' : 'NARROW!');
+    const text = dir > 0 ? 'KEEP RIGHT \u27A1' : '\u2B05 KEEP LEFT';
+    sign = new THREE.Group();
+    const board = new THREE.Mesh(cache.signPlane || (cache.signPlane = new THREE.PlaneGeometry(3.3, 1.29)),
+      once(`signMat:${head}:${text}`, () => new THREE.MeshBasicMaterial({ map: cliffSignTexture(head, text), fog: true })));
+    board.position.y = 2.55;
+    const post = new THREE.Mesh(once('signPost', () => merge([
+      part(G.cyl(0.07, 0.09, 2.9, 6), STEEL, { p: [-1.2, 0.75, -0.04] }),
+      part(G.cyl(0.07, 0.09, 2.9, 6), STEEL, { p: [1.2, 0.75, -0.04] }),
+      part(G.box(3.42, 1.41, 0.07), STEEL_D, { p: [0, 2.55, -0.045] }),
+      part(G.sphere(0.16, 6, 4), '#ff4a4a', { p: [-1.45, 3.34, 0], bright: 1.3 }),
+      part(G.sphere(0.16, 6, 4), '#ff4a4a', { p: [1.45, 3.34, 0], bright: 1.3 }),
+    ])), lipMat);
+    sign.add(post, board);
+    // stands on the solid road right before the edge, on the side that is about to go, turned to the squad
+    sign.position.set(-dir * (ROAD_HALF - 1.75), 0, zNear + 1.2);
+    sign.rotation.y = -dir * 0.2;
+    root.add(sign);
+  }
+  return { group: root, hole: group, chev, glow, sign, textures: [chevTex, glowTex] };
 }
 
 export function disposeGapView(v) {

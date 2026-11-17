@@ -301,6 +301,7 @@ class HeroFx {
         const ms = g.squad.members, n = Math.min(this.rally.n, ms.length), vz = this.vz;
         for (let i = 0, k = B.n(Math.min(n, 24)); i < k; i++) {
           const mm = ms[ms.length - 1 - Math.floor(Math.random() * n)];
+          if (!mm) break; // the raiders that popped in are already gone (fell, or the squad was wiped)
           P.spawn(STAR, mm.x, 1.0, mm.z, 0, 1.2, vz, 0.5, 0.45, 0.1, pick(0x7fe0ff, 0xffffff), 1, 0.4);
         }
         B.sparkle(g.squad.leader.x, 1, g.squad.leader.z + 1.5, 0x7fe0ff, 8, 2, vz, 1);

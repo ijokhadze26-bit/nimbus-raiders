@@ -360,7 +360,7 @@ export class Autopilot {
     const dist = -L.z;
     for (const g of obs.gaps) {
       if (g.from - dist > (this.look || HAZ_LOOK) || g.to < -back) continue;
-      const side = GAP_SIDE - GAP_PAD + (p.clip && this.roll(g, 'clip') < p.clip ? p.clipPad : 0);
+      const side = (g.side ?? GAP_SIDE) - GAP_PAD + (p.clip && this.roll(g, 'clip') < p.clip ? p.clipPad : 0);
       const over = (x, z) => -z < g.to && (g.lane === 'C' || (g.lane === 'R' ? x > side : x < -side));
       if (!squad.pipGone && over(cx, L.z)) loss += 3;
       for (let i = 0; i < ms.length; i += stride) if (over(clampX(ms[i].tx + dx), ms[i].tz)) loss += stride;

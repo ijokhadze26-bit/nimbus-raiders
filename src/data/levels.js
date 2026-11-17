@@ -15,6 +15,7 @@ import { FAVOURS, CRATES, placeCrates } from './levelcrates.js';
 import { generateLevels } from './levelgen.js';
 import { worldOf, levelKind, TOTAL_LEVELS } from './worlds.js';
 import { planHazards } from './hazardplan.js';
+import { planRoad } from './roadplan.js';
 
 export {
   gate, barrel, horde, blade, gap, powerup, coins, crate, START, ARENA, RUSH_TAIL, TIER_CROWD, TIER_EXP, RAMP_EXP, BROOD,
@@ -343,6 +344,8 @@ for (const l of HAND) { l.favours = FAVOURS[l.id] || []; l.crates = CRATES[l.id]
 
 export const LEVELS = [...HAND, ...generateLevels()];
 for (const l of LEVELS) { l.world = worldOf(l.id).id; l.kind = levelKind(l.id); }
+// road shapes (cliffs, narrow bridges, zigzags, ...) for every level: added after the beats, never moving them
+for (const l of LEVELS) planRoad(l);
 // update 3 world hazards (lava, embers, ice, ...) for worlds 2-5: added after the beats, never moving them
 for (const l of LEVELS) planHazards(l);
 

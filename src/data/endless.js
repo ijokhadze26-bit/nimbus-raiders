@@ -215,7 +215,11 @@ export class EndlessGen {
       }
       case 'hazard':
         if (r.chance(0.5)) out.push(blade(at, side, at > 1200 ? { moving: { range: 1.4, speed: 1.2 } } : {}));
-        else out.push(gap(at - 6, side, Math.round(10 + Math.min(8, at / 300))));
+        else {
+          // longer holes are cliffs: the lane is whole when it comes into view and breaks away up close
+          const len = Math.round(10 + Math.min(8, at / 300));
+          out.push(gap(at - 6, side, len, len >= 12 ? { style: 'cliff' } : {}));
+        }
         out.push(coins(at - 4, o, 8, 'line'));
         return step;
       default: // bonus

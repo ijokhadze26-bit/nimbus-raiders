@@ -12,7 +12,7 @@ export const gate = (at, lane, op, extra = {}) => ({ type: 'gate', at, lane, op,
 export const barrel = (at, lane, hp, kind, amount) => ({ type: 'barrel', at, lane, hp, reward: amount == null ? { kind } : { kind, amount } });
 export const horde = (at, count, mix, lane = 'both', extra = {}) => ({ type: 'horde', at, count, mix, lane, ...extra });
 export const blade = (at, lane, extra = {}) => ({ type: 'blade', at, lane, ...extra });
-export const gap = (at, lane, length = 10) => ({ type: 'gap', at, lane, length });
+export const gap = (at, lane, length = 10, extra = {}) => ({ type: 'gap', at, lane, length, ...extra });
 export const powerup = (at, lane, kind) => ({ type: 'powerup', at, lane, kind });
 export const coins = (at, lane, count = 8, pattern = 'line') => ({ type: 'coins', at, lane, count, pattern });
 /** Weapon crate (lane L or R only): taking it switches to `weapon` (same weapon: +1 Mk). */

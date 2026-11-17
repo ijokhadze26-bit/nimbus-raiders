@@ -4,7 +4,7 @@ import { getTheme } from '../data/themes.js';
 import { createSky, createSea } from './skybox.js';
 import { TILE_LEN, roadTexture, halfTileGeometry, trimGeometry, dividerGeometry, islandGeometry, puffGeometry } from '../models/props.js';
 import { toonGradient } from '../models/materials.js';
-import { QUALITY } from '../config.js';
+import { QUALITY, ROAD_HALF, DIVIDER } from '../config.js';
 import { markInstances } from '../core/pool.js';
 import { buildGapView, disposeGapView } from '../models/obstacles.js';
 import { Weather } from './weather.js';
@@ -23,6 +23,10 @@ const _c = new THREE.Color(), _c2 = new THREE.Color();
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const FLIP = new THREE.Quaternion().setFromAxisAngle(Y_AXIS, Math.PI);
 const IDENT = new THREE.Quaternion();
+// collapsing cliffs: each row of tiles lets go a moment after the one before it, then drops and tumbles
+const FALL_T = 1.5, FALL_DELAY = 0.045, FALL_SHAKE = 0.3;
+const _q2 = new THREE.Quaternion();
+const _lane = { keep: 0, gap: null };
 
 export class World {
   init(game) {
@@ -61,12 +65,13 @@ export class World {
     // Road (half tiles, trims share the same instance matrices)
     const tex = roadTexture();
     this.roadMat = new THREE.MeshLambertMaterial({ map: tex, vertexColors: true });
-    this.road = new THREE.InstancedMesh(halfTileGeometry(this.theme), this.roadMat, ROWS * 2);
+    // up to 4 pieces per row: a lane half can be a narrowed strip plus the piece breaking off it
+    this.road = new THREE.InstancedMesh(halfTileGeometry(this.theme), this.roadMat, ROWS * 4);
     this.road.receiveShadow = true;
     this.road.frustumCulled = false;
     this.road.setColorAt(0, _c.set(1, 1, 1)); // instanceColor exists before the shader warm-up compiles it
     this.trimMat = new THREE.MeshLambertMaterial({ color: '#f4c24f', emissive: '#b8801a', emissiveIntensity: 0.35, vertexColors: true });
-    this.trim = new THREE.InstancedMesh(trimGeometry(), this.trimMat, ROWS * 2);
+    this.trim = new THREE.InstancedMesh(trimGeometry(), this.trimMat, ROWS * 4);
     this.trim.instanceMatrix = this.road.instanceMatrix;
     this.trim.receiveShadow = true;
     this.trim.frustumCulled = false;
@@ -198,7 +203,8 @@ export class World {
     }
     for (const g of this.gaps) {
       if (this.gapViews.has(g)) continue;
-      const v = buildGapView(this.theme, g.lane, g.from, g.to);
+      const v = buildGapView(this.theme, g.lane, g.from, g.to, { inner: g.inner, style: g.style, sign: g.sign, label: g.label, capNear: g.capNear, capFar: g.capFar });
+      v.hole.visible = g.open !== false;
       this.scene.add(v.group);
       this.gapViews.set(g, v);
     }
@@ -212,10 +218,18 @@ export class World {
 
   /** Chevrons flow toward the hole and pulse. */
   animateGaps() {
+    this.falling = false;
     if (!this.gapViews.size) return;
     const t = this.time;
     const pulse = 0.5 + 0.5 * Math.sin(t * 6);
-    for (const v of this.gapViews.values()) {
+    for (const [g, v] of this.gapViews) {
+      if (g.style === 'cliff') {
+        // a cliff that opened: note when (visual clock), swap the solid tiles for the hole dressing
+        if (g.open && g.t0 === undefined) { g.t0 = t; this.baseRow = null; }
+        if (g.open && t - g.t0 < FALL_T + ((g.to - g.from) / TILE_LEN) * FALL_DELAY) this.falling = true;
+        v.hole.visible = g.open && t - g.t0 > 0.12;
+      }
+      if (v.sign) v.sign.rotation.z = Math.sin(t * 2.3 + g.from) * 0.035;
       v.chev.material.map.offset.y = -t * 0.9;
       v.glow.material.map.offset.y = -t * 0.9;
       v.glow.material.opacity = 0.25 + pulse * 0.55;
@@ -231,6 +245,23 @@ export class World {
       if ((g.lane === lane || g.lane === 'C') && d + TILE_LEN / 2 > g.from && d - TILE_LEN / 2 < g.to) return true;
     }
     return false;
+  }
+
+  /**
+   * What is left of a lane half at a tile row: _lane.keep = road width that stays (ROAD_HALF = untouched,
+   * 0 = the whole half is gone), _lane.gap = the cliff whose tiles are breaking off there right now (or null).
+   */
+  laneAt(lane, zCenter) {
+    const d = -zCenter;
+    let keep = ROAD_HALF, fall = null;
+    for (const g of this.gaps) {
+      if ((g.lane !== lane && g.lane !== 'C') || d + TILE_LEN / 2 <= g.from || d - TILE_LEN / 2 >= g.to) continue;
+      if (g.style === 'cliff' && (!g.open || g.t0 === undefined)) continue; // still standing
+      const k = g.lane === 'C' ? 0 : g.inner;
+      if (k < keep) { keep = k; fall = g.style === 'cliff' ? g : null; }
+    }
+    _lane.keep = keep; _lane.gap = fall;
+    return _lane;
   }
 
   /** Visual update (called once per rendered frame). focusX/Z = leader, camZ = camera z. */
@@ -275,7 +306,7 @@ export class World {
 
   updateRoad(focusZ) {
     const base = Math.floor(-(focusZ + BEHIND) / TILE_LEN);
-    if (base === this.baseRow) return;
+    if (base === this.baseRow && !this.falling) return;
     this.baseRow = base;
     const t = this.theme;
     const ca = _c.set(t.road.a), cb = _c2.set(t.road.b);
@@ -286,13 +317,35 @@ export class World {
       const col = (k & 1) ? cb : ca;
       for (let h = 0; h < 2; h++) {
         const lane = h === 0 ? 'R' : 'L';
-        if (this.gaps.length && this.isGap(lane, z)) continue;
-        _m.compose(_p.set(0, 0, z), h === 0 ? IDENT : FLIP, _s.set(1, 1, 1));
-        this.road.setMatrixAt(n, _m);
-        this.road.setColorAt(n, col);
-        n++;
+        const rot = h === 0 ? IDENT : FLIP, sgn = h === 0 ? 1 : -1;
+        let keep = ROAD_HALF, fall = null;
+        if (this.gaps.length) { const s = this.laneAt(lane, z); keep = s.keep; fall = s.gap; }
+        if (keep >= ROAD_HALF) {
+          _m.compose(_p.set(0, 0, z), rot, _s.set(1, 1, 1));
+          this.road.setMatrixAt(n, _m); this.road.setColorAt(n, col); n++;
+          continue;
+        }
+        if (keep > 0.4) { // narrowed strip: the half tile squeezed toward the centre line (its trim follows)
+          _m.compose(_p.set(0, 0, z), rot, _s.set(keep / ROAD_HALF, 1, 1));
+          this.road.setMatrixAt(n, _m); this.road.setColorAt(n, col); n++;
+        }
+        if (fall) { // the piece breaking off: shakes, lets go row by row, drops and tumbles
+          const tt = this.time - fall.t0 - ((-z - fall.from) / TILE_LEN) * FALL_DELAY;
+          if (tt < FALL_T) {
+            const sx = (ROAD_HALF - keep) / ROAD_HALF, x0 = sgn * (keep - (DIVIDER.width / 2) * sx);
+            if (tt <= 0) {
+              const j = tt > -FALL_SHAKE ? Math.sin(this.time * 70 + k) * 0.035 : 0;
+              _m.compose(_p.set(x0, j, z), rot, _s.set(sx, 1, 1));
+            } else {
+              _e.set(tt * (0.9 + (k % 3) * 0.35), 0, -sgn * tt * (0.7 + (k % 2) * 0.5));
+              _q2.setFromEuler(_e).premultiply(rot);
+              _m.compose(_p.set(x0 + sgn * tt * 1.1, -11 * tt * tt, z + tt * 0.6), _q2, _s.set(sx, 1, 1));
+            }
+            this.road.setMatrixAt(n, _m); this.road.setColorAt(n, col); n++;
+          }
+        }
       }
-      if (this.gaps.length && this.isGap('L', z) && this.isGap('R', z)) continue;
+      if (this.gaps.length && this.laneAt('L', z).keep <= 0 && this.laneAt('R', z).keep <= 0) continue;
       _m.makeTranslation(0, 0, z);
       this.divider.setMatrixAt(nd++, _m);
     }

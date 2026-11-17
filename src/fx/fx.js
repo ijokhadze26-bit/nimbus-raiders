@@ -104,6 +104,12 @@ export class Fx {
     };
     on('weapon:tier', mkUp);
     on('weapon:swap', mkUp);
+    on('cliff:collapse', (p) => {
+      // the road breaks away: dust bursts along the edge, a rumble in the camera
+      const n = Math.max(2, Math.min(6, Math.round((p.to - p.from) / 6)));
+      for (let i = 0; i < n; i++) B.landing(p.pos.x, -(p.from + ((i + 0.5) / n) * (p.to - p.from)), 1.6);
+      g.shake.add(0.35);
+    });
     on('helper:add', (p) => B.sparkle(p.pos.x, p.pos.y || 1.5, p.pos.z, p.kind === 'turret' ? 0xffb36b : 0x8dff9a, 14, 1.2, -g.squad.speed));
     on('pickup:collect', (p) => B.sparkle(p.pos.x, (p.pos.y || 0) + 0.6, p.pos.z, POWER_COLORS[p.kind] || 0xffffff, 12, 1.2, -g.squad.speed));
     on('power:start', (p) => {
