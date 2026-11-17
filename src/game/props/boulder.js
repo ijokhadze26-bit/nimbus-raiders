@@ -5,7 +5,7 @@
 import { buildBoulder, BOULDER_R, rockColor } from '../../models/props/boulder.js';
 import { ROAD_HALF } from '../../config.js';
 
-export const ROLL = { boost: 8, travel: 68, minV: 7, heavyLoss: 0.8, offV: 7, touch: 0.45 };
+export const ROLL = { boost: 8, travel: 68, minV: 7, heavyLoss: 0.8, loss: 0.994, offV: 7, touch: 0.45 };
 const R = BOULDER_R;
 const pool = (sys) => sys.view('boulderPool', () => ({ free: [] }));
 
@@ -24,7 +24,7 @@ export const boulder = {
       if ((e.y || 0) > 1.8) return false;
       const dx = e.x - o.x, dz = e.z - o.z, r = R + e.def.r;
       if (dx * dx + dz * dz >= r * r) return false;
-      if (sys.heavy(e)) { o.heavy++; o.v *= ROLL.heavyLoss; }
+      if (sys.heavy(e)) { o.heavy++; o.v *= ROLL.heavyLoss; } else o.v *= ROLL.loss; // a thick horde slows it too
       return true;
     };
     return o;

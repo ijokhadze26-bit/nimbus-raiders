@@ -1,6 +1,6 @@
 // Dam: a water tank behind a little dam wall beside one lane, its chute shut by a red sluice gate. Shoot the
 // gate (hp) and a flood pours down that lane toward the squad for ~2 s: small enemies in it are washed off the
-// road, heavy ones (Bulwarks, Hives, elites) are shoved back and battered. The squad is only pushed a little
+// road (at most FLOOD.maxWash per flood), heavy ones (Bulwarks, Hives, elites) are shoved back and battered. The squad is only pushed a little
 // toward the middle if it stands in the water. Event { type:'prop', kind:'dam', at, lane:'L'|'R', hp }.
 import { buildDam, DAM, waterTexture } from '../../models/props/dam.js';
 import { HP_STYLE } from '../../models/props/common.js';
@@ -8,7 +8,9 @@ import { drawLabel, labelReady } from '../../models/labels.js';
 import { ROAD_HALF, DIVIDER } from '../../config.js';
 import { applyDamage } from '../hordeops.js';
 
-export const FLOOD = { len: 30, grow: 20, time: 2.0, drain: 26, push: 3.0, back: 9, batter: 0.35 };
+// maxWash: most small enemies one flood washes away (a huge late horde is thinned, not erased); the rest in it
+// are shoved back like the heavy ones
+export const FLOOD = { len: 30, grow: 20, time: 2.0, drain: 26, push: 3.0, back: 9, batter: 0.35, maxWash: 60 };
 const SRC = { el: 'neutral', shieldHits: 99, bypassShield: true, cause: 'prop', events: false };
 const pool = (sys) => sys.view('damPool', () => ({ free: [] }));
 
@@ -36,7 +38,7 @@ export const dam = {
     return { state: 'shut', shoot: true, hp, max: hp, tx: side * 3.4, th: 1.6, z, side, x0, x1, flash: 0, t: 0, front: 0, tail: 0, gx: 0, gy: 0, gvx: 0, gvy: 0, vis };
   },
   trigger(sys, o) {
-    o.state = 'flood'; o.t = 0; o.front = 0.5; o.tail = 0;
+    o.state = 'flood'; o.t = 0; o.front = 0.5; o.tail = 0; o.washed = 0;
     o.gvx = o.side * -5; o.gvy = 6; // the gate is blown off toward the road
     const B = sys.fxB();
     if (B) { B.impact(o.side * DAM.chuteX, o.z, 0x5fd0ff); B.sparkle(o.side * DAM.chuteX, DAM.chuteY, o.z, 0xbff0ff, sys.low ? 6 : 14, 1.4); }
@@ -60,14 +62,18 @@ export const dam = {
     const inside = (x, z) => x > x0 && x < x1 && z < zNear && z > zFar - 0.5;
     const h = sys.game.horde;
     let heavy = 0;
+    const room = FLOOD.maxWash - o.washed;
+    let taken = 0;
     const n = sys.crush((e) => {
       if (!inside(e.x, e.z) || (e.y || 0) > 1.6) return false;
-      if (!sys.heavy(e)) return true;
-      heavy++;
+      if (!sys.heavy(e) && taken < room) { taken++; return true; }
       e.z -= FLOOD.back * dt;
+      if (!sys.heavy(e)) return false;
+      heavy++;
       applyDamage(h, e, e.maxHp * FLOOD.batter * dt, e.maxHp * FLOOD.batter * dt, SRC);
       return false;
     }, 'dam');
+    o.washed += n;
     if (n && !sys.low) { const B = sys.fxB(); if (B && Math.random() < 0.5) B.sparkle((x0 + x1) / 2, 0.5, zNear - 0.5, 0xbff0ff, 4, 1.2); } // visual only
     const L = sys.game.squad.leader, hz = sys.game.hazards;
     if (hz && hz.mods && sys.live && inside(L.x, L.z)) hz.mods.pushX += -o.side * FLOOD.push;
