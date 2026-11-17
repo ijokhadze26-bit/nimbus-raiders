@@ -9,6 +9,7 @@ import { markInstances } from '../core/pool.js';
 import { buildGapView, disposeGapView } from '../models/obstacles.js';
 import { Weather } from './weather.js';
 import { registerWarm } from './warmup.js';
+import { DIV3 } from '../data/roadplan.js';
 
 // the weather points compile at boot with everything else (first forge / frost run never stalls)
 registerWarm((game) => { const w = game.world && game.world.weather; return w ? new THREE.Points(w.mesh.geometry, w.material) : null; });
@@ -31,6 +32,7 @@ export class World {
     this.theme = getTheme('noon');
     this.time = 0;
     this.gaps = [];
+    this.lanes3 = []; // stage 4: 3-lane stretches [{ at, length }] (dividers at +-DIV3 instead of the centre)
     this.gapViews = new Map(); // gap object -> dressing (lips, depth walls, pit shade, chevrons)
     this.baseRow = null;
     this.camZ = 0;
@@ -71,7 +73,7 @@ export class World {
     this.trim.receiveShadow = true;
     this.trim.frustumCulled = false;
     this.dividerMat = new THREE.MeshLambertMaterial({ color: '#a8d6ff', emissive: '#4f8fd8', emissiveIntensity: 0.18, vertexColors: true });
-    this.divider = new THREE.InstancedMesh(dividerGeometry(), this.dividerMat, ROWS);
+    this.divider = new THREE.InstancedMesh(dividerGeometry(), this.dividerMat, ROWS * 2); // x2: 3-lane stretches draw two per row
     this.divider.receiveShadow = true;
     this.divider.castShadow = false;
     this.divider.frustumCulled = false;
@@ -186,6 +188,9 @@ export class World {
 
   /** gaps: [{ lane:'L'|'R'|'C', from, to }] in distance units. */
   setGaps(gaps) { this.gaps = gaps || []; this.baseRow = null; this.syncGapViews(); }
+  /** 3-lane stretches of the run (gates.reset): two dividers at +-DIV3 there. */
+  setLanes3(list) { this.lanes3 = list || []; this.baseRow = null; }
+  in3(z) { const d = -z; for (const s of this.lanes3) if (d + TILE_LEN / 2 > s.at && d - TILE_LEN / 2 < s.at + s.length) return true; return false; }
 
   /** Builds dressing for new gaps, drops it for gaps that are gone. */
   syncGapViews() {
@@ -293,6 +298,11 @@ export class World {
         n++;
       }
       if (this.gaps.length && this.isGap('L', z) && this.isGap('R', z)) continue;
+      if (this.lanes3.length && this.in3(z)) {
+        _m.makeTranslation(-DIV3, 0, z); this.divider.setMatrixAt(nd++, _m);
+        _m.makeTranslation(DIV3, 0, z); this.divider.setMatrixAt(nd++, _m);
+        continue;
+      }
       _m.makeTranslation(0, 0, z);
       this.divider.setMatrixAt(nd++, _m);
     }

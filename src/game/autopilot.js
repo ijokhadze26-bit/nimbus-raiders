@@ -16,7 +16,7 @@ import { ALIVE } from './horde.js';
 import { TARGET_CLAMP, MEMBER_CLAMP } from '../config.js';
 import { BLADE_R } from '../models/obstacles.js';
 import { ENEMY_INDEX } from '../data/enemies.js';
-import { BOT_DEFAULTS, barrelValue, crateGoal, avoidCrates, hordeFire, easeLookAhead, abilityTick } from './autopilot2.js';
+import { BOT_DEFAULTS, barrelValue, crateGoal, avoidCrates, hordeFire, easeLookAhead, abilityTick, cageGoal, chainScore } from './autopilot2.js';
 
 const LOOK = 75;
 const HAZ_LOOK = 24;     // start lining up this far before a blade / gap
@@ -158,6 +158,7 @@ export class Autopilot {
       if (x === null && cg) x = cg.x;
       if (x === null) x = this.pickupGoal(gate, false);
       if (x === null) x = this.hordeGoal();
+      if (x === null) x = cageGoal(this, gate);
       if (x === null) x = this.barrelGoal(gate);
       if (x === null) x = this.pickupGoal(gate, true);
       if (x === null && gate) x = gate.x;
@@ -251,7 +252,7 @@ export class Autopilot {
       let hits = naive ? 0 : bulletsPerSec * Math.max(0, Math.min(t, GATE_ALIGN / speed) - 0.5 - clearT) * 0.8;
       if (g.hidden) hits = Math.max(0, hits - (REVEAL_HITS - g.revealHits)); // a hidden gate takes no raise hits yet
       const pred = predictGate(g, hits);
-      let score = applyGate(g, count, pred.value, pred.rung);
+      let score = chainScore(this, g, applyGate(g, count, pred.value, pred.rung), naive); // chain gates: + the row it unlocks
       if (g === this.choice) score *= 1.08; // hysteresis
       if (score > bestScore) { second = best; secondScore = bestScore; bestScore = score; best = g; }
       else if (score > secondScore) { secondScore = score; second = g; }

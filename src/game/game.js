@@ -39,6 +39,7 @@ import { createZoneViews } from '../models/weapons/zones.js';
 import { Finish } from './finish.js';
 import { worldFor } from './worldlook.js';
 import { Hazards } from './hazards/index.js';
+import { Cages } from './cages.js';
 import { eliteDef } from '../data/elite.js';
 
 const ATTRACT_COUNT = 9;
@@ -106,7 +107,8 @@ export class Game {
     this.heroes = new HeroSystem();
     this.crates = new Crates();
     this.hazards = new Hazards(); // update 3 world hazards (mods / danger read by squad, world, obstacles, autopilot)
-    this.systems = [this.world, this.bullets, this.squad, this.status, this.zones, this.heroes, this.helpers, this.weapons, this.gates, this.horde, this.barrels, this.telegraph, this.bosses, this.obstacles, this.hazards, this.pickups, this.powers, this.crates, this.autopilot];
+    this.cages = new Cages(); // stage 4 rescue cages (shoot the lock, freed Raiders join)
+    this.systems = [this.world, this.bullets, this.squad, this.status, this.zones, this.heroes, this.helpers, this.weapons, this.gates, this.cages, this.horde, this.barrels, this.telegraph, this.bosses, this.obstacles, this.hazards, this.pickups, this.powers, this.crates, this.autopilot];
     for (const s of this.systems) s.init(this);
     this.endless.init(this);
     this.zoneViews = createZoneViews(this);
@@ -207,6 +209,7 @@ export class Game {
     this.helpers.reset();
     this.obstacles.reset(run);
     this.hazards.reset(run);
+    this.cages.reset(run);
     this.pickups.reset(run);
     this.powers.reset();
     this.status.reset();
@@ -356,6 +359,7 @@ export class Game {
       this.gates.update(dt);
       this.obstacles.update(dt);
       this.hazards.update(dt);
+      this.cages.update(dt);
       this.pickups.update(dt);
       this.powers.update(dt);
       this.heroes.update(dt);
@@ -429,6 +433,7 @@ export class Game {
     this.helpers.sync(dt);
     this.obstacles.sync(dt);
     this.hazards.sync(dt);
+    this.cages.sync(dt);
     this.pickups.sync(dt);
     this.powers.sync(dt);
     this.telegraph.sync(dt);

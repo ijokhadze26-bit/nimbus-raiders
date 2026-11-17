@@ -391,6 +391,8 @@ export class Squad {
     this.leaderRig.sync(t);
     const lift = this.game.hazards ? this.game.hazards.mods.lift : 0; // jelly launch arc (visual only)
     if (lift && !this.pipGone && !this.pipFall.on) this.pip.root.position.y = lift;
+    const gts = this.game.gates, ramps = gts && gts.ramps && gts.ramps.length ? gts : null; // stage 4 ramp gates: feet follow the hump
+    if (ramps && !this.pipGone && !this.pipFall.on) this.pip.root.position.y = Math.max(lift, ramps.rampY(L.x, L.z));
     const arr = this.raiders.instanceMatrix.array;
     let n = 0;
     const rb = Math.max(0.3, this.runBlend);
@@ -403,7 +405,7 @@ export class Squad {
       const sc = p < 1 ? popScale(p) : 1;
       _e.set(-0.16 * rb, (m.tx - m.x) * -0.25, sn * 0.12 * rb);
       _q.setFromEuler(_e);
-      _m.compose(_p.set(m.x, bob + lift, m.z), _q, _s.set(sc, sc * (1 - Math.abs(Math.cos(ph)) * 0.05 * rb), sc));
+      _m.compose(_p.set(m.x, bob + (ramps ? Math.max(lift, ramps.rampY(m.x, m.z)) : lift), m.z), _q, _s.set(sc, sc * (1 - Math.abs(Math.cos(ph)) * 0.05 * rb), sc));
       _m.toArray(arr, n * 16);
       n++;
     }

@@ -117,11 +117,13 @@ export function bindAudio(audio, game) {
     else fx('gateTick', { op: 'add', value: 0 });
   });
   on('barrel:hit', () => fx('clank'));
+  on('cage:hit', () => fx('clank'));
+  on('cage:open', () => fx('barrelBreak', { kind: 'troops' }));
   on('barrel:break', (p) => { fx('barrelBreak', { kind: p.reward && p.reward.kind }); dip(0.2, 0.15); });
 
   // ---------------- squad ----------------
   on('squad:lost', (p) => { if (p.reason !== 'gap') fx('oof'); });
-  on('squad:change', (p) => { if (p.reason === 'barrel' && p.delta > 0) fx('troops'); });
+  on('squad:change', (p) => { if ((p.reason === 'barrel' || p.reason === 'cage') && p.delta > 0) fx('troops'); });
   on('obstacle:kill', (p) => { if (p.kind === 'blade') fx('slice'); else if (p.kind === 'gap') fx('fall'); });
 
   // ---------------- pickups / powers / helpers ----------------
