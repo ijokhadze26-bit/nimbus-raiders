@@ -5,6 +5,7 @@
 // with TRY AGAIN and BACK (to the Armory / Heroes item it came from).
 // Update 3 stage 3: an ELITE run says so (purple ELITE CLEAR! ribbon + glow, purple stars = the elite stars,
 // an ELITE x2 tag on the coins; a loss shows the ELITE tag under the level).
+// Update 3 stage 5: the run's modifiers (tags + their coin bonus; ONE LIFE says why a run ended) under the coins.
 import { screenEl, countTo, bump, wait, fmt } from '../ui.js';
 import { icon } from '../icons.js';
 import { getLevel } from '../../data/levels.js';
@@ -14,6 +15,7 @@ import { heroDef } from '../../data/heroes.js';
 import { weaponIcon, heroIcon } from '../icons2.js';
 import { mkLabel } from '../infofmt.js';
 import { ELITE_BADGE } from '../elite.js';
+import { modsResultHtml } from '../modsui.js';
 
 const eliteTag = () => `<div class="res-elite-tag">${ELITE_BADGE}<span>ELITE</span></div>`;
 
@@ -54,6 +56,7 @@ export function createResult(ui) {
           <div class="stat">${icon('damage')}<span class="num">${fmt(a.kills ?? 0)}</span><small>KILLS</small></div>
         </div>
         <div class="res-coins"><span class="coin-ico">${icon('coin')}</span><span class="num amt">+0</span>${bonus}</div>
+        ${modsResultHtml(a)}
         ${tag}
         ${cardsHtml(a.newItems)}
         <div class="res-btns">
@@ -87,6 +90,7 @@ export function createResult(ui) {
         <div class="lose-ico">${icon('heart')}<span class="crack"></span></div>
         ${dist}
         <div class="res-coins"><span class="coin-ico">${icon('coin')}</span><span class="num amt">+0</span>${heroBonus(a)}</div>
+        ${modsResultHtml(a)}
         <div class="tip">${tip}</div>
         <div class="res-btns">
           <button type="button" class="btn btn-gold btn-lg" data-act="retry">${icon('retry')}<span>RETRY</span></button>

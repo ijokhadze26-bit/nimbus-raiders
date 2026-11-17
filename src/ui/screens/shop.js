@@ -1,13 +1,15 @@
 // Shop: Upgrades / Pip Outfits / Gun Paint tabs. Buying spends saved coins (debounced autosave), equips persist.
 // Update 2: the old weapon skins are GUN PAINT (they recolour the gun bodies only, per Mk); same ids and prices.
+// Update 3 stage 5: a SQUAD tab (shopsquad.js): Raider types (Shield Bearer / Medic / Heavy Gunner) + their mix.
 import { screenEl, coinPill, el, bump, fmt } from '../ui.js';
 import { icon } from '../icons.js';
 import { UPGRADES, upgradeCost, upgradeLabel } from '../../data/shop.js';
 import { HERO_SKINS, WEAPON_SKINS } from '../../data/skins.js';
 import { weaponDef } from '../../data/weapons.js';
-import { buySkin, buyUpgrade, equipSkin } from '../../save/progress.js';
+import { buySkin, buyUpgrade, equipSkin, buySquadType, setSquadMix } from '../../save/progress.js';
+import { squadHtml } from './shopsquad.js';
 
-const TABS = [['upgrades', 'UPGRADES'], ['hero', 'PIP OUTFITS'], ['weapons', 'GUN PAINT']];
+const TABS = [['upgrades', 'UPGRADES'], ['hero', 'PIP OUTFITS'], ['weapons', 'GUN PAINT'], ['squad', 'SQUAD']];
 const PAINT_NOTE = 'Gun paint recolours your guns. Each weapon keeps its own bullets and effects.';
 
 export function createShop(ui) {
@@ -19,7 +21,7 @@ export function createShop(ui) {
       <div class="plaque">${icon('cart')}<span>SHOP</span></div>
       ${coinPill()}
     </div>
-    <div class="tabs">${TABS.map(([id, n]) => `<button type="button" class="tab" data-act="tab" data-tab="${id}">${n}</button>`).join('')}</div>
+    <div class="tabs n4">${TABS.map(([id, n]) => `<button type="button" class="tab" data-act="tab" data-tab="${id}">${n}</button>`).join('')}</div>
     <div class="shop-body"><div class="shop-list"></div></div>`;
   const list = root.querySelector('.shop-list');
   const body = root.querySelector('.shop-body');
@@ -28,7 +30,7 @@ export function createShop(ui) {
   function render() {
     for (const b of root.querySelectorAll('.tab')) b.classList.toggle('on', b.dataset.tab === tab);
     list.className = `shop-list list-${tab}`;
-    list.innerHTML = tab === 'upgrades' ? upgradesHtml(ui.save.data) : skinsHtml(ui.save.data, tab);
+    list.innerHTML = tab === 'upgrades' ? upgradesHtml(ui.save.data) : tab === 'squad' ? squadHtml(ui.save.data) : skinsHtml(ui.save.data, tab);
     if (tab === 'weapons') list.insertAdjacentHTML('afterbegin', `<div class="paint-note">${icon('tier')}<span>${PAINT_NOTE}</span></div>`);
   }
 
@@ -41,7 +43,7 @@ export function createShop(ui) {
     const card = list.querySelector(`[data-id="${flashId}"]`);
     if (card) {
       bump(card, 'bought');
-      const fl = el('div', 'buy-float', tab === 'upgrades' ? 'LEVEL UP!' : 'UNLOCKED!');
+      const fl = el('div', 'buy-float', tab === 'upgrades' ? 'LEVEL UP!' : tab === 'squad' ? 'JOINED!' : 'UNLOCKED!');
       card.appendChild(fl);
       setTimeout(() => fl.remove(), 900);
     }
@@ -63,6 +65,10 @@ export function createShop(ui) {
         if (buyUpgrade(save, btn.dataset.id)) { ui.sfx('purchase'); ui.vibrate(25); refresh(btn.dataset.id); }
       } else if (act === 'buy-skin') {
         if (buySkin(save, btn.dataset.id)) { ui.sfx('purchase'); ui.vibrate(25); refresh(btn.dataset.id); }
+      } else if (act === 'buy-type') {
+        if (buySquadType(save, btn.dataset.id)) { ui.sfx('purchase'); ui.vibrate(25); refresh(btn.dataset.id); }
+      } else if (act === 'mix') {
+        if (setSquadMix(save, btn.dataset.id, btn.dataset.mix)) { ui.vibrate(12); refresh(); }
       } else if (act === 'equip') {
         if (equipSkin(save, btn.dataset.id)) { refresh(); const c = list.querySelector(`[data-id="${btn.dataset.id}"]`); if (c) bump(c, 'equipped-pop'); }
       }
