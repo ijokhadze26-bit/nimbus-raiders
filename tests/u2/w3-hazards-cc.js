@@ -78,6 +78,7 @@ custom(JE); reset();
 steps(360, 4.5);
 ok(!lost.gap && g.run.active && !g.squad.pipGone, `jelly: Pip alone missed the pad and fell (${JSON.stringify(lost)})`);
 custom(JE); d.give('troops', 40); reset();
+g.formation.set('circle'); // update 3 stage 4: the default LINE is wide enough to catch the pad from x 3.2
 const before = g.squad.count;
 steps(360, 3.2);
 const missKills = hz.stats.kills.jelly || 0;
