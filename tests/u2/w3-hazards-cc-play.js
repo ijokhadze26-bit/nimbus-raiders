@@ -3,14 +3,18 @@
 // and Storm Citadel levels (L31-50) stay winnable with their hazards. Both bots ('pro', 'casual') x two loadouts
 // (Pip + Thunderclap, Rime + Glacier Lance) play the campaign from L1 with the foundation-campaign shop rule
 // (after every attempt the cheapest of damage / rate / squad / tier is bought while coins last), <= 5 attempts
-// per level; every L31-50 must be won. Slow (four full campaigns). Reports per level 31-50:
+// per level; every L31-50 must be won. Stage 3 balance (scripts/balance/CHANGELOG.md "Update 3"): worlds 4-5 are
+// meant to be genuinely hard, so a stall no longer ends a campaign; each campaign may stall on up to STALLS[prof]
+// of L31-50 and every L31-50 must be won by at least one of the four campaigns. Slow (four full campaigns).
+// Reports per level 31-50:
 // id:W|L<attempts>*<stars>/sq<squad at the finish>/hz<hazard kills over the attempts (hole kinds included)>.
 const g = window.__game, d = g.debug;
 g.loop.stop();
 const { upgradeCost } = await import('/src/data/shop.js');
 const { LAST_LEVEL: LAST } = await import('/src/data/levels.js');
 const FIRST = 31;
-const fails = [], res = {};
+const fails = [], res = {}, wonBy = [], stalls = {};
+const STALLS = { pro: 3, casual: 5 };
 const t0 = performance.now();
 for (const [hero, weapon] of [['pip', 'thunderclap'], ['rime', 'glacier']]) {
   for (const prof of ['pro', 'casual']) {
@@ -37,12 +41,16 @@ for (const [hero, weapon] of [['pip', 'thunderclap'], ['rime', 'glacier']]) {
         }
       }
       if (id >= FIRST) log.push(`${id}:${won ? 'W' : 'L'}${tries}${won ? '*' + last.stars : ''}/sq${last ? last.squad ?? 0 : 0}/hz${hz}`);
-      if (!won) { fails.push(`${hero}+${weapon} ${prof}: L${id} not won in 5 attempts`); break; }
+      if (!won && id < FIRST) { fails.push(`${hero}+${weapon} ${prof}: L${id} not won in 5 attempts`); break; }
+      if (id >= FIRST && won) wonBy.push(id);
+      else if (id >= FIRST) (stalls[`${hero}+${weapon} ${prof}`] ||= []).push(id);
     }
     res[`${hero}+${weapon} ${prof}`] = log.join(' ');
   }
 }
+for (const [k, l] of Object.entries(stalls)) if (l.length > STALLS[k.split(' ')[1]]) fails.push(`${k}: stalls on ${l.join(', ')}`);
+for (let id = FIRST; id <= LAST; id++) if (!wonBy.includes(id)) fails.push(`L${id}: no campaign won it`);
 d.setAutopilot(false);
 g.save.reset();
 d.toTitle();
-return { pass: fails.length === 0, fails, ms: Math.round(performance.now() - t0), res };
+return { pass: fails.length === 0, fails, stalls, ms: Math.round(performance.now() - t0), res };

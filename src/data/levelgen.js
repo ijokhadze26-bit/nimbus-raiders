@@ -11,7 +11,7 @@
 // gates on top (before the weapon crates are placed, so a crate never lands on a screening horde).
 import { Rng } from '../core/rng.js';
 import { worldOf, levelKind, indexInWorld, TOTAL_LEVELS } from './worlds.js';
-import { P, C, B, H, K, U, Xd, Od, a, x, dv, mv, FIX, GR, M5, M6, TW, level } from './beats.js';
+import { P, C, B, H, K, U, Xd, Od, a, x, dv, mv, FIX, GR, M5, M6, TW, level, retough } from './beats.js';
 import { pickFavours, placeCrates, crateAt } from './levelcrates.js';
 import { hardenLevel } from './harder.js';
 
@@ -34,7 +34,7 @@ const BOSS_PLAN = {
   25: { type: 'ironhorn', tier: 5, skin: 'frost', mini: true },
   30: { type: 'glacius', tier: 5, skin: 'frost' },
   35: { type: 'gumdrop', tier: 6, skin: 'candy', mini: true },
-  40: { type: 'mothermurk', tier: 6, skin: 'candy' },
+  40: { type: 'mothermurk', tier: 6, skin: 'candy', hpMul: 0.8 }, // stage 3: the Candy Kingdom's smaller squads reach it
   45: { type: 'oculon', tier: 6, skin: 'citadel', mini: true },
   50: { type: 'tempestking', tier: 6 },
 };
@@ -44,15 +44,33 @@ const HP_GROWTH = 1.045, MINI_HP = 0.8;
 // horde toughness at the arena: L15's 45, growing TOUGH_GROWTH per level
 const TOUGH_BASE = 45, TOUGH_GROWTH = 1.035;
 const KIND_TOUGH = { intro: 0.55, normal: 1, mini: 0.9, boss: 0.85 };
+// Stage 3 balance (quick autopilot check, scripts/balance/CHANGELOG.md "Update 3"), per world index (0 = Volcanic
+// Forge .. 3 = Storm Citadel): WORLD_TOUGH = extra horde toughness reached at the end of the level (it ramps in
+// with progress^LATE_EXP, so the small early squad meets the old hordes and the snowballed late squad the tough
+// ones); boss / mini levels use BOSS_TOUGH instead (their boss is the test); WORLD_COUNT / BOSS_COUNT = horde
+// size factor.
+export const WORLD_TOUGH = [10, 9, 26, 10];
+export const BOSS_TOUGH = [1.35, 1.65, 2.5, 2.6];
+export const WORLD_COUNT = [1.3, 1.2, 1.5, 1.35];
+export const BOSS_COUNT = [1.1, 1.15, 1.3, 1.35];
+// expected late squad (gate / barrel sizes) per world: the Candy Kingdom and the Storm Citadel grow a smaller squad
+export const WORLD_SMAX = [1, 0.9, 0.55, 0.9];
+// extra Bulwark share (3 contact kills each) per world
+export const WORLD_TANK = [0, 0, 0.12, 0.02];
+const LATE_EXP = 1.5, INTRO_SHARE = 0.15, SHIELD_CLEAR = 130;
+/** Share of the world's extra toughness / horde size a normal level gets: 40% early in the world -> 100% at its end. */
+const ramp = (i) => 0.4 + 0.6 * Math.min(1, i / 9);
 
-// Stars per level (2 at about a typical casual finish, 3 at a strong one), from the quick autopilot check
-// (casual campaign with the shop rule, 3 casual + 2 pro seeds); starsFor() is the fallback.
+// Stars per level (2 at about a typical casual finish, 3 at a strong one). Stage 3 balance: re-derived with
+// scripts/balance/stars3.js (casual seeds 1-3 + pro seeds 1-2, campaign upgrades): 2 stars = casual median finish
+// squad (0.8 x the median of all wins when fewer than 2 casual wins), 3 stars = max(pro median, 1.3 x that).
+// L46 (no win in those 5 runs) is set by hand next to L47-48. starsFor() is the fallback.
 export const STARS = {
-  16: [870, 970], 17: [800, 905], 18: [870, 970], 19: [655, 825], 20: [870, 970], 21: [345, 395], 22: [670, 755],
-  23: [485, 620], 24: [590, 770], 25: [835, 930], 26: [715, 820], 27: [655, 760], 28: [870, 970], 29: [850, 950],
-  30: [720, 830], 31: [870, 970], 32: [745, 850], 33: [750, 830], 34: [615, 710], 35: [840, 930], 36: [870, 970],
-  37: [570, 700], 38: [510, 700], 39: [590, 775], 40: [765, 945], 41: [375, 480], 42: [675, 780], 43: [595, 665],
-  44: [575, 650], 45: [735, 860], 46: [645, 770], 47: [505, 755], 48: [585, 700], 49: [810, 920], 50: [505, 640],
+  16: [435, 565], 17: [365, 470], 18: [550, 710], 19: [780, 990], 20: [950, 990], 21: [885, 990], 22: [635, 830],
+  23: [340, 440], 24: [560, 725], 25: [665, 865], 26: [415, 540], 27: [215, 295], 28: [515, 670], 29: [300, 390],
+  30: [575, 745], 31: [940, 990], 32: [30, 50], 33: [90, 115], 34: [20, 40], 35: [675, 880], 36: [480, 625],
+  37: [490, 635], 38: [30, 50], 39: [690, 900], 40: [300, 390], 41: [350, 460], 42: [70, 90], 43: [395, 510],
+  44: [375, 485], 45: [390, 505], 46: [150, 250], 47: [190, 250], 48: [165, 215], 49: [265, 345], 50: [60, 80],
 };
 
 const r1 = (v) => Math.round(v * 10) / 10;
@@ -62,8 +80,9 @@ const r2 = (v) => Math.round(v * 100) / 100;
 export function bossFor(id) {
   const b = BOSS_PLAN[id];
   if (!b) return null;
-  const hp = Math.round(HP_BASE[b.type] * Math.pow(HP_GROWTH, id - 15) * (b.mini ? MINI_HP : 1) / 1000) * 1000;
-  return { ...b, hp };
+  const { hpMul = 1, ...cfg } = b;
+  const hp = Math.round(HP_BASE[b.type] * Math.pow(HP_GROWTH, id - 15) * (b.mini ? MINI_HP : 1) * hpMul / 1000) * 1000;
+  return { ...cfg, hp };
 }
 
 /** Level-wide numbers of a generated level (no events). */
@@ -75,7 +94,7 @@ export function levelParams(id) {
   const tough = r1(TOUGH_BASE * Math.pow(TOUGH_GROWTH, id - 15) * KIND_TOUGH[kind]);
   const reward = Math.round((215 + 11.5 * (id - 16)) / 10) * 10;
   // expected squad near the end of the level (sets gate / barrel / horde sizes and the stars)
-  const smax = intro ? 300 : Math.min(900, 600 + 160 * (i / 9) + 30 * wi);
+  const smax = intro ? 300 : Math.round(Math.min(900, 600 + 160 * (i / 9) + 30 * wi) * (wi >= 0 ? WORLD_SMAX[wi] : 1));
   return { w, i, kind, wi, intro, length, speed, tough, reward, smax, theme: w.themes[i % w.themes.length] };
 }
 
@@ -131,12 +150,14 @@ function mixFor(r, q, p) {
   if (p > 0.3 && r.chance(wi === 0 ? 0.2 : 0.15 + 0.05 * wi)) return TW(r2(0.18 + 0.12 * p + 0.02 * wi), 0.22);
   const s = 0.14 + 0.05 * p + 0.03 * wi + (wi === 1 ? 0.1 : 0);       // Shieldbearers (Frozen Peaks: more)
   const b = 0.12 + 0.02 * wi + (wi === 2 ? 0.12 : 0);                 // Fizzbombs (Candy Kingdom: more)
-  const t = 0.06 + 0.04 * p + 0.015 * wi + (wi === 3 ? 0.04 : 0);     // Bulwarks (Storm Citadel: more)
+  const t = 0.06 + 0.04 * p + 0.015 * wi + (wi === 3 ? 0.04 : 0) + WORLD_TANK[wi]; // Bulwarks (Storm Citadel: more)
   return M6(r2(0.2 + 0.06 * p), r2(s), r2(b), r2(t));
 }
 
 function hordeBeat(r, q, p) {
-  const count = Math.round((26 + 470 * Math.pow(p, 1.2)) * (1 + 0.06 * q.wi) * (q.intro ? 0.6 : 1));
+  const boss = q.kind === 'boss' || q.kind === 'mini';
+  const wc = 1 + ((boss ? BOSS_COUNT : WORLD_COUNT)[q.wi] - 1) * (boss ? 1 : ramp(q.i));
+  const count = Math.round((26 + 470 * Math.pow(p, 1.2)) * (1 + 0.06 * q.wi) * wc * (q.intro ? 0.6 : 1));
   const lane = p < 0.5 && r.chance(0.3) ? lanePick(r) : 'both';
   const beat = [H(Math.min(560, count), mixFor(r, q, p), lane)];
   if (r.chance(0.35)) beat.push(U(lane === 'both' ? lanePick(r) : other(lane), r.pick(['shield', 'rapid', 'freeze', 'magnet'])));
@@ -190,6 +211,30 @@ function starsFor(q, boss) {
   return [Math.round(end * 0.5), Math.round(end * 0.85)];
 }
 
+/** Stage 3 balance: horde toughness x (1 + (WORLD_TOUGH - 1) x progress^LATE_EXP) (the final rush: x WORLD_TOUGH). */
+function lateTough(def, q) {
+  const boss = q.kind === 'boss' || q.kind === 'mini';
+  let late = 1 + ((boss ? BOSS_TOUGH : WORLD_TOUGH)[q.wi] - 1) * (boss ? 1 : ramp(q.i));
+  if (q.intro) late = 1 + (late - 1) * INTRO_SHARE; // the short hazard-teaching level stays gentle
+  if (late === 1) return;
+  const span = def.layout ?? def.length;
+  for (const e of def.events) {
+    if (e.type !== 'horde') continue;
+    const p = e.rush ? 1 : Math.max(0, Math.min(1, e.at / span));
+    e.tough = r2((e.tough ?? 1) * (1 + (late - 1) * Math.pow(p, LATE_EXP)));
+  }
+  retough(def);
+  if (def.boss) return;
+  // an 8 s shield (power token or shield barrel) this close before the final rush made every rush enemy die on
+  // contact: those turn into rapid fire / a turret barrel (same lane, same spot)
+  const rush = def.events.find((e) => e.type === 'horde' && e.rush);
+  for (const e of def.events) {
+    if (!rush || e.at < rush.at - SHIELD_CLEAR) continue;
+    if (e.type === 'powerup' && e.kind === 'shield') e.kind = 'rapid';
+    else if (e.type === 'barrel' && e.reward.kind === 'shield') e.reward = { kind: 'turret', amount: 1 };
+  }
+}
+
 /** One generated level def (16..50). */
 export function generateLevel(id) {
   const q = levelParams(id);
@@ -200,6 +245,7 @@ export function generateLevel(id) {
     reward: q.reward, tough: q.tough, boss, rush: { mul: q.intro ? 1 : r2(1.15 + 0.05 * q.wi) },
   }, beatsFor(r, q, boss));
   hardenLevel(def); // stage 3: enemy mixes, red gates, cursed barrels, hidden gates (own Rng; beats stay put)
+  lateTough(def, q);
   def.favours = pickFavours(def);
   // weapon crates on even levels (one) and boss levels (two), cycling through the favoured weapons
   const fav = (k) => def.favours[(id + k) % def.favours.length];

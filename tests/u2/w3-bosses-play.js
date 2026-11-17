@@ -4,7 +4,10 @@
 // the upgraded bosses (rage, safe spots, lava Ironhorn, Candy Queen, 3-phase Tempest King). Shop state per level
 // comes from a casual campaign with the foundation-campaign upgrade rule (Pip + Thunderclap); then 'pro' and
 // 'casual' play each level with two loadouts (Pip + Thunderclap, Cinder + Emberstorm), up to 3 seeds each.
-// Pass = every (level, profile, loadout) wins within 3 tries. Reports per try: arena squad > squad left / fight
+// Pass = every (level, profile, loadout) wins within 3 tries. Stage 3 balance (scripts/balance/CHANGELOG.md
+// "Update 3"): the Candy Kingdom / Storm Citadel bosses (L40, L45, L50) are meant to be genuinely hard, so there
+// the casual bot is reported only (casualHard) and only the pro bot must win within 3.
+// Reports per try: arena squad > squad left / fight
 // seconds, safe spots (s) and rages (r); per level the mean share of the arena squad kept; per profile the share
 // of the squad each safe-spot blast took. window.__bpGuard overrides the Tempest King's storm shield (safeGuard).
 const g = window.__game, d = g.debug;
@@ -52,7 +55,8 @@ for (let id = 1; id <= last; id++) {
   if (CHECK.includes(id)) camp.push(`L${id}:${tries}${r.win ? '' : 'X'}`);
 }
 // B: each checked level x profile x loadout with the snapshot upgrades (fresh coins, nothing bought mid-check)
-const rows = [], fails = [], stat = [];
+const rows = [], fails = [], stat = [], casualHard = [];
+const CASUAL_HARD = 40;
 for (const id of CHECK) {
   for (const [hero, weapon] of LOADOUTS) {
     for (const prof of ['pro', 'casual']) {
@@ -68,7 +72,8 @@ for (const id of CHECK) {
         won = won || r.win;
       }
       rows.push(`L${id} ${hero}+${weapon} ${prof}: ${tries.join(' ')}`);
-      if (!won) fails.push(`L${id} ${hero}+${weapon} ${prof}: 3 losses`);
+      if (!won && (prof === 'pro' || id < CASUAL_HARD)) fails.push(`L${id} ${hero}+${weapon} ${prof}: 3 losses`);
+      else if (!won) casualHard.push(`L${id} ${hero}+${weapon}`);
     }
   }
 }
@@ -80,4 +85,4 @@ const kept = {};
 for (const id of CHECK) { const l = stat.filter((x) => x.id === id); kept[id] = Math.round(l.reduce((a, x) => a + x.kept, 0) / l.length * 100) + '%'; }
 const safe = {};
 for (const [p, l] of Object.entries(safeLoss)) safe[p] = { blasts: l.length, meanLoss: Math.round(l.reduce((a, x) => a + x, 0) / l.length * 100) + '%', maxLoss: Math.round(Math.max(...l) * 100) + '%' };
-return { pass: fails.length === 0, fails, camp, kept, safe, guard: tk.safeGuard, ups: snap, rows };
+return { pass: fails.length === 0, fails, casualHard, camp, kept, safe, guard: tk.safeGuard, ups: snap, rows };

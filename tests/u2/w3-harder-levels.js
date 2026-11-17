@@ -45,7 +45,7 @@ for (const lv of L.LEVELS) {
     const sum = Object.values(e.mix).reduce((a, b) => a + b, 0);
     ok(Math.abs(sum - 1) < 0.02, `L${lv.id} horde@${e.at} mix sums to ${sum}`);
     ok(Object.keys(e.mix).every((k) => ['grunt', 'runner', 'tank', 'shield', 'bomber', ...NEW].includes(k)), `L${lv.id} mix keys ${Object.keys(e.mix)}`);
-    ok(!(e.elite > 0) || (w >= 4 && e.elite <= 0.15), `L${lv.id} elite ${e.elite} in world ${w}`);
+    ok(!(e.elite > 0) || (w >= 4 && e.elite <= 0.18), `L${lv.id} elite ${e.elite} in world ${w}`);
   }
   if (lv.id <= 15) {
     ok(s.cursed === 0 && s.screens === 0 && lv.events.every((e) => !e.red && !e.hidden), `L${lv.id}: hand-made level got more than a mix pass`);
@@ -75,7 +75,7 @@ for (const w of [2, 3, 4, 5]) {
   ok(pw.hidden >= 3, `world ${w}: only ${pw.hidden} hidden gates`);
 }
 ok(perWorld[2].types.size === 2 && !perWorld[2].types.has('sniper'), 'world 2 types');
-ok(perWorld[5].elite > perWorld[4].elite && perWorld[5].elite <= 0.15 && perWorld[4].elite >= 0.08, `elite W4 ${perWorld[4].elite} W5 ${perWorld[5].elite}`);
+ok(perWorld[5].elite > perWorld[4].elite && perWorld[5].elite <= 0.18 && perWorld[4].elite >= 0.08, `elite W4 ${perWorld[4].elite} W5 ${perWorld[5].elite}`);
 const redShare = (w) => perWorld[w].red / perWorld[w].gates;
 ok(redShare(5) > redShare(3) && redShare(4) > redShare(2) && redShare(3) >= redShare(2), `red share ${[1, 2, 3, 4, 5].map((w) => redShare(w).toFixed(2))}`);
 // the red pass turned free + gates red in every later world (more of them later); free rows (both gates good) get rarer

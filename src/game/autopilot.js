@@ -20,17 +20,22 @@ import { BOT_DEFAULTS, barrelValue, crateGoal, avoidCrates, hordeFire, easeLookA
 
 const LOOK = 75;
 const HAZ_LOOK = 24;     // start lining up this far before a blade / gap
+// pro lines up 15 u before a hazard (stage 3 balance: at 24 u it left its gate / horde line too early on the
+// hazard-dense worlds and fell behind the casual bot, e.g. L22 1 / 4 -> 4 / 4 wins)
+const PRO_HAZ_LOOK = 15;
 const GATE_ALIGN = 30;   // the chosen gate overrides everything but telegraphs this far before it
+const SCREEN_BLOCK = 24; // more enemies than this between the squad and a gate row: no raise hits are counted
 const BLADE_PAD = 0.4, GAP_PAD = 0.35, GAP_SIDE = 0.22;
 
 // react: output delay (s) | wrongGate: chance to take the worse gate when the call is close (scores within
 // closeCall) | ignorePredict: chance per row to judge gates by their current value (no shooting value)
 // dodgeDelay: telegraph seen this late (s, includes react) | dodgeMiss: chance to ignore a telegraph
 // clip: chance per hazard to cut its edge by clipPad (u) | hazLook: lines up for hazards this late (u)
-// jitter: hand wobble amplitude (u) | barrelSkip / pickupSkip: chance per item to not bother
+// jitter: hand wobble amplitude (u; pro 0.1 so a pro retry is not an exact replay)
+// barrelSkip / pickupSkip: chance per item to not bother
 // hordeNaive: judges a horde by headcount (pro weighs its hp against the squad's firepower)
 export const BOT_PROFILES = {
-  pro: { react: 0, wrongGate: 0, closeCall: 0, ignorePredict: 0, dodgeDelay: 0, dodgeMiss: 0, clip: 0, clipPad: 0, hazLook: HAZ_LOOK, jitter: 0, barrelSkip: 0, pickupSkip: 0 },
+  pro: { react: 0, wrongGate: 0, closeCall: 0, ignorePredict: 0, dodgeDelay: 0, dodgeMiss: 0, clip: 0, clipPad: 0, hazLook: PRO_HAZ_LOOK, jitter: 0.1, barrelSkip: 0, pickupSkip: 0 },
   casual: { react: 0.35, wrongGate: 0.2, closeCall: 0.3, ignorePredict: 0.5, dodgeDelay: 0.4, dodgeMiss: 0.08, clip: 0.3, clipPad: 0.7, hazLook: 15, jitter: 0.35, barrelSkip: 0.15, pickupSkip: 0.3, hordeNaive: true },
   novice: { react: 0.6, wrongGate: 0.35, closeCall: 0.45, ignorePredict: 0.8, dodgeDelay: 0.6, dodgeMiss: 0.6, clip: 0.5, clipPad: 1.0, hazLook: 11, jitter: 0.6, barrelSkip: 0.35, pickupSkip: 0.6, hordeNaive: true },
 };
@@ -134,7 +139,7 @@ export class Autopilot {
     const tel = this.bossTel(game.telegraph ? game.telegraph.active : []);
     // live boss hazards that outlast their warning (charges, laser sweeps, quake crests, goo puddles)
     const zones = game.boss && game.boss.dangerZones;
-    let x = null;
+    let x = null, keep = 0;
     // a hero that dodges slower than Pip plans further ahead (0 for Pip: the shipped bot)
     const extra = easeLookAhead(game) * (game.run ? game.run.speed : 9);
     const look = this.p.hazLook + extra;
@@ -149,6 +154,7 @@ export class Autopilot {
       // a wanted crate clearly before the gate row is taken first (crates sit >= 12 u from every row)
       const cg = crateGoal(this);
       if (near) x = cg && cg.dz < gate.dz - 6 ? cg.x : gate.x;
+      keep = near && x === gate.x ? gate.gain : 0;
       if (x === null && cg) x = cg.x;
       if (x === null) x = this.pickupGoal(gate, false);
       if (x === null) x = this.hordeGoal();
@@ -159,7 +165,8 @@ export class Autopilot {
       if (x !== null) x = avoidCrates(this, this.avoidBarrels(x));
     }
     if (x !== null) this.targetX = x;
-    if (!seen.length) this.targetX = this.avoidHazards(this.targetX);
+    // a small capped hazard loss (a goo shot, a gumball) never costs the squad a much better gate it is lined up for
+    if (!seen.length && !(keep > 0 && this.hazardLoss(this.targetX) * 2 < keep && this.uncapped === 0)) this.targetX = this.avoidHazards(this.targetX);
     this.targetX = Math.max(-TARGET_CLAMP, Math.min(TARGET_CLAMP, this.targetX));
     return this.targetX;
   }
@@ -229,12 +236,16 @@ export class Autopilot {
     const count = game.squad.count;
     const p = this.p;
     const naive = p.ignorePredict && this.roll(row, 'naive') < p.ignorePredict;
+    // a horde still standing between the squad and the row eats the bullets: no raise hits reach the gates
+    let screen = 0;
+    if (!naive && game.horde) for (const e of game.horde.list) if (e.state === ALIVE && e.z < L.z && e.z > row.z) screen++;
+    const blocked = screen > SCREEN_BLOCK;
     let best = null, bestScore = -Infinity, second = null, secondScore = -Infinity;
     for (const g of row.gates) {
       if (g.state !== 'live') continue;
       // the squad lines up with its gate GATE_ALIGN u before it at the latest: count only the shots it will
       // surely put into the gate from then on (hordes / barrels may claim the bullets before that)
-      let hits = naive ? 0 : bulletsPerSec * Math.max(0, Math.min(t, GATE_ALIGN / speed) - 0.5) * 0.8;
+      let hits = naive || blocked ? 0 : bulletsPerSec * Math.max(0, Math.min(t, GATE_ALIGN / speed) - 0.5) * 0.8;
       if (g.hidden) hits = Math.max(0, hits - (REVEAL_HITS - g.revealHits)); // a hidden gate takes no raise hits yet
       const pred = predictGate(g, hits);
       let score = applyGate(g, count, pred.value, pred.rung);
@@ -254,7 +265,7 @@ export class Autopilot {
       x = best.baseX + Math.sin(tt * best.moving.speed + best.phase) * best.moving.range;
     }
     if (best.lane === 'C') x = Math.max(-1.5, Math.min(1.5, L.x));
-    return { x: Math.max(best.x - inner, Math.min(best.x + inner, x)), dz: L.z - row.z };
+    return { x: Math.max(best.x - inner, Math.min(best.x + inner, x)), dz: L.z - row.z, gain: second ? bestScore - secondScore : 0 };
   }
 
   /**
@@ -297,7 +308,7 @@ export class Autopilot {
     if (mass === 0) return null;
     const fire = hordeFire(game, types, heads);
     // shoot into the thick of it while it is far, sidestep to the thin side before contact (unless it melts)
-    const strong = fire * 0.35 > mass || near > 16;
+    const strong = fire * 0.35 > mass || near > 16 || count > heads * 0.9 + 12;
     let best = null, bestScore = Infinity;
     for (const cx of CAND) {
       let d = 0;
@@ -368,7 +379,9 @@ export class Autopilot {
       if (!squad.pipGone && over(cx, L.z)) loss += 3;
       for (let i = 0; i < ms.length; i += stride) if (over(clampX(ms[i].tx + dx), ms[i].tz)) loss += stride;
     }
-    if (dz) for (const zn of dz) loss += this.zoneLoss(zn, cx, dx, back, stride);
+    let capped = 0;
+    if (dz) for (const zn of dz) { const l = this.zoneLoss(zn, cx, dx, back, stride); loss += l; if (zn.cap != null) capped += l; }
+    this.uncapped = loss - capped; // loss from blades, gaps and uncapped zones (read by decide)
     return loss;
   }
 

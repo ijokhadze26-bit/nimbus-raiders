@@ -206,3 +206,153 @@ not whether a level can be won.
 - Weapon gauntlets: the grunt flood is reach-limited (every good weapon loses 0, so clear time decides and the
   long-range weapons finish first); the bomber gauntlet saturates (ref loss 31% at any T >= 159, where no weapon
   can pop a bomber at range); Glacier's pierce goes straight through tank walls even at x0.5.
+
+# Update 3 (stage 3 "make it harder", quick autopilot check)
+
+Base: the integrated stage 3 build (enemies + levels, `ffbb8d7`). REQUEST3 asks for a QUICK check only: 4 levels per
+world (3 6 9 10 / 13 16 19 20 / 23 26 29 30 / 33 36 39 40 / 43 46 49 50), 3 loadouts (Pip + Thunderclap, Cinder +
+Emberstorm, Titan Vex + Void Siphon), bot seeds 1-3, up to 5 attempts (attempt k = seed + 100 k). Tools:
+
+```
+node scripts/balance/run.mjs scripts/balance/campaign3.js out.json "profs=casual"   # 50-level campaign + U[L] (snapshots3.json)
+node scripts/balance/run.mjs scripts/balance/quick3.js out.json "profs=casual,pro&seed=1"         # the 20-level matrix
+node scripts/balance/run.mjs scripts/balance/quick3.js out.json "profs=novice,casual&ups=none&levels=3,6,9,10,13,16,19,20,23,26,29,30"
+node scripts/balance/run.mjs scripts/balance/stars3.js out.json "from=16&to=50"     # star thresholds
+```
+
+Upgrades ("camp"): `snapshots3.json` = the upgrades the casual campaign (foundation-campaign seeds and shop rule)
+owns before each level. "none" = no upgrades. Shop UPGRADES data, weapons and heroes are untouched.
+
+## What the before numbers showed
+
+The game was far too easy: every bot cleared nearly every sampled level first try, a novice with no upgrades
+cleared most of worlds 2-3, and the only walls were L46 (casual) and L50 (pro). Probing why horde toughness
+barely mattered found three things that made difficulty knobs useless, plus three autopilot faults:
+1. A shield (8 s power token or shield barrel) right before the final rush made every rush enemy die on
+   contact (L36: 572 rush kills, 0 losses). Toughness then changes nothing.
+2. Horde contact kills one member per enemy, so above a point more hp changes nothing; horde size (capped at
+   560 / 600 a horde) and multi-kill enemies (Bulwark 3, Fizzbomb 4, Boomling 8) are the real levers.
+3. A world-wide toughness multiplier also hit the first hordes, which meet a 20-30 squad: L43 pro died at 108 u.
+4. Pro bot: identical on every seed (jitter 0, react 0), so "pro in 1-3 tries" could only mean first try or
+   never (L50 pro lost 3 / 3 with a few % boss hp left).
+5. Pro bot: lined up 24 u before every hazard and left its gate / horde line too early on the hazard-dense
+   worlds (L22 pro 1 / 4 vs casual 5 / 5, mostly gap and push-off-road losses).
+6. Both bots: any danger zone overruled the gate they had picked; on L36 a gumball (kills <= ~24) made them
+   give up a x4 gate (~900 members) for +104.
+
+## Changes (data + bot only)
+
+- `src/data/levelgen.js` (levels 16-50):
+  - Late toughness ramp `lateTough`: horde toughness x (1 + (W - 1) x progress^1.5), so the early hordes stay as
+    they were and the late hordes (and the final rush, progress 1) get the world's full extra toughness. W per
+    world: `WORLD_TOUGH` [10, 9, 26, 10] (Forge, Frost, Candy, Citadel); boss / mini levels use `BOSS_TOUGH`
+    [1.35, 1.65, 2.5, 2.6] (their boss is the test); intro levels get 15 %; a normal level gets 40 % of the extra
+    at the start of its world rising to 100 % at its end (`ramp(i)`).
+  - Horde size x `WORLD_COUNT` [1.3, 1.2, 1.5, 1.35] (`BOSS_COUNT` [1.1, 1.15, 1.3, 1.35]) with the same ramp.
+  - Expected late squad (gate / barrel sizes) x `WORLD_SMAX` [1, 0.9, 0.55, 0.9]: the Candy Kingdom's ladder rows
+    and x2 gates made its squads hit the 999 cap.
+  - Extra Bulwark share `WORLD_TANK` [0, 0, 0.12, 0.02].
+  - No shield within 130 u before the final rush (power token -> rapid fire, shield barrel -> turret barrel; same
+    lane and spot; bossless levels only).
+  - L40 Candy Queen hp x0.8 (`BOSS_PLAN` `hpMul`): with the smaller Candy Kingdom squads the pro bot lost
+    Cinder + Emberstorm 3 / 3 in w3-bosses-play (boss left at 23-30 %).
+  - Stars re-derived (`STARS`, `stars3.js`): 2 stars = casual median finish squad, 3 stars = max(pro median,
+    1.3 x that); L46 (no win in the 5 star runs) set by hand next to L47-48.
+- `src/data/harder.js`: elite share worlds 4-5 up (`eliteShare` base 0.02 -> 0.04 Candy, 0.05 -> 0.07 Citadel,
+  cap 0.15 -> 0.18).
+- `src/game/autopilot.js` (test bot only, no game change):
+  - pro `jitter` 0 -> 0.1 (a pro retry is not an exact replay), pro hazard look-ahead 24 -> 15 u
+    (`PRO_HAZ_LOOK`; L22-29 pro wins 14 / 20 -> 20 / 20, L33-49 9 / 20 -> 14 / 20, L4-19 26 / 28 -> 28 / 28);
+  - pro also faces a horde it clearly outnumbers (headcount rule, like casual);
+  - a lined-up gate is kept when the only danger in the way is a capped zone (goo shot, gumball) that costs
+    less than half the gate's lead over the other gate; gaps / blades / other zones still win;
+  - no raise hits are counted for a gate with more than 24 enemies between the squad and its row.
+- `src/game/hazards/candy.js`: a gumball's danger zone carries `cap: 24` (the most it kills rolling through).
+
+## Before / after
+
+BEFORE = integrated stage 3 build; AFTER = this commit's data (the star table does not change wins). Each matrix
+cell is the number of attempts to win for bot seeds 1 / 2 / 3. BEFORE the pro bot had no seed effect (jitter 0),
+so its three digits are always equal.
+
+**BEFORE** (attempts to win, 5 max, X = not won in 5; three digits = bot seeds 1 / 2 / 3)
+
+| bot / loadout | ups | 3 | 6 | 9 | 10 | 13 | 16 | 19 | 20 | 23 | 26 | 29 | 30 | 33 | 36 | 39 | 40 | 43 | 46 | 49 | 50 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| casual pip/thunderclap | camp | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | XXX | 111 | 111 |
+| casual cinder/emberstorm | camp | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | X14 | 111 | 33X |
+| casual vex/voidsiphon | camp | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 112 | 111 | 111 | 111 | 111 | 111 | 113 | 111 | 225 |
+| pro pip/thunderclap | camp | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | XXX |
+| pro cinder/emberstorm | camp | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | XXX |
+| pro vex/voidsiphon | camp | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 |
+| novice pip/thunderclap | camp | 1 | 1 | 1 | 2 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | X | 1 | 1 |
+| novice cinder/emberstorm | camp | 1 | 1 | 1 | 2 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | X | 1 | 5 |
+| novice pip/thunderclap | none | 1 | 1 | 1 | 3 | X | 1 | 1 | 2 | 2 | 2 | 1 | X |  |  |  |  |  |  |  |  |
+| novice cinder/emberstorm | none | 1 | 1 | 1 | 5 | 1 | 1 | 1 | X | 1 | 1 | 1 | X |  |  |  |  |  |  |  |  |
+| casual pip/thunderclap | none | 1 | 1 | 1 | 1 | 3 | 1 | 1 | 1 | 1 | 1 | 1 | X |  |  |  |  |  |  |  |  |
+| casual cinder/emberstorm | none | 1 | 1 | 1 | 1 | 2 | 1 | 1 | 1 | 2 | 1 | 1 | X |  |  |  |  |  |  |  |  |
+
+| campaign (Pip + Thunderclap, shop rule) | attempts per level 1-50 |
+|---|---|
+| casual | 1:1 2:1 3:1 4:1 5:1 6:1 7:1 8:1 9:1 10:1 11:1 12:1 13:1 14:1 15:1 16:1 17:1 18:1 19:1 20:1 21:1 22:1 23:1 24:1 25:1 26:1 27:1 28:1 29:1 30:3 31:1 32:1 33:1 34:1 35:1 36:1 37:1 38:1 39:1 40:1 41:1 42:1 43:1 44:1 45:1 46:2 47:1 48:1 49:1 50:1 |
+| pro | 1:1 2:1 3:1 4:1 5:1 6:1 7:1 8:1 9:1 10:1 11:1 12:1 13:1 14:1 15:1 16:1 17:1 18:1 19:1 20:1 21:1 22:1 23:1 24:1 25:1 26:1 27:1 28:1 29:1 30:1 31:1 32:1 33:1 34:1 35:1 36:1 37:1 38:1 39:1 40:1 41:1 42:1 43:1 44:1 45:1 46:1 47:1 48:1 49:1 50:X |
+
+**AFTER** (attempts to win, 5 max, X = not won in 5; three digits = bot seeds 1 / 2 / 3)
+
+| bot / loadout | ups | 3 | 6 | 9 | 10 | 13 | 16 | 19 | 20 | 23 | 26 | 29 | 30 | 33 | 36 | 39 | 40 | 43 | 46 | 49 | 50 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| casual pip/thunderclap | camp | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 212 | 111 | 111 | 111 | 111 | 412 | XXX | 211 | XXX |
+| casual cinder/emberstorm | camp | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 113 | 111 | 221 | 111 | 113 | 111 | X15 | 121 | XXX |
+| casual vex/voidsiphon | camp | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | XXX | 111 | 111 | 111 | 122 | 111 | 113 | 121 | XXX |
+| pro pip/thunderclap | camp | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 321 | 111 | 311 |
+| pro cinder/emberstorm | camp | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 212 | 111 | 111 | 111 | 121 | 111 | 111 | 511 | 111 | 111 | 111 | X22 |
+| pro vex/voidsiphon | camp | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 112 | 111 | 111 | 111 | 11X | 111 | 111 | 211 | 22X |
+| novice pip/thunderclap | camp | 1 | 1 | 1 | 2 | 1 | 1 | 1 | 1 | 1 | 1 | 3 | 2 | 1 | 1 | 1 | 1 | 2 | X | 1 | X |
+| novice cinder/emberstorm | camp | 1 | 1 | 1 | 2 | 1 | 1 | 1 | 1 | 1 | 1 | 1 | 2 | 1 | 1 | 1 | 1 | 1 | X | 2 | X |
+| novice pip/thunderclap | none | 1 | 1 | 1 | 3 | X | 1 | 2 | 2 | 3 | 5 | X | X |  |  |  |  |  |  |  |  |
+| novice cinder/emberstorm | none | 1 | 1 | 1 | 5 | 1 | 1 | 1 | X | X | 3 | X | X |  |  |  |  |  |  |  |  |
+| casual pip/thunderclap | none | 1 | 1 | 1 | 1 | 3 | 1 | 1 | 1 | 3 | 1 | 1 | X |  |  |  |  |  |  |  |  |
+| casual cinder/emberstorm | none | 1 | 1 | 1 | 1 | 2 | 1 | 1 | 1 | X | 1 | 1 | X |  |  |  |  |  |  |  |  |
+
+| campaign (Pip + Thunderclap, shop rule) | attempts per level 1-50 |
+|---|---|
+| casual | 1:1 2:1 3:1 4:1 5:1 6:1 7:1 8:1 9:1 10:1 11:1 12:1 13:1 14:1 15:1 16:1 17:1 18:1 19:1 20:1 21:1 22:1 23:1 24:1 25:1 26:1 27:1 28:1 29:1 30:1 31:1 32:1 33:1 34:2 35:1 36:1 37:1 38:1 39:1 40:1 41:1 42:1 43:X 44:2 45:1 46:X 47:1 48:1 49:1 50:X |
+| pro | 1:1 2:1 3:1 4:1 5:1 6:1 7:1 8:1 9:1 10:1 11:1 12:1 13:1 14:1 15:1 16:1 17:1 18:1 19:1 20:1 21:1 22:1 23:1 24:1 25:1 26:1 27:1 28:1 29:1 30:1 31:1 32:1 33:1 34:X 35:1 36:1 37:1 38:1 39:1 40:1 41:1 42:X 43:1 44:1 45:1 46:1 47:3 48:1 49:1 50:4 |
+| novice | 1:1 2:1 3:1 4:1 5:1 6:1 7:1 8:1 9:1 10:1 11:1 12:1 13:1 14:1 15:1 16:1 17:1 18:1 19:1 20:1 21:1 22:1 23:1 24:1 25:2 26:1 27:2 28:3 29:3 30:2 31:1 32:1 33:1 34:2 35:1 36:1 37:1 38:1 39:1 40:1 41:1 42:1 43:2 44:1 45:X 46:X 47:2 48:X 49:2 50:X |
+
+## Against the targets (AFTER)
+
+| target | result |
+|---|---|
+| W1: novice clears most levels in 1-2 tries, casual always first try | met: novice 1-2 on every sampled level (L10 2); casual 1 everywhere |
+| W2-3: novice fails without upgrades | partly: novice without upgrades loses L13, L20, L23, L29, L30 (and needs 3-5 on L10 / L26); it still clears L16 / L19 |
+| W2-3: casual needs some upgrades; with them clears in 1-3 | partly: with campaign upgrades 1-3 everywhere except L30 Vex + Void (XXX); without upgrades casual still clears most of L13-29 (L23 3 / X, L30 X) |
+| W2-3: pro first try | met except L23 Cinder (2 / 1 / 2) and L30 Vex (1 / 1 / 2) |
+| W4-5: casual with upgrades 2-5 tries, sometimes stalls | partly: the stalls are there (L46, L50; campaign L43 / L46 / L50), L40 / L43 / L49 need 1-4 on some seeds, but L33 / L36 / L39 are still mostly first try |
+| W4-5: pro clears in 1-3 | mostly: L40 (Vex) and L50 (Cinder, Vex) have one seed of three not won in 5, L40 Cinder needs 5 on one seed; the pro campaign stalls on L34 and L42 (the casual campaign clears both) |
+| L50 the hardest | met: casual never clears it; pro needs 1-4 |
+
+Not met, and why (needs a spec or bot decision):
+- The pro and casual bots end up about equally strong on worlds 4-5: on the same level the pro wins about as
+  often as the casual bot (ablation of every profile field on L33 / L36 / L43 / L46 / L49 found no single
+  handicap that makes casual systematically worse there). A level that is "2-5 tries" for casual is then also
+  "1-5" for pro, so the two W4-5 targets cannot both be hit with these bots; I tuned W4-5 for the pro target.
+- L46 stalls casual on every seed: its first hazard (a moving platform across the whole road at 60 u, squad
+  ~30) drops the whole squad; pro clears it. It is hazard placement (hazardplan.js), not toughness.
+- Without upgrades the casual bot still clears most W2-3 levels: horde hp saturates (contact kills 1 member per
+  enemy), so more toughness only bites through horde size, which is capped at 560 / 600 per horde (and at 900
+  live enemies for phone smoothness). The remaining lever is fewer + gates in W2-3, not tried in this quick pass.
+- Not re-checked: ELITE mode (eliteDef scales on top of these numbers), endless / practice (unchanged data).
+
+## Tests whose expectations moved
+
+- `foundation-campaign`: L1-15 rules unchanged (pro <= 2, baseline + 1). L16-30 must still be cleared within 5 by
+  both bots, but a stall in L31-50 no longer ends the campaign: casual may stall on <= 5 of them, pro on <= 3,
+  and each of L31-50 must be cleared by at least one bot (now: casual stalls L43 / L46 / L50, pro L34 / L42).
+- `w3-bosses-play`: pro must still win every boss level within 3; for L40 / L45 / L50 the casual bot is
+  reported (`casualHard`) instead of failing the test (the Candy Kingdom / Storm Citadel bosses are meant to beat it).
+- `w3-hazards-cc-play`: the four campaigns go on after a stall in L31-50 (pro <= 3, casual <= 5 stalls each), and
+  each of L31-50 must be won by at least one of them.
+- `w3-hazards-cc-levels`: "pro wiped by the hazards" now fails only when the hazards took >= 60 members; the
+  pro bot can lose L46 to its final rush, which is not a hazard failure.
+- `w3-harder-levels`: elite share bound 0.15 -> 0.18 (the new world 5 cap).

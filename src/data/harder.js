@@ -2,7 +2,7 @@
 // and never move a beat: they only change event fields or add a small screening horde in front of a gate row.
 // - Enemy mixes per world: Boomlings ('blaster') + Mendlings ('healer') from the Volcanic Forge on, Spitlings
 //   ('sniper') + Broodling hives ('spawner') from the Frozen Peaks, Flaplings ('flyer') from the Candy Kingdom,
-//   all of them more often in the Storm Citadel; elite fractions (event field `elite`) rise 0 -> ~15% in
+//   all of them more often in the Storm Citadel; elite fractions (event field `elite`) rise 0 -> ~18% in
 //   worlds 4-5. Unknown type ids are ignored by horde.js until the enemy types exist (ENEMIES[k] filter).
 // - Red gates: in a row of two free gates (+N / ×k) the weaker + gate turns red (-N or ÷2), more often later.
 // - Cursed barrels: a non-weapon barrel becomes a skull-marked 'cursed' barrel (costs troops or one Mk), with a
@@ -31,11 +31,11 @@ export function newTypeShares(wi, p, intro = false) {
   return s;
 }
 
-/** Elite fraction of a horde: 0 in worlds 2-3, rising to ~10% (world 4) and ~15% (world 5). */
+/** Elite fraction of a horde: 0 in worlds 2-3, rising to ~13% (world 4) and ~18% (world 5; stage 3 balance). */
 export function eliteShare(wi, i, p) {
   if (wi < 2) return 0;
-  const base = wi === 2 ? 0.02 + 0.006 * i : 0.05 + 0.007 * i;
-  return r3(Math.min(0.15, base + 0.04 * p));
+  const base = wi === 2 ? 0.04 + 0.006 * i : 0.07 + 0.007 * i;
+  return r3(Math.min(0.18, base + 0.04 * p));
 }
 
 /** New mix = old mix scaled down to make room for the added shares (sums stay 1). */
