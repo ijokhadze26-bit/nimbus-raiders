@@ -3,7 +3,7 @@
 // Geometries and textures are cached; materials are per visual only where they animate.
 import * as THREE from 'three';
 import { part, merge, G } from './util.js';
-import { toonMaterial } from './materials.js';
+import { toonMaterial, glowTexture } from './materials.js';
 import { DIVIDER, ROAD_HALF } from '../config.js';
 
 export const BLADE_R = 1.9;
@@ -11,6 +11,8 @@ export const ROTOR_Y = 0.62;
 const YELLOW = '#ffc531', BLACK = '#2a2e3a', STEEL = '#6f7f99', STEEL_D = '#3c475c';
 
 const cache = {};
+/** Light coming up out of a hole, by world id (world 1, the Sky Bridge, has only the dark pit). */
+const PIT_GLOW = { 2: '#ff5a14', 3: '#7fdcff', 4: '#ff6ac8', 5: '#9a7bff' };
 const once = (k, make) => cache[k] || (cache[k] = make());
 
 function canvasTex(w, h, draw, opts = {}) {
@@ -344,7 +346,8 @@ export function buildGapView(theme, lane, from, to, opts = {}) {
   root.add(group);
   const edge = opts.inner > 0 ? opts.inner : 0;
   const cliff = opts.style === 'cliff';
-  const [x0, x1] = gapSpan(lane, edge);
+  const fork = lane === 'M';
+  const [x0, x1] = fork ? [-(opts.xa || 1.5), opts.xb || 1.5] : gapSpan(lane, edge);
   const width = x1 - x0;
   const len = to - from;
   const zNear = -from, zFar = -to;
@@ -368,7 +371,17 @@ export function buildGapView(theme, lane, from, to, opts = {}) {
     group.add(m);
   };
   if (opts.capFar !== false) wall(width, (x0 + x1) / 2, zFar + 0.02, 0); // far cut face (faces the camera)
-  if (lane !== 'C') {
+  if (fork) {
+    // a hole down the middle: a cut face and a broken edge on both sides
+    wall(len, x0 + 0.01, (zNear + zFar) / 2, Math.PI / 2);
+    wall(len, x1 - 0.01, (zNear + zFar) / 2, Math.PI / 2);
+    const sl = new THREE.Mesh(gapLipGeometry(len, theme, Math.round(from) * 3 + 4), lipMat);
+    sl.position.set(x0, 0, zFar); sl.rotation.y = -Math.PI / 2;   // left strip's edge, crumbling toward +x
+    const sr = new THREE.Mesh(gapLipGeometry(len, theme, Math.round(from) * 3 + 5), lipMat);
+    sr.position.set(x1, 0, zNear); sr.rotation.y = Math.PI / 2;   // right strip's edge, crumbling toward -x
+    sl.receiveShadow = sr.receiveShadow = true;
+    group.add(sl, sr);
+  } else if (lane !== 'C') {
     const xi = lane === 'R' ? x0 + 0.01 : x1 - 0.01;
     wall(len, xi, (zNear + zFar) / 2, Math.PI / 2);              // inner side under the divider
     if (cliff || edge) {
@@ -386,6 +399,16 @@ export function buildGapView(theme, lane, from, to, opts = {}) {
   pit.position.set((x0 + x1) / 2, -2.4, (zNear + zFar) / 2);
   pit.renderOrder = 1;
   group.add(pit);
+  // what lies below depends on the world: lava glow in the Forge, ice light in the Peaks, ...
+  const pg = PIT_GLOW[opts.world];
+  if (pg) {
+    const gm = once('pitGlow:' + opts.world, () => new THREE.MeshBasicMaterial({ map: glowTexture(), color: pg, transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending, fog: true }));
+    const glowPlane = new THREE.Mesh(cache.unitPlane, gm);
+    glowPlane.scale.set(width * 1.5, 1, len * 1.25);
+    glowPlane.position.set((x0 + x1) / 2, -2.1, (zNear + zFar) / 2);
+    glowPlane.renderOrder = 2;
+    group.add(glowPlane);
+  }
 
   // chevrons + glow painted on the road before the hole
   const cw = Math.min(width - 0.5, 4.2), cl = 6.4;
@@ -408,10 +431,10 @@ export function buildGapView(theme, lane, from, to, opts = {}) {
 
   // warning board on a post beside the doomed side, a little before the edge
   let sign = null;
-  if (lane !== 'C' && opts.sign !== false && (cliff || edge)) {
-    const dir = lane === 'L' ? 1 : -1; // +1: safe side is to the right
-    const head = opts.label || (cliff ? 'CLIFF!' : 'NARROW!');
-    const text = dir > 0 ? 'KEEP RIGHT \u27A1' : '\u2B05 KEEP LEFT';
+  if (lane !== 'C' && opts.sign !== false && (cliff || edge || fork || opts.label)) {
+    const dir = fork ? 0 : lane === 'L' ? 1 : -1; // +1: safe side is to the right, 0: either side (fork)
+    const head = opts.label || (fork ? 'FORK!' : cliff ? 'CLIFF!' : 'NARROW!');
+    const text = opts.signText || (fork ? '\u2B05 PICK A SIDE \u27A1' : dir > 0 ? 'KEEP RIGHT \u27A1' : '\u2B05 KEEP LEFT');
     sign = new THREE.Group();
     const board = new THREE.Mesh(cache.signPlane || (cache.signPlane = new THREE.PlaneGeometry(3.3, 1.29)),
       once(`signMat:${head}:${text}`, () => new THREE.MeshBasicMaterial({ map: cliffSignTexture(head, text), fog: true })));
@@ -425,7 +448,7 @@ export function buildGapView(theme, lane, from, to, opts = {}) {
     ])), lipMat);
     sign.add(post, board);
     // stands on the solid road right before the edge, on the side that is about to go, turned to the squad
-    sign.position.set(-dir * (ROAD_HALF - 1.75), 0, zNear + 1.2);
+    sign.position.set(fork ? (x0 + x1) / 2 : -dir * (ROAD_HALF - 1.75), 0, zNear + 1.2);
     sign.rotation.y = -dir * 0.2;
     root.add(sign);
   }

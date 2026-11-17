@@ -95,7 +95,7 @@ export class Barrels {
     this.game.scene.add(v.group);
     const b = {
       id: nextId++, x: LANES[e.lane] ?? 0, z: -e.at, hp: e.hp, maxHp: e.hp,
-      reward: { kind: e.reward?.kind || 'coins', amount: e.reward?.amount ?? (e.reward?.kind === 'coins' ? 20 : 1) },
+      reward: { kind: e.reward?.kind || 'coins', amount: e.reward?.amount ?? (e.reward?.kind === 'coins' ? 20 : 1), tag: e.reward?.tag || '' },
       state: 'live', t: 0, punch: 0, flash: 0, visual: v, display: null, displayKey: null, fly: null, ph: (e.at * 0.73) % 6.28,
     };
     b.x = Math.max(-MEMBER_CLAMP + 0.6, Math.min(MEMBER_CLAMP - 0.6, b.x + (e.dx || 0)));
@@ -169,6 +169,7 @@ export class Barrels {
       case 'troops': game.squad.add(n, 'barrel'); break;
       case 'drone': case 'turret': if (game.helpers) game.helpers.add(r.kind, n); break;
       case 'coins': if (game.run) game.run.coins += n; game.events.emit('coin:collect', { amount: n, pos }); break;
+      case 'bridge': if (game.obstacles) game.obstacles.repair(r.tag); break; // shoot-to-build: the planks go down
       default: if (game.powers && game.powers.start) game.powers.start(r.kind);
     }
   }

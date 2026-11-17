@@ -112,7 +112,12 @@ export class HordeView {
       const a = ANIMS[e.type];
       const d = e.def;
       let sx = 1, sy = 1, sz = 1, y = 0, roll = 0, yaw = 0, flash = e.flash;
-      if (e.state === 1) {
+      if (e.state === 1 && e.fall) {
+        // dropped into the void: tumbles down and shrinks away (no pop)
+        const f = Math.min(1, e.t / 0.75);
+        y = -11 * e.t * e.t; roll = e.t * 7 * (e.x > 0 ? 1 : -1);
+        sx = sy = sz = Math.max(0.05, 1 - f * f * 0.8);
+      } else if (e.state === 1) {
         const f = Math.min(1, e.t / DIE_TIME);
         const s = f < 0.45 ? 1 + f * 0.9 : Math.max(0.01, 1.4 * (1 - (f - 0.45) / 0.55));
         sx = sz = s * 1.12; sy = s * (f < 0.45 ? 0.82 : 1);

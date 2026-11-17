@@ -127,6 +127,20 @@ export function buildRewardDisplay(kind, amount, gun = {}) {
     ]), m);
     root.add(pile);
     glowColor = '#ffc531';
+  } else if (kind === 'bridge') {
+    // shoot-to-build bridge: a little stack of planks on two rails
+    const m = sharedMat('bridge', () => toonMaterial());
+    const parts = [
+      part(G.box(1.25, 0.08, 0.1), '#8a5a2b', { p: [0, -0.34, -0.3] }),
+      part(G.box(1.25, 0.08, 0.1), '#8a5a2b', { p: [0, -0.34, 0.3] }),
+    ];
+    for (let i = 0; i < 5; i++) parts.push(part(G.box(0.2, 0.09, 0.86), i % 2 ? '#f2c26b' : '#ffd98a', { p: [-0.5 + i * 0.25, -0.25, 0], r: [0, (i - 2) * 0.03, 0] }));
+    parts.push(part(G.cone(0.22, 0.34, 4), '#59c1ff', { p: [0, 0.22, 0], r: [0, Math.PI / 4, 0], bright: 1.15 }));
+    parts.push(part(G.box(0.14, 0.3, 0.14), '#59c1ff', { p: [0, -0.02, 0], bright: 1.15 }));
+    const planks = new THREE.Mesh(merge(parts), m);
+    planks.scale.setScalar(1.15);
+    root.add(planks);
+    glowColor = '#ffd34d';
   } else {
     // power kinds: the same icon token as the road pickups (no ground pillar)
     const tok = buildPowerToken(POWER_STYLE[kind] ? kind : 'shield', { ground: false });

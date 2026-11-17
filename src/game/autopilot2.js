@@ -92,6 +92,7 @@ export function barrelValue(game, b) {
     case 'drone': return game.helpers && game.helpers.drones < 4 ? 45 : 0;
     case 'turret': return game.helpers && game.helpers.turrets < 2 ? 55 : 0;
     case 'coins': return 8;
+    case 'bridge': return 90; // shoot-to-build: saves the squad a walk over a thin strip
     default: return 20;
   }
 }

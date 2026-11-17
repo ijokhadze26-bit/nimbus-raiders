@@ -162,7 +162,7 @@ function itemsFor(def, kinds, r, idx) {
 
 /** Adds the level's world hazards (idempotent). Returns def. */
 export function planHazards(def) {
-  if (!def || !(def.world >= 2) || def.events.some((e) => e.type === 'hazard')) return def;
+  if (!def || !(def.world >= 2) || def.events.some((e) => e.type === 'hazard' && !e.road)) return def; // (roadplan.js adds its own, tagged `road`)
   const kinds = WORLD_KINDS[def.world];
   if (!kinds || !kinds.length) return def;
   const r = new Rng(def.id * 977 + 13);

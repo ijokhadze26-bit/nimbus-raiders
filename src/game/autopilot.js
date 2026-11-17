@@ -10,6 +10,7 @@
 // calls, often judge a gate by its current number, dodge telegraphs late (or not at all), wobble and clip
 // hazard edges. Their randomness comes from the bot's own seeded rng (one seed per run), never game.rng.
 import { applyGate, predictGate } from './gates.js';
+import { inVoid } from './obstacles.js';
 import { Rng } from '../core/rng.js';
 import { ALIVE } from './horde.js';
 import { TARGET_CLAMP, MEMBER_CLAMP } from '../config.js';
@@ -360,8 +361,10 @@ export class Autopilot {
     const dist = -L.z;
     for (const g of obs.gaps) {
       if (g.from - dist > (this.look || HAZ_LOOK) || g.to < -back) continue;
-      const side = (g.side ?? GAP_SIDE) - GAP_PAD + (p.clip && this.roll(g, 'clip') < p.clip ? p.clipPad : 0);
-      const over = (x, z) => -z < g.to && (g.lane === 'C' || (g.lane === 'R' ? x > side : x < -side));
+      const pad = GAP_PAD - (p.clip && this.roll(g, 'clip') < p.clip ? p.clipPad : 0);
+      const over = (x, z) => -z < g.to && inVoid(g, x, pad);
+      // beside a fork there is no changing sides: the way across is the hole itself
+      if (g.lane === 'M' && dist > g.from - 3 && dist < g.to && (cx - (g.xb - g.xa) / 2) * (L.x - (g.xb - g.xa) / 2) < 0) loss += 60;
       if (!squad.pipGone && over(cx, L.z)) loss += 3;
       for (let i = 0; i < ms.length; i += stride) if (over(clampX(ms[i].tx + dx), ms[i].tz)) loss += stride;
     }

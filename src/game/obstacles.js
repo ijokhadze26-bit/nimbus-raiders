@@ -22,6 +22,17 @@ const SIDE = 0.22;          // |x| beyond the divider half-width where a lane ho
 const COLLAPSE_AT = 40;     // a cliff breaks away when its near edge is this far ahead of Pip
 const GLINT_A = 3.8;        // world angle where the rotor catches the sun (front-left, toward the camera)
 
+/**
+ * True when x lies over the void of gap g (any z). Gaps made elsewhere (hazard kinds push plain
+ * { lane, from, to } objects) have no `side`: their lane hole starts at the divider. `pad` widens the void.
+ */
+export function inVoid(g, x, pad = 0) {
+  if (g.lane === 'M') return x > -g.xa - pad && x < g.xb + pad;
+  if (g.lane !== 'L' && g.lane !== 'R') return true;
+  const side = (g.side ?? SIDE) - pad;
+  return g.lane === 'R' ? x > side : x < -side;
+}
+
 export class Obstacles {
   init(game) {
     this.game = game;
@@ -33,6 +44,7 @@ export class Obstacles {
     this.run = null;
     this.c = { x: 0, z: 0, r: 0 };
     this.overGap = this.overGap.bind(this);
+    this.repaired = new Set(); // bridge tags built this run
     game.events.setRate('obstacle:kill', 24);
   }
 
@@ -43,6 +55,7 @@ export class Obstacles {
     this.cursor.blade = 0; this.cursor.gap = 0;
     this.time = 0;
     this.run = run;
+    this.repaired.clear();
     this.game.world.setGaps(this.gaps);
   }
 
@@ -85,10 +98,13 @@ export class Obstacles {
   makeGap(e) {
     const from = Math.floor(e.at / TILE_LEN) * TILE_LEN;
     const to = Math.max(from + TILE_LEN, Math.ceil((e.at + (e.length || 8)) / TILE_LEN) * TILE_LEN);
-    const lane = e.lane === 'L' || e.lane === 'R' ? e.lane : 'C';
-    const inner = lane !== 'C' && e.inner > SIDE ? Math.min(e.inner, MEMBER_CLAMP - 0.6) : 0;
+    // lane 'M' = a hole down the middle (a fork): void from -xa to +xb, a strip of road left on either side
+    const lane = e.lane === 'L' || e.lane === 'R' || e.lane === 'M' ? e.lane : 'C';
+    const inner = (lane === 'L' || lane === 'R') && e.inner > SIDE ? Math.min(e.inner, MEMBER_CLAMP - 0.6) : 0;
+    const lim = MEMBER_CLAMP - 1.0;
     // side = |x| beyond which the lane is void; open = the tiles are gone (cliffs open when the squad closes in)
-    return { lane, from, to, at: e.at, inner, side: inner || SIDE, style: e.style === 'cliff' ? 'cliff' : 'hole', open: e.style !== 'cliff', sign: e.sign !== false && !(e.chain && !e.first), label: e.label || '',
+    return { lane, from, to, at: e.at, inner, side: inner || SIDE, xa: lane === 'M' ? Math.min(lim, e.xa ?? 1.5) : 0, xb: lane === 'M' ? Math.min(lim, e.xb ?? 1.5) : 0,
+      tag: e.tag || '', world: this.run ? this.run.worldId || 0 : 0, style: e.style === 'cliff' ? 'cliff' : 'hole', open: e.style !== 'cliff', sign: e.sign !== false && !(e.chain && !e.first), label: e.label || '', signText: e.signText || '',
       // chained pieces (a funnel's steps) are drawn as one hole: only the ends get a broken lip and chevrons
       capNear: !(e.chain && !e.first), capFar: !(e.chain && !e.last) };
   }
@@ -105,9 +121,42 @@ export class Obstacles {
     for (let i = 0; i < gs.length; i++) {
       const g = gs[i];
       if (d <= g.from + EDGE || d >= g.to - EDGE) continue;
-      if (g.lane === 'C' || (g.lane === 'R' ? x > g.side : x < -g.side)) return true;
+      if (inVoid(g, x)) return true;
     }
     return false;
+  }
+
+  /** Like overGap, but only where the tiles are really gone (a cliff that has not broken away yet holds). */
+  overOpen(x, z) {
+    const d = -z;
+    const gs = this.gaps;
+    for (let i = 0; i < gs.length; i++) {
+      const g = gs[i];
+      if (g.open === false || d <= g.from + EDGE || d >= g.to - EDGE) continue;
+      if (inVoid(g, x)) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Shoot-to-build bridges: closes every hole carrying `tag` (the planks are back; nobody can fall there any
+   * more). Returns the number of holes closed. Emits bridge:built { from, to } for the fx.
+   */
+  repair(tag) {
+    if (!tag) return 0;
+    this.repaired.add(tag);
+    let n = 0, from = Infinity, to = -Infinity;
+    for (let i = this.gaps.length - 1; i >= 0; i--) {
+      const g = this.gaps[i];
+      if (g.tag !== tag) continue;
+      from = Math.min(from, g.from); to = Math.max(to, g.to);
+      this.gaps.splice(i, 1); n++;
+    }
+    if (n) {
+      this.game.world.setGaps(this.gaps);
+      this.game.events.emit('bridge:built', { from, to, pos: { x: 0, y: 0, z: -(from + to) / 2 } });
+    }
+    return n;
   }
 
   update(dt) {
@@ -122,14 +171,18 @@ export class Obstacles {
     while (this.cursor.blade < be.length && be[this.cursor.blade].at - dist < SPAWN_AHEAD) this.blades.push(this.makeBlade(be[this.cursor.blade++]));
     const ge = run.eventsOf('gap');
     let changed = false;
-    while (this.cursor.gap < ge.length && ge[this.cursor.gap].at - dist < GAP_AHEAD) { this.gaps.push(this.makeGap(ge[this.cursor.gap++])); changed = true; }
+    while (this.cursor.gap < ge.length && ge[this.cursor.gap].at - dist < GAP_AHEAD) {
+      const e = ge[this.cursor.gap++];
+      if (e.tag && this.repaired.has(e.tag)) continue; // its bridge was already built
+      this.gaps.push(this.makeGap(e)); changed = true;
+    }
     for (let i = this.gaps.length - 1; i >= 0; i--) if (this.gaps[i].to < dist - 40) { this.gaps.splice(i, 1); changed = true; }
     if (changed) game.world.setGaps(this.gaps);
     for (let i = 0; i < this.gaps.length; i++) {
       const g = this.gaps[i];
-      if (g.open || g.from - dist > COLLAPSE_AT) continue;
+      if (g.open !== false || g.from - dist > COLLAPSE_AT) continue;
       g.open = true;
-      const x = g.lane === 'C' ? 0 : (g.lane === 'R' ? 1 : -1) * (g.side + (MEMBER_CLAMP + 0.25 - g.side) / 2);
+      const x = g.lane === 'C' ? 0 : g.lane === 'M' ? (g.xb - g.xa) / 2 : (g.lane === 'R' ? 1 : -1) * (g.side + (MEMBER_CLAMP + 0.25 - g.side) / 2);
       if (game.events.wants('cliff:collapse')) game.events.emit('cliff:collapse', { lane: g.lane, from: g.from, to: g.to, pos: { x, y: 0, z: -g.from } });
     }
 

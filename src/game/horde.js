@@ -17,6 +17,7 @@ const CONTACT = 0.55;       // + type radius (SPEC §5)
 const AGGRO = 52;           // idle blobs start charging when the squad is this close
 const MAX_ENEMIES = 900;
 const DIE_TIME = 0.17;
+const FALL_TIME = 0.75; // a Murkling dropping into the void
 const CHAIN_DELAY = 0.11;
 const DEFS = ENEMY_TYPES.map((t) => ENEMIES[t]);
 
@@ -131,7 +132,7 @@ export class Horde {
     e.type = type; e.def = d;
     e.x = Math.max(-MEMBER_CLAMP, Math.min(MEMBER_CLAMP, x)); e.z = z; e.vx = 0; e.ox = ox;
     e.hp = d.hp * hpMul; e.maxHp = e.hp; e.shield = d.shieldHits || 0;
-    e.state = ALIVE; e.t = 0; e.ph = this.game.rng.next() * Math.PI * 2;
+    e.state = ALIVE; e.t = 0; e.fall = false; e.ph = this.game.rng.next() * Math.PI * 2;
     e.charging = false; e.flash = 0; e.sflash = 0; e.cd = 0; e.ckills = 0; e.slow = 1;
     e.burnPool = 0; e.burnT = 0; e.slowPct = 0; e.slowT = 0; e.freezeT = 0; e.shatter = 0; e.stickyT = 0; e.stickyPct = 0;
     e.px = 0; e.pz = 0; e.pud = 0; e.spd = 1; e.ice = 0; e.burn = 0;
@@ -154,6 +155,7 @@ export class Horde {
     while (this.cursor < ev.length && ev[this.cursor].at - dist < HORDE.spawnAhead) this.spawnWave(ev[this.cursor++]);
 
     const frozen = !!(game.powers && game.powers.has && game.powers.has('freeze'));
+    const voids = game.obstacles;
     const c = squad.center(this._c || (this._c = { x: 0, z: 0, r: 0 }));
     const base = HORDE.baseSpeed;
     const list = this.list;
@@ -161,7 +163,7 @@ export class Horde {
       const e = list[i];
       e.t += dt;
       if (e.state === DYING) {
-        if (e.t >= DIE_TIME) { list[i] = list[list.length - 1]; list.pop(); this.free.push(e); }
+        if (e.t >= (e.fall ? FALL_TIME : DIE_TIME)) { list[i] = list[list.length - 1]; list.pop(); this.free.push(e); }
         continue;
       }
       if (e.cd > 0) e.cd -= dt;
@@ -180,6 +182,8 @@ export class Horde {
         e.z += base * d.speed * e.slow * e.spd * dt;
         e.slow = Math.min(1, e.slow + dt * 2);
         if (e.x > MEMBER_CLAMP) e.x = MEMBER_CLAMP; else if (e.x < -MEMBER_CLAMP) e.x = -MEMBER_CLAMP;
+        // Murklings fall too: one that charges onto broken road drops into the void (lure a pack over a cliff)
+        if (voids && voids.gaps.length && voids.overOpen(e.x, e.z)) { e.fall = true; this.kill(e, 'fall'); continue; }
       }
       if (e.z > L.z + HORDE.despawnBehind) {
         this.alive--;
@@ -325,7 +329,8 @@ export class Horde {
 
   kill(e, cause) {
     if (e.state !== ALIVE) return;
-    e.state = DYING; e.t = 0; e.flash = 1;
+    e.state = DYING; e.t = 0; e.flash = cause === 'fall' ? 0 : 1;
+    if (cause !== 'fall') e.fall = false;
     this.alive--;
     const run = this.game.run;
     if (run) {
@@ -333,8 +338,8 @@ export class Horde {
       if (run.killsBy) run.killsBy[KILL_CAT[cause] || 'other']++;
     }
     const p = this.diePos; p.x = e.x; p.y = 0.5; p.z = e.z;
-    if (this.game.events.wants('enemy:die')) this.game.events.emit('enemy:die', { type: e.def.id, pos: p, color: this.view.bodyColors[e.type] || e.def.color });
-    if (e.def.blastRadius && cause !== 'contact') this.queueBlast(e.x, e.z, e.def.blastRadius, cause === 'blast' ? CHAIN_DELAY : 0.02);
+    if (cause !== 'fall' && this.game.events.wants('enemy:die')) this.game.events.emit('enemy:die', { type: e.def.id, pos: p, color: this.view.bodyColors[e.type] || e.def.color });
+    if (e.def.blastRadius && cause !== 'contact' && cause !== 'fall') this.queueBlast(e.x, e.z, e.def.blastRadius, cause === 'blast' ? CHAIN_DELAY : 0.02);
   }
 
   // ---------------- bullet target system ----------------

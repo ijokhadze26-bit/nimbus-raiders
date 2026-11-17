@@ -26,7 +26,7 @@ const IDENT = new THREE.Quaternion();
 // collapsing cliffs: each row of tiles lets go a moment after the one before it, then drops and tumbles
 const FALL_T = 1.5, FALL_DELAY = 0.045, FALL_SHAKE = 0.3;
 const _q2 = new THREE.Quaternion();
-const _lane = { keep: 0, gap: null };
+const _lane = { keep: 0, from: 0, gap: null };
 
 export class World {
   init(game) {
@@ -203,7 +203,7 @@ export class World {
     }
     for (const g of this.gaps) {
       if (this.gapViews.has(g)) continue;
-      const v = buildGapView(this.theme, g.lane, g.from, g.to, { inner: g.inner, style: g.style, sign: g.sign, label: g.label, capNear: g.capNear, capFar: g.capFar });
+      const v = buildGapView(this.theme, g.lane, g.from, g.to, { inner: g.inner, style: g.style, sign: g.sign, label: g.label, capNear: g.capNear, capFar: g.capFar, xa: g.xa, xb: g.xb, world: g.world, signText: g.signText });
       v.hole.visible = g.open !== false;
       this.scene.add(v.group);
       this.gapViews.set(g, v);
@@ -253,14 +253,19 @@ export class World {
    */
   laneAt(lane, zCenter) {
     const d = -zCenter;
-    let keep = ROAD_HALF, fall = null;
+    let keep = ROAD_HALF, from = 0, fall = null;
     for (const g of this.gaps) {
-      if ((g.lane !== lane && g.lane !== 'C') || d + TILE_LEN / 2 <= g.from || d - TILE_LEN / 2 >= g.to) continue;
+      if ((g.lane !== lane && g.lane !== 'C' && g.lane !== 'M') || d + TILE_LEN / 2 <= g.from || d - TILE_LEN / 2 >= g.to) continue;
       if (g.style === 'cliff' && (!g.open || g.t0 === undefined)) continue; // still standing
-      const k = g.lane === 'C' ? 0 : g.inner;
+      if (g.lane === 'M') { // fork: the middle is gone, the road starts `from` out
+        const k = lane === 'R' ? g.xb : g.xa;
+        if (k > from) { from = k; fall = g.style === 'cliff' ? g : null; }
+        continue;
+      }
+      const k = g.lane === 'C' ? 0 : (g.inner || 0);
       if (k < keep) { keep = k; fall = g.style === 'cliff' ? g : null; }
     }
-    _lane.keep = keep; _lane.gap = fall;
+    _lane.keep = keep; _lane.from = from; _lane.gap = fall;
     return _lane;
   }
 
@@ -318,8 +323,28 @@ export class World {
       for (let h = 0; h < 2; h++) {
         const lane = h === 0 ? 'R' : 'L';
         const rot = h === 0 ? IDENT : FLIP, sgn = h === 0 ? 1 : -1;
-        let keep = ROAD_HALF, fall = null;
-        if (this.gaps.length) { const s = this.laneAt(lane, z); keep = s.keep; fall = s.gap; }
+        let keep = ROAD_HALF, fall = null, cut = 0;
+        if (this.gaps.length) { const s = this.laneAt(lane, z); keep = s.keep; fall = s.gap; cut = s.from; }
+        if (cut > 0 && keep >= ROAD_HALF) {
+          // fork: the outer strip stays (squeezed toward the rail), the middle piece breaks off
+          const sx = (ROAD_HALF - cut) / ROAD_HALF;
+          _m.compose(_p.set(sgn * (cut - (DIVIDER.width / 2) * sx), 0, z), rot, _s.set(sx, 1, 1));
+          this.road.setMatrixAt(n, _m); this.road.setColorAt(n, col); n++;
+          if (fall) {
+            const tt = this.time - fall.t0 - ((-z - fall.from) / TILE_LEN) * FALL_DELAY;
+            if (tt < FALL_T) {
+              const si = cut / ROAD_HALF;
+              if (tt <= 0) _m.compose(_p.set(0, tt > -FALL_SHAKE ? Math.sin(this.time * 70 + k) * 0.035 : 0, z), rot, _s.set(si, 1, 1));
+              else {
+                _e.set(tt * (0.9 + (k % 3) * 0.35), 0, sgn * tt * 0.5);
+                _q2.setFromEuler(_e).premultiply(rot);
+                _m.compose(_p.set(0, -11 * tt * tt, z + tt * 0.6), _q2, _s.set(si, 1, 1));
+              }
+              this.road.setMatrixAt(n, _m); this.road.setColorAt(n, col); n++;
+            }
+          }
+          continue;
+        }
         if (keep >= ROAD_HALF) {
           _m.compose(_p.set(0, 0, z), rot, _s.set(1, 1, 1));
           this.road.setMatrixAt(n, _m); this.road.setColorAt(n, col); n++;
@@ -345,7 +370,7 @@ export class World {
           }
         }
       }
-      if (this.gaps.length && this.laneAt('L', z).keep <= 0 && this.laneAt('R', z).keep <= 0) continue;
+      if (this.gaps.length && ((this.laneAt('L', z).keep <= 0 && this.laneAt('R', z).keep <= 0) || this.laneAt('L', z).from > 0 || this.laneAt('R', z).from > 0)) continue;
       _m.makeTranslation(0, 0, z);
       this.divider.setMatrixAt(nd++, _m);
     }

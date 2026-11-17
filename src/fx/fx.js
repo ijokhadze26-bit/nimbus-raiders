@@ -23,7 +23,7 @@ const POWER_COLORS = { shield: 0x59c1ff, rapid: 0xffc531, magnet: 0xff5a8a, free
 const REWARD_TEXT = {
   troops: ['RAIDERS', '#7fe0ff', '#12408f'], drone: ['DRONE', '#8dff9a', '#11602a'], turret: ['TURRET', '#ffb36b', '#7a3300'],
   shield: ['SHIELD', '#7fe0ff', '#12408f'], rapid: ['RAPID FIRE', '#ffd84a', '#8a4a00'], magnet: ['MAGNET', '#ff8ab0', '#7a1037'],
-  freeze: ['FREEZE', '#b8f4ff', '#1b5a8a'],
+  freeze: ['FREEZE', '#b8f4ff', '#1b5a8a'], bridge: ['BRIDGE BUILT', '#ffe08a', '#7a4a00'],
 };
 // boss death: explosion stages on game time (the first ~0.28 s play out inside the 0.2x slow-mo)
 const DEATH_STAGES = [0, 0.045, 0.09, 0.14, 0.2, 0.27, 0.38, 0.52, 0.7, 0.92, 1.18];
@@ -104,6 +104,15 @@ export class Fx {
     };
     on('weapon:tier', mkUp);
     on('weapon:swap', mkUp);
+    on('bridge:built', (p) => {
+      // planks slam down across the hole: sparkles along the span, a warm flash
+      const n = Math.max(3, Math.min(8, Math.round((p.to - p.from) / 3)));
+      for (let i = 0; i < n; i++) {
+        const z = -(p.from + ((i + 0.5) / n) * (p.to - p.from));
+        B.sparkle(-2.6, 0.5, z, 0xffd98a, 6, 1.4, 0, 1); B.sparkle(2.6, 0.5, z, 0xffd98a, 6, 1.4, 0, 1);
+      }
+      this.screen.flash('#ffe9a8', 0.25, 2.5);
+    });
     on('cliff:collapse', (p) => {
       // the road breaks away: dust bursts along the edge, a rumble in the camera
       const n = Math.max(2, Math.min(6, Math.round((p.to - p.from) / 6)));
