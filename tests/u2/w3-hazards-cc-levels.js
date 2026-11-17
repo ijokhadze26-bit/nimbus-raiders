@@ -33,6 +33,8 @@ const hazDraws = () => {
 };
 d.setLoadout('pip', 'thunderclap');
 const runs = {};
+let lost = 0;
+g.events.on('squad:change', (p) => { if (p.delta < 0 && p.reason !== 'gate') lost -= p.delta; });
 const t0 = performance.now();
 for (const q of ['high', 'low']) {
   g.applyQuality(q);
@@ -41,6 +43,7 @@ for (const q of ['high', 'low']) {
     d.setAutopilot('pro', 1, { crates: 'never', ability: true, loadout: 'keep' });
     d.startLevel(id);
     d.give('troops', 150); d.give('mk', 2);
+    lost = 0;
     let calls = 0, hm = 0, hi = 0;
     const last = plan.reduce((m, e) => Math.max(m, e.at + (e.length || 0)), 0);
     for (let i = 0; i < 4800 && g.state === 'playing' && g.run.dist < last + 30; i++) {
@@ -55,11 +58,26 @@ for (const q of ['high', 'low']) {
     const s = hz.state();
     const spawned = Object.values(s.spawned).reduce((a, b) => a + b, 0);
     runs[`L${id}${q[0]}`] = { spawned, plan: plan.length, kills: s.kills, dist: Math.round(g.run.dist), squad: g.squad.count, calls, hazMeshes: hm, hazInst: hi };
-    ok(spawned === plan.length || g.state !== 'playing', `L${id} ${q}: spawned ${spawned} of ${plan.length} hazards`);
-    // stage 3 balance: the late hordes / final rush can now beat the pro bot on a hard level (L46); a wipe only
-    // fails here when the hazards did it (they took a real share of the squad)
+    // stage 3 balance: the late hordes / final rush may beat the pro bot on a hard level; a wipe fails here when
+    // the hazards did it (review fix: relative and positional) - half or more of the members lost went to hazards,
+    // or the squad was gone before the level's last hazard was behind it
     const hzKills = Object.values(s.kills).reduce((a, b) => a + b, 0);
-    ok(g.squad.count > 0 || hzKills < 60, `L${id} ${q}: pro wiped by the hazards (${hzKills} hazard kills)`);
+    const wiped = g.squad.count <= 0;
+    ok(!wiped || (hzKills * 2 < lost && g.run.dist > last), `L${id} ${q}: pro wiped by the hazards (${hzKills} of ${lost} lost to hazards, out at ${Math.round(g.run.dist)} u, last hazard ends ${last} u)`);
+    // coverage: a run that ended early replays with the squad guarded (Guard absorbs every loss) so every planned
+    // hazard still has to spawn and render on this quality
+    let cover = spawned;
+    if (spawned < plan.length) {
+      d.startLevel(id);
+      d.give('troops', 150); d.give('mk', 2);
+      for (let i = 0; i < 4800 && g.state === 'playing' && g.run.dist < last + 30; i++) {
+        g.heroes.guard = 999; g.step(1 / 60);
+        if (i % 30 === 0) { g.sync(1 / 2); g.engine.render(); }
+      }
+      cover = Object.values(hz.state().spawned).reduce((a, b) => a + b, 0);
+    }
+    runs[`L${id}${q[0]}`].cover = cover;
+    ok(cover === plan.length, `L${id} ${q}: spawned ${cover} of ${plan.length} hazards`);
   }
 }
 delete g.scene.add; // back to Object3D.prototype.add

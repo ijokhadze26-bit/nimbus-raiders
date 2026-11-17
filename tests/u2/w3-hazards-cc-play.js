@@ -5,6 +5,7 @@
 // (after every attempt the cheapest of damage / rate / squad / tier is bought while coins last), <= 5 attempts
 // per level; every L31-50 must be won. Stage 3 balance (scripts/balance/CHANGELOG.md "Update 3"): worlds 4-5 are
 // meant to be genuinely hard, so a stall no longer ends a campaign; each campaign may stall on up to STALLS[prof]
+// (review: pro 0, casual 2)
 // of L31-50 and every L31-50 must be won by at least one of the four campaigns. Slow (four full campaigns).
 // Reports per level 31-50:
 // id:W|L<attempts>*<stars>/sq<squad at the finish>/hz<hazard kills over the attempts (hole kinds included)>.
@@ -14,7 +15,7 @@ const { upgradeCost } = await import('/src/data/shop.js');
 const { LAST_LEVEL: LAST } = await import('/src/data/levels.js');
 const FIRST = 31;
 const fails = [], res = {}, wonBy = [], stalls = {};
-const STALLS = { pro: 3, casual: 5 };
+const STALLS = { pro: 0, casual: 2 }; // stage 3 review: pro never stalls on L31-50 (was 3), casual at most twice (was 5)
 const t0 = performance.now();
 for (const [hero, weapon] of [['pip', 'thunderclap'], ['rime', 'glacier']]) {
   for (const prof of ['pro', 'casual']) {

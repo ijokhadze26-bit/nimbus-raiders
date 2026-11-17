@@ -1,6 +1,9 @@
 // Update 3 stage 3 ELITE mode (STAGE3.md level contract): per level, unlocked by a 3-star clear.
-// 1. eliteDef: horde counts x1.5 (capped), toughness x1.4, elite fraction +20%, boss hp x1.5, reward x2, collected
-//    coins x1.5, stars x0.8; the campaign def is never touched.
+// 1. eliteDef: per world (stage 3 review, data/elite.js ELITE): horde counts x1.5 .. x1.15 (ramping in after the
+//    opening hordes, never below normal, capped), toughness x1.4 .. x1.1, elite fraction +20% .. +6%, boss hp x1.5
+//    .. x1.1; reward x2, collected coins x1.5, stars x0.8; the campaign def is never touched.
+// 4. Winnable: the pro bot with the end-of-campaign upgrades (snapshots3 U[50]) wins L36 / L40 / L50 ELITE within
+//    3 tries (bot seeds 1, 101, 201), Pip + Thunderclap.
 // 2. Game: startLevel(id, { elite }) runs the elite def (RETRY keeps it); endless / practice never are elite; an elite
 //    win pays round(collected x1.5 + reward x2 + 15/star), records save.elite[id] (best) and leaves save.stars alone;
 //    the progress backup keeps elite stars.
@@ -47,21 +50,25 @@ if (shot) {
 // ---------------- 1. eliteDef ----------------
 for (const id of [1, 9, 10, 23, 40, 47, 50]) {
   const base = L.getLevel(id), before = JSON.stringify(base);
-  const e = E.eliteDef(base);
+  const e = E.eliteDef(base), M = E.eliteMuls(base), span = base.layout ?? base.length;
   ok(JSON.stringify(base) === before, `L${id}: eliteDef changed the campaign def`);
   ok(e !== base && e.elite === true && e.coinMul === 1.5 && e.reward === base.reward * 2, `L${id}: elite flag / coinMul / reward ${e.reward}`);
   ok(E.eliteDef(e) === e, `L${id}: eliteDef twice`);
   ok(e.name === 'ELITE ' + base.name, `L${id} name "${e.name}"`);
   ok(e.stars[0] === Math.round(base.stars[0] * 0.8) && e.stars[1] === Math.round(base.stars[1] * 0.8), `L${id} stars ${e.stars}`);
-  ok(Math.abs(e.tough - base.tough * 1.4) < 0.02 && Math.abs(e.enemyHp - base.enemyHp * 1.4) < 0.02, `L${id} tough ${e.tough} / enemyHp ${e.enemyHp}`);
-  if (base.boss) ok(e.boss.hp === Math.round(base.boss.hp * 1.5) && e.boss.type === base.boss.type, `L${id} boss hp ${e.boss.hp}`);
+  ok(Math.abs(e.tough - base.tough * M.tough) < 0.02 && Math.abs(e.enemyHp - base.enemyHp * M.tough) < 0.02, `L${id} tough ${e.tough} / enemyHp ${e.enemyHp}`);
+  if (base.boss) ok(e.boss.hp === Math.round(base.boss.hp * M.bossHp) && e.boss.type === base.boss.type, `L${id} boss hp ${e.boss.hp}`);
+  ok(M.count >= 1.1 && M.count <= 1.5 && M.tough >= 1.1 && M.tough <= 1.4 && (base.world >= 4 ? M.count < 1.5 : base.world <= 2 ? M.count === 1.5 : M.count <= 1.5), `L${id} world ${base.world} muls ${JSON.stringify(M)}`);
   ok(e.events.length === base.events.length, `L${id} event count`);
   base.events.forEach((b, i) => {
     const x = e.events[i];
     if (b.type !== 'horde') { ok(JSON.stringify(x) === JSON.stringify(b) && x !== b, `L${id} ${b.type}@${b.at} not a plain copy`); return; }
-    ok(x.count === Math.min(750, Math.round(b.count * 1.5)), `L${id} horde@${b.at} count ${b.count} -> ${x.count}`);
-    ok(Math.abs(x.hpMul - b.hpMul * 1.4) < 0.02, `L${id} horde@${b.at} hpMul ${b.hpMul} -> ${x.hpMul}`);
-    ok(Math.abs(x.elite - Math.min(1, (b.elite || 0) + 0.2)) < 0.002, `L${id} horde@${b.at} elite ${x.elite}`);
+    const p = b.rush ? 1 : b.at / span;
+    ok(x.count >= b.count && x.count <= Math.max(b.count, Math.min(E.ELITE.maxHorde, Math.round(b.count * M.count))), `L${id} horde@${b.at} count ${b.count} -> ${x.count}`);
+    if (p < 0.12) ok(x.count === b.count, `L${id} opening horde@${b.at} grew ${b.count} -> ${x.count}`);
+    if (p >= 0.4 && b.count * M.count <= E.ELITE.maxHorde) ok(x.count === Math.round(b.count * M.count), `L${id} horde@${b.at} count ${b.count} -> ${x.count}`);
+    ok(Math.abs(x.hpMul - b.hpMul * M.tough) < 0.02, `L${id} horde@${b.at} hpMul ${b.hpMul} -> ${x.hpMul}`);
+    ok(Math.abs(x.elite - Math.min(1, (b.elite || 0) + M.elite)) < 0.002, `L${id} horde@${b.at} elite ${x.elite}`);
   });
 }
 const sv = { stars: { 3: 3, 4: 2 }, elite: { 3: 2 } };
@@ -153,5 +160,25 @@ g.lastResult = { win: false, levelId: 2, mode: 'level', dist: 100, coins: 10, ki
 ui.nav('result'); await wait(300);
 ok(res.querySelector('.res-elite-tag') && !res.querySelector('.ribbon-elite'), 'result: elite loss shows the tag');
 ui.nav('title'); await wait(200);
+
+// ---------------- 4. late ELITE levels stay winnable ----------------
+const snap = await (await fetch('/scripts/balance/snapshots3.json')).json();
+const win = {};
+for (const id of [36, 40, 50]) {
+  let tries = 0, won = false, last = null;
+  while (!won && tries < 3) {
+    d.setUpgrades(snap.U[50].upgrades);
+    d.setLoadout('pip', 'thunderclap');
+    d.setAutopilot('pro', 1 + 100 * tries++, { crates: 'never', ability: true, loadout: 'keep' });
+    g.startLevel(id, { elite: true });
+    let s, k = 0;
+    do { s = d.simulate(30); k++; } while (s.state === 'playing' && k < 20);
+    last = s.result || {}; won = !!last.win;
+  }
+  win[id] = won ? tries : `X(${last.squad ?? 0}${last.bossHp != null ? ' boss ' + last.bossHp : ''})`;
+  ok(won, `L${id} ELITE: pro with end-of-campaign upgrades did not win in 3 (${win[id]})`);
+}
+info.eliteWins = win;
+d.setAutopilot(false);
 g.save.reset();
 return { pass: fails.length === 0, fails, info };

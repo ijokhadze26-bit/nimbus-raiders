@@ -195,7 +195,8 @@ export class Hud {
     this.banner.classList.remove('hidden');
     restartAnim(this.banner);
     clearTimeout(this.bannerT);
-    this.bannerT = setTimeout(() => this.banner.classList.add('hidden'), 1500);
+    if (this.hazardHint) this.hazardHint.dodge(true); // an INCOMING! / hazard line steps below the banner
+    this.bannerT = setTimeout(() => { this.banner.classList.add('hidden'); if (this.hazardHint) this.hazardHint.dodge(false); }, 1500);
   }
 
   // ---------------- power-up timers ----------------
@@ -303,7 +304,8 @@ export class Hud {
     this.banner.classList.remove('hidden');
     restartAnim(this.banner);
     clearTimeout(this.bannerT);
-    this.bannerT = setTimeout(() => this.banner.classList.add('hidden'), 1500);
+    if (this.hazardHint) this.hazardHint.dodge(true); // an INCOMING! / hazard line steps below the banner
+    this.bannerT = setTimeout(() => { this.banner.classList.add('hidden'); if (this.hazardHint) this.hazardHint.dodge(false); }, 1500);
     this.buzz(60, 0);
   }
 

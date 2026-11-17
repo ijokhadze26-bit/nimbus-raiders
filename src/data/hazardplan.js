@@ -47,6 +47,9 @@ const SOFT_BLOCK = new Set(['powerup', 'coins']);
 /** Kinds whose length may shrink (x0.75, x0.55) to fit a tight stretch. */
 const SHRINK = new Set(['ember', 'icicle', 'ice', 'snow', 'crack', 'syrup', 'lightning', 'wind', 'platform', 'collapse']);
 
+/** A full-road moving platform (not a lesson) never comes before this: the opening squad (~30) can't hold it
+ *  (stage 3 review: L46's platform at 60 u wiped the casual squad on every seed). */
+export const PLATFORM_MIN = 130;
 const lanePick = (r) => (r.chance(0.5) ? 'L' : 'R');
 const r2 = (v) => Math.round(v * 100) / 100;
 
@@ -183,7 +186,8 @@ export function planHazards(def) {
     for (const range of it.hint ? [it.range, hi - lo] : [it.range]) {
       for (const f of SHRINK.has(it.k) ? [1, 0.75, 0.55] : [1]) {
         len = Math.round((params.length || 0) * f / 2) * 2;
-        at = fitAt(blocks, Math.round(lo + it.p * Math.max(0, hi - lo - len)), len, lo, hi, overlay, lethal, range);
+        const lo2 = it.k === 'platform' && !it.gentle ? Math.max(lo, PLATFORM_MIN) : lo;
+        at = fitAt(blocks, Math.round(lo2 + it.p * Math.max(0, hi - lo2 - len)), len, lo2, hi, overlay, lethal, range);
         if (at != null) break;
       }
       if (at != null) break;

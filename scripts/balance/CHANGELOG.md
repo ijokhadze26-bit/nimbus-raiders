@@ -356,3 +356,132 @@ Not met, and why (needs a spec or bot decision):
 - `w3-hazards-cc-levels`: "pro wiped by the hazards" now fails only when the hazards took >= 60 members; the
   pro bot can lose L46 to its final rush, which is not a hazard failure.
 - `w3-harder-levels`: elite share bound 0.15 -> 0.18 (the new world 5 cap).
+
+## Update 3 review (stage 3 fixer, after two independent reviews of `d492a88`)
+
+Corrections to the "Update 3" section above: its claim that the late ramp "keeps the early hordes as they were"
+was false at `d492a88` (L33's first horde went 73 x hp 13 -> 92 x hp 27: the x26 ramp still gave p ~0.1 x1.8,
+and `WORLD_COUNT` applied to every horde); "horde size is the real lever" did not hold for the late hordes either
+(see 1). Both are fixed below.
+
+### What the reviews found (verified) and what changed
+
+1. **Hordes were cut, not played.** `horde.spawnWave` clamped a level horde to `900 - alive`, so with near-unkillable
+   late hordes the next horde arrived cut short (L33 rush: 149 of 600; L36: ~310 of 600), and a squad that thinned the
+   previous horde met a *bigger* rush. Now (`src/game/horde.js` + `hordewaves.js` `queueOverflow` / `spawnOverflow`)
+   the rest waits and comes in as extra blobs as soon as room exists (a horde with hardly any room waits whole and
+   keeps its waves). A remainder that would only appear in the last 25 u before the finish is dropped. The final rush
+   stays capped at 600 (`RUSH_MAX`): bigger rushes were tried (up to 1000) but could not be played in full - the field
+   is still full of the last horde and the rush's held waves until the finish.
+2. **Guns stopped mattering at the climax.** Measured (casual seed 1, Pip + Thunderclap, campaign upgrades, from 60 u
+   before the final rush): at `d492a88` contact did nearly all the killing (weapon kills L16 83/745, L26 0/750, L36
+   13/745, L49 0/538; rush hp L36 25,612). Two causes: the x9-x26 late ramp, and - found here - a packed horde with
+   more than ~1 in 30 Fizzbombs + Boomlings is a powder keg (one shot bomb chains through the whole blob), which is
+   why toughness had to go so high before it bit at all. Now: `WORLD_TOUGH` [8, 3.5, 9, 6.5] with per-level
+   `LEVEL_TUNE`, the explosive share of hordes >= 150 is capped at 3.5% (`capExplosives`), and the opening hordes stay
+   close to the old ones: the count factor ramps in from p 0.15 to 0.5 and the late ramp gives p ~0.1 ~3% of its
+   extra (first horde, count x hp, at `ffbb8d7` / `d492a88` / now: L33 73 x 13 / 92 x 27 / 61 x 16, L36 64 x 12 /
+   88 x 26 / 59 x 16; short levels' hordes are a little smaller, see 7). Result (same probe): killed by something other
+   than contact (bullets + the blasts they set off + abilities + helpers) L16 53%, L26 59%, L36 53%, L46 54%
+   (`tests/u2/w3-balance-rush.js` keeps it >= 30%); rush hp L36 ~10,000 (was 25,612), L16 ~4,100. Bullet kills
+   alone are 2-13% of the window (most of the rest is shot-off blast chains). Upgrades matter again: with no
+   upgrades casual and pro lose almost every sampled W4-5 level (L36 / L43 / L46 0 of 6), with campaign upgrades they
+   win them.
+3. **ELITE stacked on top** (x1.5 count, x1.4 hp, +20% elites, boss x1.5): pro with the end-of-campaign upgrades
+   lost elite L33 / L36 / L43 / L50. `src/data/elite.js` is now per world: count x1.5 / 1.5 / 1.45 / 1.15 / 1.15
+   (ramping in after the opening hordes, never below normal), hp x1.4 / 1.4 / 1.35 / 1.1 / 1.1, elites +20 / 20 /
+   18 / 8 / 6%, boss hp x1.5 / 1.5 / 1.4 / 1.15 / 1.1. Elite runs, U[50] upgrades, Pip + Thunderclap, one try per
+   bot seed: pro L16 3/3, L26 3/3, L33 2/3, L36 4/5, L40 3/3, L43 3/3, L46 2/3, L50 2/3; casual L16 2/3, L26 2/3,
+   L33 3/3, L36 5/5, L40 3/3, L43 2/3, L46 1/3, L50 3/3. `w3-elite` now checks that pro wins L36 / L40 / L50 ELITE
+   within 3 tries.
+4. **Stars.** `stars3.js` rule: 2 stars = the LOWER of the casual and pro median finish (the strongest bot's typical
+   win earns 2 stars), 3 stars = the 75th percentile of all wins (>= 2 stars + 15%, never above the best sampled
+   win, >= 10% of the expected late squad), caps 0.8 / 0.9 x 999. It reports `check.proTwo` / `check.anyThree`
+   (all true for L16-50). Medians of an even count are now the mean of the middle two. The table was derived before
+   the last L34 / L40 / L43 eases (their stars may be a little generous now); L36 was re-derived by hand after its
+   ease ([305, 350]).
+   Tooling note: about one smoke-harness run in 30 (scripts/smoke.mjs, many in parallel) never returned; the same
+   scenario with the same seeds finished in a streaming runner that pauses the debugger on a stall, so no game loop
+   was found. The scratch drivers kill and retry such runs.
+5. **L46 platform.** A full-road moving platform (not a lesson) never comes before 130 u (`hazardplan.js`
+   `PLATFORM_MIN`); L46's moved from 60 u to 171 u, where the squad is ~100-150 instead of ~30. Casual L46 (Pip,
+   campaign upgrades) no longer falls off on every seed: quick matrix 1 / 2 / 2 tries (was X X X); one probe seed still
+   fell just after the platform (191 u), the others reached the final rush.
+6. **Bot fixes** (`src/game/autopilot.js`, test bot only): the gumball cap is in drawn members (`capDrawn`) and the
+   keep-the-gate rule compares real members (x count / drawn); the pro headcount rule counts held waves; a screening
+   horde shrinks the raise window by half the time it takes to shoot through it instead of zeroing it.
+7. **Level data**: the last gate row of a bossless level sized itself on "no growth left" and offered +3 against a
+   raisable ÷2 (the pro bot took the +3 and lost L22 3 of 3); it now sizes like p 0.84. Short levels pack their late
+   hordes closer, so their counts scale with (length / 720)^0.6 (L42 met ~1,700 enemies in 100 u). L30 Glacius hp
+   x0.9, L40 Candy Queen x0.75, L50 Tempest King x0.75.
+8. **HUD**: the "INCOMING!" line moves below a MK UP / NEW WEAPON banner while it shows (it was hidden under it).
+
+### After (this commit; attempts to win, 5 max, X = not won in 5; three digits = bot seeds 1 / 2 / 3)
+
+Campaign upgrades (snapshots3.json re-run with these levels):
+
+| bot / loadout | 3 | 6 | 9 | 10 | 13 | 16 | 19 | 20 | 23 | 26 | 29 | 30 | 33 | 34 | 36 | 39 | 40 | 42 | 43 | 46 | 49 | 50 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| casual pip/thunderclap | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 141 | 111 | 122 | 111 | 111 |
+| casual cinder/emberstorm | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 121 | 111 | 111 | 121* | 111* | 111 | 121* | 5X4 | 114* | XXX | 1X1 | 232 |
+| casual vex/voidsiphon | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 121 | 111 | 121 | 21X | 111 | 221* | 111* | 111 | 5X2* | 421 | X5X* | 512 | 121 | 121 |
+| pro pip/thunderclap | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 121 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 |
+| pro cinder/emberstorm | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 112 | 111 | 111 | 111 | 111 | 43X* | 141* | 111 | 121* | 333 | 2X5* | 111 | 111 | 233 |
+| pro vex/voidsiphon | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 111 | 222 | 111 | 111 | 312 | 111 | 11X* | 114* | 111 | 2X1* | 311 | 124* | 211 | 111 | 323 |
+
+\* L34 / L40 / L43 were eased once more after this matrix (`LEVEL_TUNE` 0.65 / 0.6 / 0.55 -> 0.4 / 0.45 / 0.4);
+re-check (Cinder, Vex): casual L34 111 / 121, L36 111 / 111, L40 111 / X12, L43 133 / X1X; pro L34 411 / 111,
+L36 141 / 114, L40 112 / 411, L43 251 / 141. Then L36 1.15 -> 0.9 (the pro bot lost its ELITE version 3 of 3):
+one try per seed, L36 Pip casual 5/5, pro 5/5; Cinder casual 3/3, pro 3/3; Vex casual 2/3, pro 2/3.
+
+No upgrades, worlds 1-3 (attempts, 5 max):
+
+| bot / loadout | 3 | 6 | 9 | 10 | 13 | 16 | 19 | 20 | 23 | 26 | 29 | 30 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| novice pip/thunderclap | 111 | 111 | 111 | 34X | XX5 | 111 | 112 | 22X | XXX | 221 | XXX | XXX |
+| novice cinder/emberstorm | 111 | 111 | 111 | 513 | 1X1 | 111 | 142 | XXX | XXX | 211 | XXX | XXX |
+| casual pip/thunderclap | 111 | 111 | 111 | 111 | 341 | 111 | 111 | 122 | 21X | 111 | 231 | XXX |
+| casual cinder/emberstorm | 111 | 111 | 111 | 113 | 21X | 111 | 111 | 11X | XXX | 111 | X3X | XXX |
+
+Campaign (Pip + Thunderclap, shop rule; tries per level, only levels not won first try listed): casual - none;
+pro - L42 2; novice - L23 3, L25 5, L34 2, L36 3, L42 3, L45 5, L46-48 X.
+
+### Against the targets (after)
+
+| target | result |
+|---|---|
+| W1: novice 1-2 tries, casual first try | met (unchanged levels) |
+| W2-3: novice fails without upgrades | mostly met: novice without upgrades never clears L23 / L29 / L30, rarely L13 / L20; still clears L16 / L19 / L26 |
+| W2-3: casual needs some upgrades, with them 1-3 | partly: with campaign upgrades 1-2 everywhere except L30 Vex (21X); without upgrades casual never clears L30, needs 2-3 or stalls on L13 / L20 / L23 / L29, still clears L16 / L19 / L26 first try |
+| W2-3: pro first try | mostly: L23 Cinder / Vex and L30 Vex need 2-3 on some seeds |
+| W4-5: casual 2-5 tries, sometimes stalls | partly: Pip + Thunderclap casual is first try almost everywhere (L42 / L46 need 2-4 on one seed); Cinder and Vex need 2-5 and stall on L42 / L43 / L46 / L49 / L40 seeds |
+| W4-5: pro 1-3 | mostly: Pip always 1-2; Cinder / Vex have single seeds at 4-5 or X on L34 / L36 / L40 / L43 (noise-level, see the re-check) |
+| L50 the hardest | not met as a wall: L50 is 1-3 for every bot (the Tempest King fight is decided by the arena squad: Cinder pro lost 3/3 with a ~325 arena squad and won 3/3 with ~600) |
+
+### Not met / needs a decision
+
+- **The bots are about equally strong on worlds 4-5** (the pro bot is no better at surviving a rush than casual;
+  ablating every profile field gave no clean handicap). "Casual 2-5 tries" and "pro 1-3 tries" then cannot both
+  hold for the same loadout; this pass keeps pro inside 1-3 and lets the weaker loadouts carry the "2-5 and stalls".
+  Pip + Thunderclap (the campaign loadout) is clearly the strongest loadout, so its campaign is first try nearly
+  everywhere. Options: make the casual bot weaker on rushes, or accept "hard" = "hard for most loadouts".
+- **Bullet kills alone** stay low at the climax (2-13% of the window); counting the blasts the guns set off it is
+  53-59%. A reviewer's "guns kill 30-50%" reading needs either softer late hordes (the game gets easy again: with
+  `WORLD_TOUGH` 1.5 everything in W2-5 was first try with 800+ squads) or a change to how blasts treat tough enemies.
+- **ELITE has no spec target**; this pass uses "pro with end-of-campaign upgrades wins L36 / L40 / L50 elite in 3".
+- **Stall budgets** (tests): pro 0 on L31-50 in `foundation-campaign` and `w3-hazards-cc-play` (plus <= 3 tries per
+  level in `foundation-campaign`), casual <= 2. Both campaigns currently stall nowhere.
+- Not re-run: the frame-time perf gates (integrator). The overflow keeps the 900 live-enemy cap, so the worst case
+  per frame is unchanged; late levels spend more time near the cap.
+
+### Tests whose expectations moved (review)
+
+- `foundation-campaign`: L31-50 pro stall budget 3 -> 0 and pro <= 3 tries per level; casual 5 -> 2.
+- `w3-hazards-cc-play`: stall budgets pro 3 -> 0, casual 5 -> 2 per campaign.
+- `w3-elite`: per-world multipliers; opening hordes keep their size; ELITE winnability check (pro, U[50]).
+- `w3-integrate`: elite fraction from `eliteMuls(def)`.
+- `w3-hazards-cc-levels`: a wipe fails when hazards took half of the members lost or the squad was gone before the
+  last hazard (relative + positional); a run that ended early replays with Guard on so every hazard must spawn.
+- `w3-harder-levels`: float tolerance on the cursed-barrel ratio (12/10 vs 0.8 x 15/10).
+- New `w3-balance-rush`: climax kills >= 30% non-contact on L16 / L26 / L36 / L46, every horde spawned at its data
+  size (within 2%, the rush >= 94%).

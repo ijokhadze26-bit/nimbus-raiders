@@ -83,7 +83,7 @@ for (const w of [2, 3, 4, 5]) ok(perWorld[w].turned >= 4, `world ${w}: only ${pe
 const freeShare = (w) => perWorld[w].free / perWorld[w].rows;
 ok(freeShare(5) < freeShare(2) && freeShare(4) < freeShare(2), `free rows ${[2, 3, 4, 5].map((w) => freeShare(w).toFixed(2))}`);
 const curse = (w) => perWorld[w].cursed / perWorld[w].levels;
-ok(curse(3) > curse(2) && curse(5) >= curse(3) && curse(4) >= curse(3) * 0.8, `cursed per level ${[2, 3, 4, 5].map((w) => curse(w).toFixed(2))}`);
+ok(curse(3) > curse(2) && curse(5) >= curse(3) && curse(4) >= curse(3) * 0.8 - 1e-9, `cursed per level ${[2, 3, 4, 5].map((w) => curse(w).toFixed(2))}`);
 info.worlds = Object.fromEntries(Object.entries(perWorld).map(([w, p]) => [w, { red: redShare(w).toFixed(2), turned: p.turned, free: `${p.free || 0}/${p.rows}`, cursed: p.cursed, hidden: p.hidden, elite: p.elite, types: [...p.types].join(',') }]));
 // the passes are deterministic and part of generateLevel (w3-levels compares it to the shipped list)
 for (const id of [18, 37, 49]) {

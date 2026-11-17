@@ -9,6 +9,8 @@
   animation: hazard-in 2.8s cubic-bezier(.2, 1.2, .4, 1) both;
 }
 .hazard-hint.hidden { display: none; }
+/* a MK UP / NEW WEAPON banner (.tier-banner, top 17%) is up: the line sits under it instead of behind it */
+.hazard-hint.below { top: calc(17% + 112px); }
 .hazard-hint .hh-head { color: var(--hc); -webkit-text-stroke: 4px var(--outline, #1b3a8a); paint-order: stroke fill; }
 .hazard-hint .hh-tail { -webkit-text-stroke: 4px var(--outline, #1b3a8a); paint-order: stroke fill; }
 @keyframes hazard-in {

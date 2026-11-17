@@ -32,11 +32,11 @@ export const NAMES = {
 const BOSS_PLAN = {
   20: { type: 'ironhorn', tier: 5 },
   25: { type: 'ironhorn', tier: 5, skin: 'frost', mini: true },
-  30: { type: 'glacius', tier: 5, skin: 'frost' },
+  30: { type: 'glacius', tier: 5, skin: 'frost', hpMul: 0.9 }, // review fix: Vex + Void Siphon could not clear it
   35: { type: 'gumdrop', tier: 6, skin: 'candy', mini: true },
-  40: { type: 'mothermurk', tier: 6, skin: 'candy', hpMul: 0.8 }, // stage 3: the Candy Kingdom's smaller squads reach it
+  40: { type: 'mothermurk', tier: 6, skin: 'candy', hpMul: 0.75 }, // stage 3: the Candy Kingdom's smaller squads reach it
   45: { type: 'oculon', tier: 6, skin: 'citadel', mini: true },
-  50: { type: 'tempestking', tier: 6 },
+  50: { type: 'tempestking', tier: 6, hpMul: 0.75 }, // review fix: with the full stage-3 hordes arriving
 };
 // boss hp at the L15 scale (grows HP_GROWTH per level; a mini-boss has MINI_HP of it)
 const HP_BASE = { grawlstone: 220000, glacius: 285000, gumdrop: 220000, oculon: 170000, mothermurk: 250000, ironhorn: 200000, tempestking: 135000 };
@@ -44,33 +44,48 @@ const HP_GROWTH = 1.045, MINI_HP = 0.8;
 // horde toughness at the arena: L15's 45, growing TOUGH_GROWTH per level
 const TOUGH_BASE = 45, TOUGH_GROWTH = 1.035;
 const KIND_TOUGH = { intro: 0.55, normal: 1, mini: 0.9, boss: 0.85 };
-// Stage 3 balance (quick autopilot check, scripts/balance/CHANGELOG.md "Update 3"), per world index (0 = Volcanic
-// Forge .. 3 = Storm Citadel): WORLD_TOUGH = extra horde toughness reached at the end of the level (it ramps in
-// with progress^LATE_EXP, so the small early squad meets the old hordes and the snowballed late squad the tough
-// ones); boss / mini levels use BOSS_TOUGH instead (their boss is the test); WORLD_COUNT / BOSS_COUNT = horde
-// size factor.
-export const WORLD_TOUGH = [10, 9, 26, 10];
-export const BOSS_TOUGH = [1.35, 1.65, 2.5, 2.6];
+// Stage 3 balance (quick autopilot check, scripts/balance/CHANGELOG.md "Update 3" + "Update 3 review"), per world
+// index (0 = Volcanic Forge .. 3 = Storm Citadel): WORLD_TOUGH = extra horde toughness reached at the end of the
+// level. It ramps in with progress^LATE_EXP: an opening horde (p ~0.1) gets ~3% of the extra, the final rush all
+// of it. Review fix: kept low enough that the squad's guns (and the blasts they set off) still kill well over a
+// third of the climax (tests/u2/w3-balance-rush.js); the old x9-x26 made the late hordes bullet-proof. Boss /
+// mini levels use BOSS_TOUGH instead (their boss is the test). WORLD_COUNT / BOSS_COUNT = horde size factor; the
+// opening hordes (p < COUNT_P0) keep their size, it is full from COUNT_P1 on.
+export const WORLD_TOUGH = [8, 3.5, 9, 6.5];
+export const BOSS_TOUGH = [1.35, 1.4, 2.2, 1.9];
 export const WORLD_COUNT = [1.3, 1.2, 1.5, 1.35];
 export const BOSS_COUNT = [1.1, 1.15, 1.3, 1.35];
 // expected late squad (gate / barrel sizes) per world: the Candy Kingdom and the Storm Citadel grow a smaller squad
-export const WORLD_SMAX = [1, 0.9, 0.55, 0.9];
+export const WORLD_SMAX = [0.55, 0.6, 0.4, 0.6];
 // extra Bulwark share (3 contact kills each) per world
 export const WORLD_TANK = [0, 0, 0.12, 0.02];
-const LATE_EXP = 1.5, INTRO_SHARE = 0.15, SHIELD_CLEAR = 130;
+// final rush size factor, at most RUSH_MAX (the old 600 cap): a bigger rush never got played in full - the field
+// (MAX_ENEMIES 900) is still full of the last horde and the rush's held waves until the finish (review fix)
+export const WORLD_RUSH = [1.9, 1.6, 1.7, 1.7];
+// per-level touch-ups from the quick check (scripts/balance/CHANGELOG.md "Update 3 review"): tough scales the
+// level's extra late toughness, count every horde but the hidden-gate screens
+export const LEVEL_TUNE = {
+  22: { tough: 0.5 }, 23: { tough: 0.7 }, 29: { tough: 0.2 }, 30: { tough: 0.6 }, 33: { tough: 0.6 },
+  34: { tough: 0.4 }, 36: { tough: 0.9 }, 38: { tough: 0.5, count: 0.85 }, 39: { tough: 0.65 },
+  40: { tough: 0.45 }, 42: { tough: 0.5, count: 0.75 }, 43: { tough: 0.4 }, 46: { tough: 0.85 },
+  48: { tough: 0.6 }, 49: { tough: 0.2, count: 0.85 }, 50: { tough: 0.2, count: 0.8 },
+};
+const RUSH_MAX = 600, POWDER_MIN = 150, EXPLOSIVE_MAX = 0.035;
+const LATE_EXP = 1.5, INTRO_SHARE = 0.15, SHIELD_CLEAR = 130, COUNT_P0 = 0.15, COUNT_P1 = 0.5, PACK_EXP = 0.6;
 /** Share of the world's extra toughness / horde size a normal level gets: 40% early in the world -> 100% at its end. */
 const ramp = (i) => 0.4 + 0.6 * Math.min(1, i / 9);
 
-// Stars per level (2 at about a typical casual finish, 3 at a strong one). Stage 3 balance: re-derived with
-// scripts/balance/stars3.js (casual seeds 1-3 + pro seeds 1-2, campaign upgrades): 2 stars = casual median finish
-// squad (0.8 x the median of all wins when fewer than 2 casual wins), 3 stars = max(pro median, 1.3 x that).
-// L46 (no win in those 5 runs) is set by hand next to L47-48. starsFor() is the fallback.
+// Stars per level. Stage 3 review rule (scripts/balance/stars3.js: casual + pro bot seeds 1-3, campaign upgrades,
+// Pip + Thunderclap): 2 stars = the lower of the casual and pro median finish squads (the strongest bot's typical
+// win earns 2 stars), 3 stars = the 75th percentile of all wins (at least 2 stars + 15%, never above the best
+// sampled win, at least 10% of the expected late squad), capped at 0.8 / 0.9 x the 999 formation cap.
+// starsFor() is the fallback.
 export const STARS = {
-  16: [435, 565], 17: [365, 470], 18: [550, 710], 19: [780, 990], 20: [950, 990], 21: [885, 990], 22: [635, 830],
-  23: [340, 440], 24: [560, 725], 25: [665, 865], 26: [415, 540], 27: [215, 295], 28: [515, 670], 29: [300, 390],
-  30: [575, 745], 31: [940, 990], 32: [30, 50], 33: [90, 115], 34: [20, 40], 35: [675, 880], 36: [480, 625],
-  37: [490, 635], 38: [30, 50], 39: [690, 900], 40: [300, 390], 41: [350, 460], 42: [70, 90], 43: [395, 510],
-  44: [375, 485], 45: [390, 505], 46: [150, 250], 47: [190, 250], 48: [165, 215], 49: [265, 345], 50: [60, 80],
+  16: [365, 420], 17: [265, 305], 18: [510, 590], 19: [480, 610], 20: [795, 895], 21: [795, 895], 22: [50, 200],
+  23: [345, 455], 24: [595, 645], 25: [625, 670], 26: [195, 470], 27: [630, 720], 28: [695, 800], 29: [610, 700],
+  30: [210, 755], 31: [795, 895], 32: [135, 225], 33: [45, 165], 34: [280, 365], 35: [795, 895], 36: [305, 350],
+  37: [305, 425], 38: [280, 370], 39: [280, 370], 40: [605, 815], 41: [480, 555], 42: [85, 100], 43: [110, 255],
+  44: [130, 265], 45: [700, 805], 46: [100, 200], 47: [100, 345], 48: [80, 175], 49: [425, 675], 50: [380, 510],
 };
 
 const r1 = (v) => Math.round(v * 10) / 10;
@@ -105,7 +120,9 @@ const other = (lane) => (lane === 'L' ? 'R' : 'L');
 const slide = (p) => mv(r1(1.1 + 0.4 * p), r1(1.2 + 0.6 * p));
 
 function gateSpecs(r, q, p) {
-  const grow = squadAt(q, p + 0.16) - squadAt(q, p);
+  // (the last row, p = 1, used to see no growth left and offered +3 against a ÷2: it sizes like p = 0.84)
+  const pg = Math.min(p, 0.84);
+  const grow = squadAt(q, pg + 0.16) - squadAt(q, pg);
   const v = Math.max(3, Math.round(grow * r.range(1.0, 1.5)));
   const good = a(v, Math.round(v * r.range(1.5, 1.9)) + 4, r.chance(0.18 + 0.08 * q.wi) ? slide(p) : {});
   const roll = r.next();
@@ -156,8 +173,11 @@ function mixFor(r, q, p) {
 
 function hordeBeat(r, q, p) {
   const boss = q.kind === 'boss' || q.kind === 'mini';
-  const wc = 1 + ((boss ? BOSS_COUNT : WORLD_COUNT)[q.wi] - 1) * (boss ? 1 : ramp(q.i));
-  const count = Math.round((26 + 470 * Math.pow(p, 1.2)) * (1 + 0.06 * q.wi) * wc * (q.intro ? 0.6 : 1));
+  // the opening hordes (p < COUNT_P0, met by a 20-30 squad) keep their size; the factor is full from COUNT_P1 on
+  const wc = 1 + ((boss ? BOSS_COUNT : WORLD_COUNT)[q.wi] - 1) * (boss ? 1 : ramp(q.i)) * Math.max(0, Math.min(1, (p - COUNT_P0) / (COUNT_P1 - COUNT_P0)));
+  // a short level packs its late hordes closer together: they are smaller (L42 met 1,700 enemies in 100 u)
+  const packed = q.intro ? 0.6 : Math.pow(Math.min(1, q.length / 720), PACK_EXP);
+  const count = Math.round((26 + 470 * Math.pow(p, 1.2)) * (1 + 0.06 * q.wi) * wc * packed);
   const lane = p < 0.5 && r.chance(0.3) ? lanePick(r) : 'both';
   const beat = [H(Math.min(560, count), mixFor(r, q, p), lane)];
   if (r.chance(0.35)) beat.push(U(lane === 'both' ? lanePick(r) : other(lane), r.pick(['shield', 'rapid', 'freeze', 'magnet'])));
@@ -211,15 +231,22 @@ function starsFor(q, boss) {
   return [Math.round(end * 0.5), Math.round(end * 0.85)];
 }
 
-/** Stage 3 balance: horde toughness x (1 + (WORLD_TOUGH - 1) x progress^LATE_EXP) (the final rush: x WORLD_TOUGH). */
+/**
+ * Stage 3 balance: horde toughness x (1 + (late - 1) x progress^LATE_EXP), late = 1 + (WORLD_TOUGH - 1) x ramp(i) x
+ * LEVEL_TUNE.tough (the final rush gets all of it); also the rush size (WORLD_RUSH, <= RUSH_MAX), the per-level count
+ * touch-up, the explosive cap and the no-shield-before-the-rush rule.
+ */
 function lateTough(def, q) {
   const boss = q.kind === 'boss' || q.kind === 'mini';
-  let late = 1 + ((boss ? BOSS_TOUGH : WORLD_TOUGH)[q.wi] - 1) * (boss ? 1 : ramp(q.i));
+  const tune = LEVEL_TUNE[def.id] || {};
+  let late = 1 + ((boss ? BOSS_TOUGH : WORLD_TOUGH)[q.wi] - 1) * (boss ? 1 : ramp(q.i)) * (tune.tough ?? 1);
   if (q.intro) late = 1 + (late - 1) * INTRO_SHARE; // the short hazard-teaching level stays gentle
-  if (late === 1) return;
   const span = def.layout ?? def.length;
   for (const e of def.events) {
     if (e.type !== 'horde') continue;
+    if (tune.count && !e.gateAt) e.count = Math.max(1, Math.round(e.count * tune.count));
+    if (e.rush && !boss && !q.intro) e.count = Math.min(RUSH_MAX, Math.round(e.count * (1 + (WORLD_RUSH[q.wi] - 1) * ramp(q.i))));
+    if (e.count >= POWDER_MIN) capExplosives(e.mix);
     const p = e.rush ? 1 : Math.max(0, Math.min(1, e.at / span));
     e.tough = r2((e.tough ?? 1) * (1 + (late - 1) * Math.pow(p, LATE_EXP)));
   }
@@ -233,6 +260,20 @@ function lateTough(def, q) {
     if (e.type === 'powerup' && e.kind === 'shield') e.kind = 'rapid';
     else if (e.type === 'barrel' && e.reward.kind === 'shield') e.reward = { kind: 'turret', amount: 1 };
   }
+}
+
+/**
+ * A big packed horde with more than ~1 in 30 Fizzbombs + Boomlings is a powder keg: one shot bomb starts a chain
+ * that wipes the whole blob (a blast reaches ~30 neighbours), so its size and toughness stop mattering (stage 3
+ * review: L16's final rush lost 850 of 1,357 to blasts). Their share is capped at EXPLOSIVE_MAX (the rest become
+ * Murklings), so the chain stays local.
+ */
+function capExplosives(mix) {
+  const ex = (mix.bomber || 0) + (mix.blaster || 0);
+  if (ex <= EXPLOSIVE_MAX) return;
+  const k = EXPLOSIVE_MAX / ex;
+  for (const t of ['bomber', 'blaster']) if (mix[t]) { mix.grunt = (mix.grunt || 0) + mix[t] * (1 - k); mix[t] = Math.round(mix[t] * k * 1000) / 1000; }
+  mix.grunt = Math.round(mix.grunt * 1000) / 1000;
 }
 
 /** One generated level def (16..50). */

@@ -139,7 +139,8 @@ for (const id of [3, 44]) {
   ok(g.run.def.elite === true, `L${id}: not an elite run`);
   const base = L.LEVELS.find((x) => x.id === id);
   const want = Math.max(...g.run.def.events.filter((e) => e.type === 'horde').map((e) => e.elite || 0));
-  ok(want >= E.ELITE.elite, `L${id}: elite def horde fraction ${want}`);
+  const M = E.eliteMuls(base);
+  ok(want >= M.elite, `L${id}: elite def horde fraction ${want}`);
   const w = watch();
   let t = 0, hpOk = true, shotDone = false;
   while (g.state === 'playing' && t < 200) {
@@ -152,7 +153,7 @@ for (const id of [3, 44]) {
   const nE = Object.values(r.elites).reduce((a, b) => a + b, 0), nA = Object.values(r.types).reduce((a, b) => a + b, 0);
   const baseFrac = Math.max(...base.events.filter((e) => e.type === 'horde').map((e) => e.elite || 0));
   eliteRuns[id] = { elites: nE, all: nA, frac: Math.round((nE / nA) * 1000) / 1000, baseFrac, stats: (g.run && g.run.stats.elites) || 0, win: !!(g.lastResult && g.lastResult.win) };
-  ok(nE / nA >= E.ELITE.elite * 0.8 && nE / nA <= want + 0.05, `L${id}: elite share ${nE}/${nA} (def ${want})`);
+  ok(nE / nA >= M.elite * 0.8 && nE / nA <= want + 0.05, `L${id}: elite share ${nE}/${nA} (def ${want})`);
   ok(hpOk, `L${id}: elite hp is not x${ELITE.hp}`);
   ok(eliteRuns[id].stats > 0, `L${id}: elite kills not counted`);
 }

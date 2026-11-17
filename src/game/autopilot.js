@@ -5,8 +5,8 @@
 // is tested against each hazard; power tokens (and coins when idle) are grabbed when the path is safe.
 // Update 3 world hazards: their telegraphs (flagged `hazard`) are not dodged as boss attacks; the squad keeps out
 // of game.hazards.danger zones instead (same hard filter as blades / gaps, zones may carry pad / shift / w, and
-// look: lined up for only this late, e.g. a bridge whose danger is at its far end; cap: a zone that kills at
-// most cap members, e.g. a Spitling goo shot, never outweighs a gap or a blade).
+// look: lined up for only this late, e.g. a bridge whose danger is at its far end; cap / capDrawn: a zone that
+// kills at most cap real (capDrawn drawn) members, e.g. a Spitling goo shot / a gumball, never outweighs a gap).
 // Skill profiles (balance tests): 'pro' plays perfectly; 'casual' / 'novice' react late, misjudge close gate
 // calls, often judge a gate by its current number, dodge telegraphs late (or not at all), wobble and clip
 // hazard edges. Their randomness comes from the bot's own seeded rng (one seed per run), never game.rng.
@@ -24,7 +24,7 @@ const HAZ_LOOK = 24;     // start lining up this far before a blade / gap
 // hazard-dense worlds and fell behind the casual bot, e.g. L22 1 / 4 -> 4 / 4 wins)
 const PRO_HAZ_LOOK = 15;
 const GATE_ALIGN = 30;   // the chosen gate overrides everything but telegraphs this far before it
-const SCREEN_BLOCK = 24; // more enemies than this between the squad and a gate row: no raise hits are counted
+const SCREEN_EAT = 0.5;   // share of the time to shoot through a screening horde that the raise window loses
 const BLADE_PAD = 0.4, GAP_PAD = 0.35, GAP_SIDE = 0.22;
 
 // react: output delay (s) | wrongGate: chance to take the worse gate when the call is close (scores within
@@ -166,7 +166,8 @@ export class Autopilot {
     }
     if (x !== null) this.targetX = x;
     // a small capped hazard loss (a goo shot, a gumball) never costs the squad a much better gate it is lined up for
-    if (!seen.length && !(keep > 0 && this.hazardLoss(this.targetX) * 2 < keep && this.uncapped === 0)) this.targetX = this.avoidHazards(this.targetX);
+    // (hazardLoss counts drawn members; keep is a real squad count: x drawnWeight)
+    if (!seen.length && !(keep > 0 && this.hazardLoss(this.targetX) * this.drawnWeight() * 2 < keep && this.uncapped === 0)) this.targetX = this.avoidHazards(this.targetX);
     this.targetX = Math.max(-TARGET_CLAMP, Math.min(TARGET_CLAMP, this.targetX));
     return this.targetX;
   }
@@ -236,16 +237,18 @@ export class Autopilot {
     const count = game.squad.count;
     const p = this.p;
     const naive = p.ignorePredict && this.roll(row, 'naive') < p.ignorePredict;
-    // a horde still standing between the squad and the row eats the bullets: no raise hits reach the gates
-    let screen = 0;
-    if (!naive && game.horde) for (const e of game.horde.list) if (e.state === ALIVE && e.z < L.z && e.z > row.z) screen++;
-    const blocked = screen > SCREEN_BLOCK;
+    // a horde still standing between the squad and the row eats the bullets first: the raise window shrinks by
+    // the time the squad needs to shoot through it (review fix: counting no hits at all behind > 24 enemies made
+    // the pro bot take +3 over a ÷2 its fire turns into ×4 before the row, e.g. L22's last row)
+    let screenHp = 0;
+    if (!naive && game.horde) for (const e of game.horde.list) if (e.state === ALIVE && e.z < L.z && e.z > row.z) screenHp += e.hp + (e.shield || 0);
+    const clearT = screenHp > 0 ? SCREEN_EAT * screenHp / Math.max(1, w.barrelDps()) : 0;
     let best = null, bestScore = -Infinity, second = null, secondScore = -Infinity;
     for (const g of row.gates) {
       if (g.state !== 'live') continue;
       // the squad lines up with its gate GATE_ALIGN u before it at the latest: count only the shots it will
       // surely put into the gate from then on (hordes / barrels may claim the bullets before that)
-      let hits = naive || blocked ? 0 : bulletsPerSec * Math.max(0, Math.min(t, GATE_ALIGN / speed) - 0.5) * 0.8;
+      let hits = naive ? 0 : bulletsPerSec * Math.max(0, Math.min(t, GATE_ALIGN / speed) - 0.5 - clearT) * 0.8;
       if (g.hidden) hits = Math.max(0, hits - (REVEAL_HITS - g.revealHits)); // a hidden gate takes no raise hits yet
       const pred = predictGate(g, hits);
       let score = applyGate(g, count, pred.value, pred.rung);
@@ -295,9 +298,10 @@ export class Autopilot {
     const bins = this.bins || (this.bins = new Float32Array(52));
     const types = this.types || (this.types = new Float32Array(Object.keys(ENEMY_INDEX).length));
     bins.fill(0); types.fill(0);
-    let mass = 0, near = Infinity, heads = 0;
+    let mass = 0, near = Infinity, heads = 0, all = 0;
     for (const e of h.list) {
       if (e.state !== ALIVE || e.z < zFar || e.z > zNear) continue;
+      all++;
       if (e.wave && !e.wave.go) continue; // a held wave (hordewaves.js) is not coming yet: judge the engaged ones
       const m = e.hp + (e.shield || 0);
       mass += m;
@@ -308,7 +312,8 @@ export class Autopilot {
     if (mass === 0) return null;
     const fire = hordeFire(game, types, heads);
     // shoot into the thick of it while it is far, sidestep to the thin side before contact (unless it melts)
-    const strong = fire * 0.35 > mass || near > 16 || count > heads * 0.9 + 12;
+    // (the headcount rule counts the held waves too: they are coming next, review fix)
+    const strong = fire * 0.35 > mass || near > 16 || count > all * 0.9 + 12;
     let best = null, bestScore = Infinity;
     for (const cx of CAND) {
       let d = 0;
@@ -380,7 +385,7 @@ export class Autopilot {
       for (let i = 0; i < ms.length; i += stride) if (over(clampX(ms[i].tx + dx), ms[i].tz)) loss += stride;
     }
     let capped = 0;
-    if (dz) for (const zn of dz) { const l = this.zoneLoss(zn, cx, dx, back, stride); loss += l; if (zn.cap != null) capped += l; }
+    if (dz) for (const zn of dz) { const l = this.zoneLoss(zn, cx, dx, back, stride); loss += l; if (zn.cap != null || zn.capDrawn != null) capped += l; }
     this.uncapped = loss - capped; // loss from blades, gaps and uncapped zones (read by decide)
     return loss;
   }
@@ -405,8 +410,17 @@ export class Autopilot {
     let loss = 0;
     if (!squad.pipGone && inX(cx) && L.z > far - pad) loss += 3;
     for (let i = 0; i < ms.length; i += stride) if (ms[i].tz > far - pad && inX(clampX(ms[i].tx + dx))) loss += stride;
-    if (zn.cap != null && loss > zn.cap) loss = zn.cap; // a zone that kills at most cap members (Spitling goo)
+    // a zone that kills at most cap real members (Spitling goo) / capDrawn drawn ones (a gumball: killIn takes
+    // drawn members, each standing for drawnWeight real ones). loss is in drawn members like the rest.
+    const cap = zn.capDrawn ?? (zn.cap != null ? zn.cap / this.drawnWeight() : null);
+    if (cap != null && loss > cap) loss = cap;
     return loss * w;
+  }
+
+  /** Real squad members per drawn member (a big squad draws at most ~320; hazards/common.js killIn). */
+  drawnWeight() {
+    const sq = this.game.squad;
+    return Math.max(1, sq.count / (sq.members.length + (sq.pipGone ? 0 : 1)));
   }
 
   /** Keeps x when it is clean, otherwise the nearby candidate that loses the fewest members. */

@@ -213,7 +213,7 @@ export const syrup = {
 };
 
 // ---------------- gumball (rolling, shootable) ----------------
-// GUM_CAP: autopilot weight of a ball's zone (it rolls through the squad in < 1 s): never outweighs a gate (stage 3)
+// GUM_CAP: most DRAWN members a ball takes rolling through (< 1 s at its killIn budget; autopilot capDrawn)
 const GUM_R = 1.5, ROLL_LEN = 14, GUM_CAP = 24;
 /** Bullet target for every live gumball (registered once per session, like barrels: tracers carry damage). */
 function gumTarget(sys) {
@@ -265,7 +265,7 @@ export const gumball = {
       const b = { x, z: -restD, restD, r: GUM_R, hp: ev.hp || 80, max: ev.hp || 80, state: 'rest', t: 0, rot: 0, flash: 0, vis: null };
       const rr = (b.r + 0.25) * (b.r + 0.25);
       b.test = (mx, mz) => { const dx = mx - b.x, dz = mz - b.z; return dx * dx + dz * dz < rr; };
-      b.zone = { kind: 'lane', x0: x - b.r, x1: x + b.r, zNear: 0, zFar: 0, pad: 0.45, cap: GUM_CAP };
+      b.zone = { kind: 'lane', x0: x - b.r, x1: x + b.r, zNear: 0, zFar: 0, pad: 0.45, capDrawn: GUM_CAP };
       b.vis = gumball.visual(sys, GUM_COLORS[(Math.round(restD * 7) + i) % GUM_COLORS.length]);
       o.balls.push(b);
       T.balls.push(b);

@@ -100,3 +100,36 @@ function release(h, w) {
 export function waveInfo(h) {
   return h.waves.map((w) => ({ k: w.k, n: w.n, alive: w.alive, go: w.go, locked: w.locked, holdT: Math.round(w.holdT * 100) / 100, speed: w.speed, rush: w.rush }));
 }
+
+// ---------------- overflow (stage 3 review fix) ----------------
+// A level horde that meets a full field (MAX_ENEMIES live, e.g. the final rush on top of a long-lived late horde)
+// used to be cut to whatever room was left, so the data count was not what got played and a squad that thinned
+// the previous horde met a BIGGER rush. Now the rest waits in horde.overflow and comes in as extra blobs (no
+// waves) as soon as room exists: at its own spot, or just inside spawn range once the squad is past that.
+const OVERFLOW_MIN = 40;   // a remainder spawns in chunks of at least this many (or all of it)
+const OVERFLOW_END = 25;   // a remainder that would only appear this close to the finish is dropped
+
+/** horde.spawnWave of a level event that had room for only part of it (whole: none of it): queue the rest. */
+export function queueOverflow(h, ev, left, whole = false) {
+  h.overflow.push({ ev, left, whole });
+  h.waveStats.deferred += left;
+}
+
+/** Once per step: spawn queued remainders (oldest first) while room exists; dropped once the run phase ends. */
+export function spawnOverflow(h, dist, max, ahead) {
+  const run = h.game.run;
+  if (!run || run.phase !== 'run' || dist > run.length - OVERFLOW_END) { h.overflow.length = 0; return; }
+  const o = h.overflow[0];
+  const n = Math.min(o.left, max - h.list.length);
+  if (n < Math.min(o.left, OVERFLOW_MIN)) return;
+  const at = Math.min(run.length, Math.max(o.ev.at, dist + ahead - 5));
+  if (o.whole) { // a whole held-back event keeps its waves (and queues again whatever still does not fit)
+    h.overflow.shift();
+    h.waveStats.deferred -= o.left;
+    h.spawnWave(at === o.ev.at ? o.ev : { ...o.ev, at, gateAt: undefined }, true);
+    return;
+  }
+  o.left -= n;
+  if (o.left <= 0) h.overflow.shift();
+  h.spawnWave({ ...o.ev, count: n, at, waves: false, gateAt: undefined, depth: undefined }, false);
+}

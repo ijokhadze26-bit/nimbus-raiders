@@ -13,7 +13,7 @@ import { hasHit } from './bullets.js';
 import { HIT } from '../config.js';
 import * as ops from './hordeops.js';
 import * as AI from './hordeai.js';
-import { planFor, splitCounts, makeWave, updateWaves, waveInfo, fitScreen, HOLD_AT } from './hordewaves.js';
+import { planFor, splitCounts, makeWave, updateWaves, waveInfo, fitScreen, HOLD_AT, queueOverflow, spawnOverflow } from './hordewaves.js';
 import { Rng } from '../core/rng.js';
 
 export const ALIVE = 0, DYING = 1, SWELL = AI.SWELL;
@@ -48,7 +48,8 @@ export class Horde {
     this.hitPos = { x: 0, y: 0.5, z: 0 };
     this.maxEnemies = MAX_ENEMIES;
     this.waves = [];
-    this.waveStats = { split: 0, released: 0 };
+    this.overflow = [];     // level horde remainders that did not fit under MAX_ENEMIES (hordewaves.spawnOverflow)
+    this.waveStats = { split: 0, released: 0, deferred: 0 };
     this.lastHint = -99;
     this.prevLz = null; this.dLz = 0; this.fwd = 0;
     this.arng = new Rng(1);
@@ -68,7 +69,8 @@ export class Horde {
     this.alive = 0;
     this.grid.clear();
     this.waves.length = 0;
-    this.waveStats.split = 0; this.waveStats.released = 0;
+    this.overflow.length = 0;
+    this.waveStats.split = 0; this.waveStats.released = 0; this.waveStats.deferred = 0;
     this.lastHint = -99;
     this.prevLz = null;
     this.arng.seed(run ? (run.def.id | 0) * 31337 + 7 : 1);
@@ -84,6 +86,7 @@ export class Horde {
     this.cursor = this.events.length;
     for (const e of this.list) if (e.state === ALIVE || e.state === SWELL) { if (e.state === ALIVE) this.alive--; e.state = DYING; e.t = DIE_TIME; }
     this.waves.length = 0;
+    this.overflow.length = 0;
     AI.resetAi(this);
   }
 
@@ -98,8 +101,11 @@ export class Horde {
   /** split = a level horde event (horde.update): may become probe / pause / rush waves (hordewaves.js). */
   spawnWave(ev, split = false) {
     const rng = this.game.rng;
-    const count = Math.max(1, Math.min(ev.count | 0, MAX_ENEMIES - this.list.length));
-    if (count <= 0) return;
+    const room = MAX_ENEMIES - this.list.length, want = ev.count | 0;
+    // a full field: a level horde waits (all of it when there is hardly any room) instead of being cut short
+    if (split && room < Math.min(want, 40)) { queueOverflow(this, ev, want, true); return; }
+    const count = Math.max(1, Math.min(want, room));
+    if (split && count < want) queueOverflow(this, ev, want - count);
     const lane = ev.lane || 'both';
     // toughness: per event (endless ramps it) or per level (data/levels.js enemyHp); looks are unchanged
     const def = this.game.run && this.game.run.def;
@@ -121,7 +127,8 @@ export class Horde {
     // shuffle, then each (sub-)blob is stable-sorted by front priority (tanks + shields lead the charge)
     for (let i = types.length - 1; i > 0; i--) { const j = rng.int(0, i); const t = types[i]; types[i] = types[j]; types[j] = t; }
     const elite = eliteFlags(ev, types);
-    const plan = split ? planFor(this.game, ev) : null;
+    let plan = split ? planFor(this.game, ev) : null;
+    if (plan && count < plan.length * 4) plan = null; // too few for waves (every wave needs some)
     const n0 = this.list.length;
     let back;
     if (!plan) {
@@ -216,6 +223,7 @@ export class Horde {
     this.prevLz = L.z; this.dLz = dLz; this.fwd = dt > 0 ? Math.max(0, -dLz / dt) : 0;
     const ev = this.events;
     while (this.cursor < ev.length && ev[this.cursor].at - dist < HORDE.spawnAhead) this.spawnWave(ev[this.cursor++], true);
+    if (this.overflow.length) spawnOverflow(this, dist, MAX_ENEMIES, HORDE.spawnAhead);
     if (this.waves.length) updateWaves(this, dt, dist);
     AI.preStep(this, dt);
     AI.updatePulses(this, dt);
