@@ -179,7 +179,7 @@ export const WEAPON_DEFS = [
     look: { mk: look([['#ffe14d', '#ffffff', '#6f6bff'], ['#ffe85e', '#ffffff', '#6f6bff'], ['#fff070', '#ffffff', '#7a75ff'], ['#fff585', '#ffffff', '#857fff'], ['#fffbb0', '#ffffff', '#9a8aff']]) },
     gunTint: ['#ffe14d', '#ffe85e', '#fff070', '#fff585', '#fffbb0'], gunBody: '#c87a3a',
     tracerLook: null,
-    strong: [{ id: 'bomber', why: 'chains set them off' }, { id: 'blaster', why: 'chains pop a whole pack far away' }, { id: 'flyer', why: 'chains jump through the flock' }, { id: 'ironhorn', why: 'metal conducts lightning' }],
+    strong: [{ id: 'bomber', why: 'chains set them off' }, { id: 'ironhorn', why: 'metal conducts lightning' }],
     weak: [{ id: 'tempestking', why: 'a storm lord shrugs off lightning' }],
     sfx: { fire: 'wpn_storm_fire', chain: 'wpn_storm_arc' },
     bars: { damage: 0.65, rate: 0.55, range: 0.9, special: 0.7, specialLabel: 'Chain' },

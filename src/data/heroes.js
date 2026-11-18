@@ -24,7 +24,7 @@ export const HERO_DEFS = [
     ability: { id: 'rally', name: 'Rally Call', cd: 20, duration: 0.6, frac: 0.2, min: 5, max: 40,
       text: 'Instantly adds 20% more raiders (at least 5, at most 40) and refills Guard.' },
     favourite: 'thunderclap', unlock: { level: 1, coins: 0, start: true },
-    strong: [{ id: 'grunt', why: 'Steady Aim: +10% fire rate' }, { id: 'runner', why: 'Rally Call refills losses' }, { id: 'flyer', why: 'its favourite, Thunderclap, chains through Flapling flocks' }],
+    strong: [{ id: 'grunt', why: 'Steady Aim: +10% fire rate' }, { id: 'runner', why: 'Rally Call refills losses' }],
     weak: [{ id: 'tempestking', why: 'its favourite, Thunderclap, is weak against the storm lord' }],
     raider: null, raiderTell: null, scale: 1,
     look: { suit: '#2f6ff2', helmet: '#f8fbff', visor: '#1fd0c4', scarf: '#ff8a2b' },

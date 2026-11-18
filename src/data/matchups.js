@@ -9,16 +9,17 @@ export const ELEMENTS = ['emberstorm', 'glacier', 'sugarrush', 'spectra', 'gearw
 // Update 3 (stage 6): the five new enemy types get their own column per element. Each new column averages
 // ~1.0 over the 7 weapons; the personality: Emberstorm pops Boomlings, Glacier picks off far Spitlings and the
 // Mendlings at the back, Sugar Rush lobs over the front line, Spectra + Gearworks crack the tough Broodling
-// Hive, Thunderclap chains through Flapling flocks, Void Siphon pulls flyers down.
+// Hive, Void Siphon pulls Flaplings down. Thunderclap (Pip's starter) stays an even x1 all-rounder against
+// them: any change there moved the Pip campaign gates (foundation-campaign, w3-hazards-cc-play) at L34.
 //                 grunt runner tank  shield bomber | blaster healer spawner sniper flyer
 export const VS = {
   emberstorm: { grunt: 1.8, runner: 1.0, tank: 0.7, shield: 1.0, bomber: 1.6, blaster: 1.5, healer: 0.6, spawner: 0.8, sniper: 0.6, flyer: 1.1 },
-  glacier: { grunt: 0.9, runner: 1.6, tank: 0.5, shield: 1.0, bomber: 0.9, blaster: 1.1, healer: 1.4, spawner: 0.6, sniper: 1.5, flyer: 1.0 },
+  glacier: { grunt: 0.9, runner: 1.6, tank: 0.5, shield: 1.0, bomber: 0.9, blaster: 1.2, healer: 1.4, spawner: 0.6, sniper: 1.5, flyer: 1.1 },
   sugarrush: { grunt: 1.5, runner: 0.6, tank: 0.8, shield: 1.6, bomber: 1.5, blaster: 0.9, healer: 1.3, spawner: 0.9, sniper: 0.8, flyer: 0.6 },
   spectra: { grunt: 0.8, runner: 1.0, tank: 1.7, shield: 0.9, bomber: 0.9, blaster: 0.8, healer: 1.1, spawner: 1.6, sniper: 1.3, flyer: 0.9 },
   gearworks: { grunt: 0.9, runner: 0.8, tank: 1.8, shield: 2.0, bomber: 1.0, blaster: 0.9, healer: 0.8, spawner: 1.5, sniper: 0.9, flyer: 0.8 },
-  thunderclap: { grunt: 1.0, runner: 1.0, tank: 0.9, shield: 0.9, bomber: 1.2, blaster: 1.2, healer: 1.1, spawner: 1.0, sniper: 1.1, flyer: 1.5 },
-  voidsiphon: { grunt: 1.6, runner: 1.6, tank: 0.7, shield: 1.2, bomber: 1.2, blaster: 0.6, healer: 0.8, spawner: 0.8, sniper: 0.8, flyer: 1.2 },
+  thunderclap: { grunt: 1.0, runner: 1.0, tank: 0.9, shield: 0.9, bomber: 1.2, blaster: 1.0, healer: 1.0, spawner: 1.0, sniper: 1.0, flyer: 1.0 },
+  voidsiphon: { grunt: 1.6, runner: 1.6, tank: 0.7, shield: 1.2, bomber: 1.2, blaster: 0.6, healer: 0.8, spawner: 0.8, sniper: 0.8, flyer: 1.4 },
   neutral: { grunt: 1, runner: 1, tank: 1, shield: 1, bomber: 1, blaster: 1, healer: 1, spawner: 1, sniper: 1, flyer: 1 },
 };
 
