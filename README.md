@@ -63,7 +63,7 @@ It runs in the browser on phone and computer, with nothing to install.
 <!-- u3:begin -->
 ## Worlds and Bosses
 
-The campaign has 50 levels in 5 worlds. Beat a world's boss to open the next world on the world map. Every world has its own look, music, enemy colours and road hazards, 5 world bosses and 5 mini-bosses. The first level of worlds 2 to 5 is a lesson that shows the new hazards one at a time.
+The campaign has 50 levels in 5 worlds. Beat a world's boss to open the next world on the world map. Every world has its own look, music, enemy colours and road hazards, a mini-boss halfway and a boss at the end: 10 boss fights in all (5 world bosses, 5 mini-bosses). The first level of worlds 2 to 5 is a lesson that shows the new hazards one at a time.
 
 - **Rage:** every boss goes into a rage below 25% health: it glows red and attacks 1.6x as often.
 - **Safe spot:** when a world boss changes phase, the whole arena is marked for a big attack except one glowing circle. Move the squad into it; Raiders left outside can be lost (up to 35% of the squad). Mini-bosses skip this step.

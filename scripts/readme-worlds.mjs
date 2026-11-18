@@ -91,8 +91,9 @@ export function generateWorlds() {
   const minis = fights.filter((d) => d.boss.mini).length;
   const L = [BEGIN3, '## Worlds and Bosses', ''];
   L.push(`The campaign has ${LEVELS.length} levels in ${WORLDS.length} worlds. Beat a world's boss to open the next world on the `
-    + `world map. Every world has its own look, music, enemy colours and road hazards, ${fights.length - minis} world bosses and `
-    + `${minis} mini-bosses. The first level of worlds 2 to ${WORLDS.length} is a lesson that shows the new hazards one at a time.`, '');
+    + 'world map. Every world has its own look, music, enemy colours and road hazards, a mini-boss halfway and a boss at the end: '
+    + `${fights.length} boss fights in all (${fights.length - minis} world bosses, ${minis} mini-bosses). The first level of worlds 2 to `
+    + `${WORLDS.length} is a lesson that shows the new hazards one at a time.`, '');
   L.push(`- **Rage:** every boss goes into a rage below ${pct(RAGE.at)} health: it glows red and attacks ${RAGE.cadence}x as often.`);
   L.push('- **Safe spot:** when a world boss changes phase, the whole arena is marked for a big attack except one glowing '
     + `circle. Move the squad into it; Raiders left outside can be lost (up to ${pct(SAFE_SPOT.maxLoss)} of the squad). Mini-bosses skip this step.`);
