@@ -16,6 +16,7 @@ import { HERO_IDS, DEFAULT_HERO } from '../data/heroes.js';
 import { WEAPON_IDS, DEFAULT_WEAPON } from '../data/weapons.js';
 import { isHeroUnlocked, isWeaponUnlocked } from './unlocks.js';
 import { TOTAL_LEVELS, WORLD_COUNT } from '../data/worlds.js';
+import { PLAYER_MOD_IDS } from '../data/modifiers.js';
 
 export const SAVE_KEY = 'nimbusRaiders.save.v1';
 export const OWNED_KEY = 'nimbusRaiders.owned.v2';
@@ -48,6 +49,7 @@ export function defaultSave() {
     modes: { bossRushBest: 0, dailyBest: {}, chaosBest: 0, endlessBest: {} }, // dailyBest: 'YYYY-MM-DD' -> score; endlessBest: worldId -> m
     achievements: { done: [], claimed: [] },                          // achievement ids
     squadTypes: { owned: [], mix: {} },                               // raider type ids; mix: id -> share 0..100
+    modifiers: [],                                                    // stage 5: loadout modifiers left on (remembered)
   };
 }
 
@@ -133,6 +135,7 @@ export function sanitize(raw) {
       d.squadTypes.mix[k] = int(v, 0, MIX_MAX, 0);
     }
   }
+  ids(raw.modifiers, PLAYER_MOD_IDS, d.modifiers);
   // keep unknown top-level JSON keys (a newer build's fields survive this one)
   let extra = 0;
   for (const [k, v] of Object.entries(raw)) {

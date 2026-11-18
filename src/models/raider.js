@@ -159,3 +159,44 @@ export function buildRaiderGunGeometry(weaponId = 'thunderclap', mk = 1, lod = '
 }
 
 export const RAIDER_MUZZLE = { x: 0.15 * RAIDER_SCALE, y: 0.35 * RAIDER_SCALE, z: -0.45 * RAIDER_SCALE };
+
+/**
+ * Squad member type accessories (update 3 stage 5; data/squadtypes.js), drawn by one extra InstancedMesh per type
+ * on top of the Raider body (same instance matrices, same toon vertex-colour material, no shadow): 1 = SHIELD
+ * BEARER (round shield on the back: the camera sees the back of the squad), 2 = MEDIC (white pack + red cross, red
+ * armband, red cross on the helmet), 3 = HEAVY GUNNER (shoulder cannon + ammo drum). <= ~100 triangles each;
+ * low = fewer round segments.
+ */
+export function buildRaiderAccessoryGeometry(type, low = false) {
+  const seg = low ? 6 : 10;
+  let parts;
+  if (type === 1) {
+    parts = [
+      // tilted back toward the camera (it looks down on the squad from behind) and high enough to clear the
+      // helmets of the row behind
+      part(G.cyl(0.25, 0.25, 0.05, seg), '#6cc8ff', { p: [0, 0.44, 0.26], r: [Math.PI / 2 - 0.4, 0, 0], bright: 1.1 }),
+      part(G.torus(0.235, 0.035, 4, seg), '#ffffff', { p: [0, 0.448, 0.272], r: [-0.4, 0, 0], bright: 1.2 }),
+      part(G.box(0.06, 0.4, 0.02), '#ffffff', { p: [0, 0.448, 0.284], r: [-0.4, 0, 0], bright: 1.2 }),
+      part(G.cyl(0.08, 0.095, 0.06, seg), '#ffd34d', { p: [0, 0.452, 0.29], r: [Math.PI / 2 - 0.4, 0, 0], bright: 1.3 }),
+    ];
+  } else if (type === 2) {
+    parts = [
+      part(G.box(0.27, 0.25, 0.15), '#ffffff', { p: [0, 0.35, 0.18] }),
+      part(G.box(0.17, 0.055, 0.02), '#ff2b3e', { p: [0, 0.36, 0.262], bright: 1.15 }),
+      part(G.box(0.055, 0.17, 0.02), '#ff2b3e', { p: [0, 0.36, 0.262], bright: 1.15 }),
+      part(G.cyl(0.05, 0.05, 0.06, 6, true), '#ff2b3e', { p: [-0.18, 0.33, 0], r: [0, 0, -0.25] }),
+      part(G.box(0.1, 0.035, 0.03), '#ff2b3e', { p: [0, 0.66, 0.15], r: [-0.5, 0, 0] }),
+      part(G.box(0.035, 0.1, 0.03), '#ff2b3e', { p: [0, 0.66, 0.15], r: [-0.5, 0, 0] }),
+    ];
+  } else if (type === 3) {
+    parts = [
+      part(G.box(0.15, 0.15, 0.3), '#3d4a66', { p: [0.21, 0.5, -0.02] }),
+      part(G.cyl(0.07, 0.08, 0.42, seg), '#4b5672', { p: [0.21, 0.52, -0.36], r: [Math.PI / 2, 0, 0] }),
+      part(G.cyl(0.085, 0.085, 0.06, seg), '#ffae1a', { p: [0.21, 0.52, -0.56], r: [Math.PI / 2, 0, 0], bright: 1.2 }),
+      part(G.box(0.16, 0.04, 0.12), '#ffae1a', { p: [0.21, 0.6, 0.02] }),
+      part(G.cyl(0.11, 0.11, 0.2, seg), '#ffae1a', { p: [0, 0.36, 0.25], r: [0, 0, Math.PI / 2] }),
+      part(G.cyl(0.075, 0.075, 0.21, seg), '#3d4a66', { p: [0, 0.36, 0.25], r: [0, 0, Math.PI / 2] }),
+    ];
+  } else return null;
+  return merge(parts).scale(RAIDER_SCALE, RAIDER_SCALE, RAIDER_SCALE);
+}

@@ -4,9 +4,12 @@
 // Sugar Shield); the sideways ease is MOVE.ease x the hero's Speed. Update 3 stage 4: slots follow the run's
 // formation (game/formation.js Line / Wedge / Circle shapes), a dodge roll (game/dodge.js) skips one loss event
 // and makes the squad hop + spin, Circle may shrug off an enemy touch.
+// Update 3 stage 5: members carry a type (game/squadtypes.js: Shield Bearer / Medic / Heavy Gunner, drawn by
+// squadlooks.js), a loss may be blocked by a Shield Bearer after the hero's absorb, and capMax (TINY SQUAD) caps count.
 import * as THREE from 'three';
 import { FORMATION, MEMBER_CLAMP, MOVE } from '../config.js';
 import { buildRaiderGeometry, buildRaiderLowGeometry, buildRaiderGunGeometry, buildRaiderShadowGeometry, RAIDER_MUZZLE } from '../models/raider.js';
+import { createTypeMeshes, writeTypeMatrix, finishTypeMeshes, setTypeLod } from './squadlooks.js';
 import { buildHeroGunGeometry } from '../models/weapons/guns.js';
 import { toonMaterial, toonGradient } from '../models/materials.js';
 import { markInstances } from '../core/pool.js';
@@ -32,6 +35,7 @@ export class Squad {
   init(game) {
     this.game = game;
     this.count = 1;
+    this.capMax = FORMATION.cap; // run modifiers (TINY SQUAD) lower it, game/runmods.js
     this.leader = { x: 0, z: 0, vx: 0 };
     this.members = [];   // rendered raiders (excludes Pip), slot = index
     this.dying = [];
@@ -73,6 +77,7 @@ export class Squad {
     this.shadowProxy.count = 0;
     this.shadowProxy.layers.set(SHADOW_LAYER);
     game.scene.add(this.raiders, this.guns, this.shadowProxy);
+    this.typeMeshes = createTypeMeshes(game.scene, this.raiderMat, FORMATION.maxRendered); // stage 5 squad member types
     this.gunGlowBase = 0.25;
     this.setGunColor('#ffd34d');
   }
@@ -82,6 +87,7 @@ export class Squad {
     if (q === 'low' && !this.raiderGeo.low) this.raiderGeo.low = buildRaiderLowGeometry(this.raiderLook.colors, this.raiderLook.tell);
     this.raiders.geometry = q === 'low' ? this.raiderGeo.low : this.raiderGeo.high;
     this.lod = q === 'low' ? 'low' : 'high';
+    setTypeLod(this.typeMeshes, this.lod);
     // the leader rig follows the LOD (visual only; nothing in the simulation reads the rig)
     if (this.leaderRig?.key && !this.leaderRig.key.endsWith(':' + this.lod)) this.game.loadout?.applyLook();
     this.guns.geometry = buildRaiderGunGeometry(this.gunWeapon || 'thunderclap', this.gunMk || 1, this.lod);
@@ -132,12 +138,12 @@ export class Squad {
   get rendered() { return 1 + this.members.length; }
 
   alloc() {
-    return this.free.length ? this.free.pop() : { x: 0, z: 0, tx: 0, tz: 0, pop: 0, ph: 0, t: 0, vx: 0, vy: 0, vz: 0, y: 0, spin: 0, kind: 0 };
+    return this.free.length ? this.free.pop() : { x: 0, z: 0, tx: 0, tz: 0, pop: 0, ph: 0, t: 0, vx: 0, vy: 0, vz: 0, y: 0, spin: 0, kind: 0, type: 0, shield: false };
   }
 
   /** Sets the total count (gate/barrel results). Emits squad:change. */
   setCount(n, reason = 'gate', force = false) {
-    n = Math.max(0, Math.min(FORMATION.cap, Math.round(n)));
+    n = Math.max(0, Math.min(this.capMax, Math.round(n)));
     const delta = n - this.count;
     if (delta === 0 && !force) return 0;
     this.count = n;
@@ -156,10 +162,10 @@ export class Squad {
     return k > 0 ? this.setCount(this.count - k, reason) : 0;
   }
 
-  /** One member loss cancelled by the Circle formation's shrug-off or the hero (Guard, Sugar Shield)? */
+  /** One member loss cancelled by the Circle formation's shrug-off, the hero (Guard, Sugar Shield) or a Shield Bearer? */
   spared(reason) {
     const g = this.game;
-    return !!((g.formation && g.formation.absorb(reason)) || (g.heroes && g.heroes.absorb(reason)));
+    return !!((g.formation && g.formation.absorb(reason)) || (g.heroes && g.heroes.absorb(reason)) || (g.squadTypes && g.squadTypes.absorb(reason)));
   }
 
   /** Kills one specific rendered member (index into members) — e.g. enemy contact. */
@@ -209,6 +215,7 @@ export class Squad {
       m.tx = m.x; m.tz = m.z; // pooled objects must not carry an old slot target (autopilot reads tx/tz)
       m.pop = 0;
       m.ph = rng.next() * Math.PI * 2;
+      m.type = this.game.squadTypes ? this.game.squadTypes.next() : 0; m.shield = m.type === 1;
       this.members.push(m);
     }
     while (this.members.length > Math.max(0, want)) {
@@ -434,8 +441,10 @@ export class Squad {
       _q.setFromEuler(_e);
       _m.compose(_p.set(m.x, bob + (ramps ? Math.max(lift, ramps.rampY(m.x, m.z)) : lift) + hop, m.z), _q, _s.set(sc, sc * (1 - Math.abs(Math.cos(ph)) * 0.05 * rb), sc));
       _m.toArray(arr, n * 16);
+      if (m.type && (m.type !== 1 || m.shield)) writeTypeMatrix(this.typeMeshes, m.type, arr, n * 16);
       n++;
     }
+    finishTypeMeshes(this.typeMeshes);
     for (let i = 0; i < this.dying.length; i++) {
       const d = this.dying[i];
       const life = d.kind === 1 ? 1.3 : 0.55;

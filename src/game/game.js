@@ -46,6 +46,8 @@ import { Dodge } from './dodge.js';
 import { Combo } from './combo.js';
 import { Formation } from './formation.js';
 import { Modes } from './modes/index.js';
+import { RunMods } from './runmods.js';
+import { SquadTypes } from './squadtypes.js';
 
 const ATTRACT_COUNT = 9;
 
@@ -116,6 +118,7 @@ export class Game {
     this.cages = new Cages(); // stage 4 rescue cages (shoot the lock, freed Raiders join)
     this.props = new Props();     // stage 4 road objects: crane, dam, bell, boulder
     this.systems = [this.combo, this.formation, this.dodge, this.world, this.bullets, this.squad, this.status, this.zones, this.heroes, this.helpers, this.weapons, this.gates, this.cages, this.horde, this.barrels, this.telegraph, this.bosses, this.obstacles, this.hazards, this.props, this.pickups, this.powers, this.crates, this.autopilot];
+    this.runMods = new RunMods(); this.runMods.init(this); this.squadTypes = new SquadTypes(); this.squadTypes.init(this); // stage 5
     for (const s of this.systems) s.init(this);
     this.endless.init(this);
     this.zoneViews = createZoneViews(this);
@@ -136,12 +139,13 @@ export class Game {
   /**
    * Starts a defined level with the current loadout; false (and nothing happens) for an id without data.
    * opts.elite: the ELITE version (data/elite.js eliteDef; the loadout only offers it after a 3-star clear).
+   * opts.mods: run modifier ids (data/modifiers.js; RETRY keeps them).
    */
   startLevel(levelId, opts = {}) {
     const base = getLevel(Number(levelId));
     if (!base) return false;
     const def = opts && opts.elite ? eliteDef(base) : base;
-    this.beginRun(def, 'level', 1, { hero: this.loadout.hero, weapon: this.loadout.weapon });
+    this.beginRun(def, 'level', 1, { hero: this.loadout.hero, weapon: this.loadout.weapon, mods: opts && opts.mods });
     return true;
   }
 
@@ -196,11 +200,12 @@ export class Game {
     this.finish.reset(this.run);
     this.bullets.reset();
     this.heroes.reset(this.run, hero);
+    this.runMods.begin(this.run, opts.mods); this.squadTypes.begin(this.run); // stage 5 modifiers + squad types
     this.loadout.applyLook(hero);
     this.squad.pip.root.visible = true;
     const practice = mode === 'practice';
-    const up = upgradeEffects(practice ? {} : this.save?.data?.upgrades);
-    const start = (practice ? PRACTICE.squad : START_SQUAD + up.startSquad) + this.heroes.startBonus;
+    const up = upgradeEffects(practice || this.run.mods.noUpgrades ? {} : this.save?.data?.upgrades);
+    const start = this.runMods.startSquad((practice ? PRACTICE.squad : START_SQUAD + up.startSquad) + this.heroes.startBonus);
     this.squad.reset(start, 0);
     this.weapons.reset(this.run, { weapon, mk: opts.mk ?? up.startTier, dmgMul: up.damageMul, rateMul: up.rateMul });
     this.weapons.enabled = true;
@@ -280,6 +285,7 @@ export class Game {
     this.resetCombat(null);
     this.squad.pip.root.visible = true;
     this.heroes.reset(null, this.loadout.hero);
+    this.runMods.begin(null); this.squadTypes.begin(null);
     this.squad.reset(ATTRACT_COUNT, 0);
     this.weapons.setWeapon(this.loadout.weapon, { silent: true });
     this.weapons.setMk(1, { silent: true });
@@ -369,7 +375,7 @@ export class Game {
     if (this.state === 'playing') {
       const run = this.run;
       this.input.update(dt);
-      const target = this.autopilot.enabled ? this.autopilot.update(dt) : this.modes.steer(this.input.targetX);
+      const target = this.autopilot.enabled ? this.autopilot.update(dt) : this.runMods.steer(this.input.targetX);
       this.formation.update(dt); this.dodge.update(dt);
       this.squad.update(dt, target, this.forwardSpeed(dt));
       run.update(dt, -this.squad.leader.z);
@@ -393,6 +399,7 @@ export class Game {
       this.telegraph.update(dt);
       this.bosses.update(dt);
       this.combo.update();
+      this.runMods.update(dt); this.squadTypes.update(dt);
       if (run.phase === 'run' && run.dist >= run.length - (run.boss ? 2 : 0)) {
         if (run.boss) { run.setPhase('boss'); this.bosses.spawn(run.boss); }
         else this.win();

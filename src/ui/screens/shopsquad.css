@@ -1,0 +1,24 @@
+/* Shop SQUAD tab (update 3 stage 5). */
+.shop-list.list-squad { display: flex; flex-direction: column; gap: 14px; }
+.sq-card { display: grid; grid-template-columns: 96px 1fr; gap: 10px; align-items: center; padding: 10px 12px 12px 8px; }
+.sq-card .sq-prev { width: 96px; height: 108px; border-radius: 18px; display: grid; place-items: center;
+  background: radial-gradient(70% 60% at 50% 40%, #ffffff, color-mix(in srgb, var(--tc) 28%, #dfeaff)); border: 3px solid color-mix(in srgb, var(--tc) 55%, #1b3a8a); }
+.sq-card .rt-svg { width: 88px; height: 100px; overflow: visible; }
+.sq-card .sq-info { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.sq-card .sq-name { font: 400 20px/1.05 var(--font-display); color: #fff; letter-spacing: 0.5px; -webkit-text-stroke: 4px var(--outline); paint-order: stroke fill; }
+.sq-card .sq-short { align-self: flex-start; padding: 2px 8px 3px; border-radius: 999px; font: 400 13px/1 var(--font-display); color: #fff;
+  background: var(--tc); -webkit-text-stroke: 2.5px rgba(10, 28, 80, 0.75); paint-order: stroke fill; }
+.sq-card .sq-desc { font-size: 12.5px; line-height: 1.25; font-weight: 700; color: #3c4d78; }
+.sq-card .sq-act { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; margin-top: 4px; }
+.sq-card .sq-act .btn-sm { margin-left: auto; }
+.sq-card .sq-owned { display: inline-flex; align-items: center; gap: 3px; font: 400 13px/1 var(--font-display); color: #17702d; }
+.sq-card .sq-owned .ico { font-size: 15px; }
+.sq-card.in-squad { box-shadow: 0 0 0 3px #2fbf4f, 0 6px 0 3px #17702d, 0 0 22px rgba(47, 191, 79, 0.45); }
+.mix-seg { display: flex; gap: 3px; padding: 3px; border-radius: 14px; background: #1b3a8a; margin-left: auto; }
+.mix-b { min-width: 52px; min-height: 40px; padding: 2px 6px 4px; border: 0; border-radius: 11px; cursor: pointer; font: 400 15px/1 var(--font-display);
+  color: #cfe3ff; background: transparent; -webkit-text-stroke: 3px #0b1f55; paint-order: stroke fill; transition: background 0.15s ease; }
+.mix-b.on { color: #fff; background: linear-gradient(180deg, #8af07a, #2fbf4f); -webkit-text-stroke-color: #17702d; box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.15); }
+.mix-b.m-off.on { background: linear-gradient(180deg, #c9d4ec, #8d9cc0); -webkit-text-stroke-color: #4c5f8f; }
+.mix-b:active { transform: scale(0.95); }
+/* four shop tabs on a phone: smaller names */
+.tabs.n4 .tab { font-size: clamp(11px, 3.45cqw, 17px); letter-spacing: 0; padding: 0 2px; }

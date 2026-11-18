@@ -7,6 +7,8 @@
 // Opened with ui.nav('loadout', { levelId }) or { mode: 'endless' }.
 // Update 3 stage 3: an ELITE switch above START (campaign levels only; locked until the level has 3 stars).
 // The choice is remembered while the game is open (eliteOn) and applies to every elite-open level.
+// Update 3 stage 5: MODIFIERS grid (campaign levels only; ui/modsui.js) — toggles remembered in save.modifiers, the
+// coin bonus shows on the section and on START, and START passes them to the run (game.startLevel opts.mods).
 import { screenEl, coinPill, bump, fmt } from '../ui.js';
 import { icon } from '../icons.js';
 import { HERO_DEFS, HERO_DEF_BY_ID } from '../../data/heroes.js';
@@ -24,6 +26,8 @@ import '../info.css';
 import { eliteUnlocked, eliteStars } from '../../data/elite.js';
 import { eliteRowHtml } from '../elite.js';
 import { modeHeader } from './modes.js';
+import { modsGridHtml, modsBonusText } from '../modsui.js';
+import { PLAYER_MOD_IDS } from '../../data/modifiers.js';
 
 const STAR = `<i class="fav-star" aria-hidden="true">${icon('star')}</i>`;
 
@@ -45,8 +49,10 @@ export function createLoadout(ui) {
       <div class="lo-sec"><h4>WEAPON</h4><button type="button" class="btn btn-blue lo-info" data-act="info-weapon" aria-label="Weapon info">${infoIcon()}<span>INFO</span></button></div>
       <div class="chip-row lo-weapons" role="toolbar" aria-label="Weapon"></div>
       <div class="lo-lock" hidden></div>
+      <div class="lo-sec lo-modsec"><h4>MODIFIERS</h4><span class="lo-modsum"></span></div>
+      <div class="lo-mods" role="group" aria-label="Modifiers"></div>
     </div>
-    <div class="info-foot lo-foot"><div class="lo-elite-slot" hidden></div><button type="button" class="btn btn-gold btn-lg lo-start" data-act="start">${icon('play')}<span>START</span></button></div>`;
+    <div class="info-foot lo-foot"><div class="lo-elite-slot" hidden></div><button type="button" class="btn btn-gold btn-lg lo-start" data-act="start">${icon('play')}<span>START</span><span class="lo-modtag"></span></button></div>`;
   const $ = (s) => el.querySelector(s);
   const heroesRow = $('.lo-heroes'), weaponsRow = $('.lo-weapons'), level = $('.lo-level'), title = $('.lo-title');
   const cap = $('.lo-cap'), lock = $('.lo-lock'), pvEl = $('.lo-pv');
@@ -110,7 +116,22 @@ export function createLoadout(ui) {
     startBtn.classList.toggle('btn-gold', !on);
     startBtn.querySelector('span').textContent = on ? 'START ELITE' : 'START';
   }
-  function render() { renderLevel(); renderChips(); renderCap(); renderLock(); renderElite(); }
+  const modsOn = () => (def() ? ui.save.data.modifiers.filter((id) => PLAYER_MOD_IDS.includes(id)) : []);
+  function renderMods() {
+    const L = def(), on = modsOn();
+    $('.lo-modsec').hidden = !L; $('.lo-mods').hidden = !L;
+    $('.lo-mods').innerHTML = L ? modsGridHtml(on) : '';
+    $('.lo-modsum').textContent = modsBonusText(on);
+    startBtn.querySelector('.lo-modtag').textContent = on.length ? modsBonusText(on).replace(' COINS', '') : '';
+  }
+  function toggleMod(id) {
+    if (!PLAYER_MOD_IDS.includes(id)) return;
+    ui.save.update((d) => { const i = d.modifiers.indexOf(id); if (i >= 0) d.modifiers.splice(i, 1); else d.modifiers.push(id); });
+    renderMods();
+    const c = $(`.mod-card[data-id="${id}"]`); if (c) bump(c);
+    ui.vibrate(15);
+  }
+  function render() { renderLevel(); renderChips(); renderCap(); renderLock(); renderElite(); renderMods(); }
   function back() { ui.nav(opts.mode === 'endless' ? 'endless' : opts.mode ? 'modes' : 'map'); }
   function tap(kind, id) {
     const d = ui.save.data;
@@ -140,6 +161,7 @@ export function createLoadout(ui) {
       if (act === 'back') back();
       else if (act === 'hero' || act === 'weapon') tap(act, btn.dataset.id);
       else if (act === 'lock-close') { pending = null; renderLock(); }
+      else if (act === 'mod') toggleMod(btn.dataset.id);
       else if (act === 'elite') {
         if (eliteOpen()) { eliteOn = !eliteOn; renderElite(); } else { const r = eliteSlot.firstElementChild; if (r) bump(r); ui.vibrate(30); }
       }
@@ -155,11 +177,13 @@ export function createLoadout(ui) {
         ui.game.loadout.syncFromSave();
         if (opts.mode === 'endless') ui.game.startEndless(undefined, opts.world);
         else if (opts.mode) ui.game.startMode(opts.mode, opts); // stage 5: bossrush / daily / chaos
-        else if (!ui.game.startLevel(opts.levelId || 1, { elite: eliteOn && eliteOpen() })) ui.nav('map');
+        else if (!ui.game.startLevel(opts.levelId || 1, { elite: eliteOn && eliteOpen(), mods: modsOn() })) ui.nav('map');
       }
     },
     onBack: back,
     /** Test hooks: the ELITE switch state on screen. */
     eliteState: () => ({ open: eliteOpen(), on: eliteOn && eliteOpen() }),
+    /** Test hooks: the modifiers that START would use. */
+    modsState: () => modsOn(),
   };
 }
