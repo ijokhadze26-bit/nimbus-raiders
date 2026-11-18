@@ -4,12 +4,17 @@
 // grey '?' panel that ignores raise hits until it is revealed - when no live enemy stands between the squad and
 // it (checked from REVEAL_NEAR u out, so the screen has to be shot through) or after REVEAL_HITS real hits.
 // Passing it still applies its real op (a blind gamble).
+// Stage 4 road layout (data/roadplan.js, rules in gatefeat.js): 3-lane rows (lanes L3/C3/R3, narrower gates),
+// RAMP gates (raised on a hump the squad runs over: rampY), CHAIN gates (a follow-up row waits as a dim '?' with a
+// chain badge until the row before it is passed, then offers what that pick unlocked).
 import * as THREE from 'three';
-import { GATE, LANES, COLORS, FORMATION, HIT } from '../config.js';
+import { GATE, COLORS, FORMATION, HIT } from '../config.js';
 import { buildGateVisual, shardGeometry } from '../models/gate.js';
+import { buildRamp, buildLinks, RAMP_H } from '../models/gateramp.js';
 import { drawLabel, signed, labelReady } from '../models/labels.js';
 import { hasHit } from './bullets.js';
 import { markInstances } from '../core/pool.js';
+import { laneX, laneWidth, chainIndex, chainSpawn, resolveChain, rampY } from './gatefeat.js';
 
 const RED = new THREE.Color(COLORS.bad), BLUE = new THREE.Color(COLORS.good);
 const RED_GLOW = new THREE.Color('#ff6b7a'), BLUE_GLOW = new THREE.Color('#7fd0ff');
@@ -17,6 +22,7 @@ const _c = new THREE.Color(), _c2 = new THREE.Color();
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _p = new THREE.Vector3(), _s = new THREE.Vector3();
 const MAX_SHARDS = 160;
 const HIDDEN = new THREE.Color('#5d6384'), HIDDEN_GLOW = new THREE.Color('#9aa3c7');
+const CHAIN = new THREE.Color('#6c4bc4'), CHAIN_GLOW = new THREE.Color('#b99cff');
 export const REVEAL_NEAR = 46, REVEAL_HITS = 30;
 
 export function rungLabel(r) { const g = GATE.rungs[r]; return (g.op === 'mul' ? '×' : '÷') + g.k; }
@@ -60,17 +66,38 @@ export class Gates {
     game.scene.add(this.shards);
     this.shardData = [];
     this.hitPos = { x: 0, y: 0, z: 0 };
+    this.ramps = [];             // live ramp gates (rampY)
+    this.chainMap = null;        // chainId -> events per link (autopilot look-ahead)
+    this.chainPick = new Map();  // 'chainId:link' -> family picked one row earlier
+    this.lanes3 = [];
   }
 
   reset(run) {
     for (const g of this.live) this.releaseVisual(g);
     this.live.length = 0;
     this.rows.length = 0;
+    this.ramps.length = 0;
     this.events = run ? run.eventsOf('gate') : [];
+    this.chainMap = chainIndex(this.events);
+    this.chainPick.clear();
+    this.lanes3 = run ? run.eventsOf('lanes3') : [];
+    this.l3cursor = 0;
+    this.hinted = new Set();
+    if (this.game.world.setLanes3) this.game.world.setLanes3(this.lanes3);
     this.cursor = 0;
     this.time = 0;
     this.shardData.length = 0;
     this.shards.count = 0;
+  }
+
+  /** Ground height of the ramps under (x, z): squad members and Pip follow it. */
+  rampY(x, z) { return this.ramps.length ? rampY(this, x, z) : 0; }
+
+  /** A road feature's first appearance names itself on the HUD hint line (roadplan sets e.hint). */
+  hint(e) {
+    if (!e.hint || this.hinted.has(e.hint)) return;
+    this.hinted.add(e.hint);
+    this.game.events.emit('hazard:hint', { text: e.hint, color: '#7fe3ff' });
   }
 
   /** Debug skip: drop every pending and spawned row without applying it (like horde/barrels skipAll). */
@@ -87,23 +114,27 @@ export class Gates {
     const v = list.length ? list.pop() : buildGateVisual(width);
     v.group.visible = true;
     v.label.key = null;
+    v.body.position.y = 0; v.body.scale.set(1, 1, 1);
+    if (v.ramp) v.ramp.visible = false;
+    if (v.links) v.links.visible = false;
     this.game.scene.add(v.group);
     return v;
   }
 
   releaseVisual(g) {
     if (!g.visual) return;
+    if (g.ramp) { const i = this.ramps.indexOf(g); if (i >= 0) this.ramps.splice(i, 1); }
     this.game.scene.remove(g.visual.group);
     this.pools.get(g.visual.width).push(g.visual);
     g.visual = null;
   }
 
   makeGate(e) {
-    const center = e.lane === 'C';
-    const width = center ? GATE.widthCenter : GATE.width;
+    const width = laneWidth(e.lane);
     const g = {
       id: nextId++, op: e.op === 'add' ? 'add' : 'ladder', lane: e.lane,
-      baseX: LANES[e.lane] ?? 0, x: LANES[e.lane] ?? 0, z: -e.at, width, halfW: width / 2,
+      baseX: laneX(e.lane), x: laneX(e.lane), z: -e.at, width, halfW: width / 2,
+      ramp: !!e.ramp, chain: e.chain || 0, link: e.link | 0, alt: e.alt || null, chainWait: false,
       value: e.value | 0, step: e.step ?? GATE.step, max: e.max ?? ((e.value | 0) + GATE.maxExtra),
       rung: 0, hits: 0, credit: 0, hitsPerStep: e.hitsPerStep ?? GATE.hitsPerStep,
       moving: e.moving || null, phase: (e.at * 0.37) % 6.283,
@@ -119,7 +150,18 @@ export class Gates {
       }
     }
     g.colorT = this.targetColorT(g);
-    g.visual = this.acquireVisual(width);
+    const v = (g.visual = this.acquireVisual(width));
+    if (g.ramp) {
+      if (!v.ramp) { v.ramp = buildRamp(width); v.group.add(v.ramp); }
+      v.ramp.visible = true; v.body.position.y = RAMP_H;
+      this.ramps.push(g);
+    }
+    if (g.chain) {
+      if (!v.links) { v.links = buildLinks(); v.body.add(v.links); }
+      v.links.visible = true;
+      chainSpawn(this, g);
+    }
+    this.hint(e);
     return g;
   }
 
@@ -149,6 +191,7 @@ export class Gates {
     this.time += dt;
     const L = game.squad.leader;
     this.spawnRows(-L.z);
+    while (this.l3cursor < this.lanes3.length && this.lanes3[this.l3cursor].at + L.z < 60) this.hint(this.lanes3[this.l3cursor++]);
     for (const g of this.live) {
       if (g.moving && g.state === 'live') g.x = g.baseX + Math.sin(this.time * g.moving.speed + g.phase) * g.moving.range;
       g.t += dt;
@@ -169,11 +212,12 @@ export class Gates {
         if (g === chosen) this.pass(g);
         else { g.state = 'shatter'; g.t = 0; this.shatter(g); }
       }
+      if (row.gates[0] && row.gates[0].chain) resolveChain(this, row, chosen);
     }
-    // cleanup gates well behind / finished
+    // cleanup gates well behind / finished (a ramp stays under the squad's back rows until they are over it)
     for (let i = this.live.length - 1; i >= 0; i--) {
       const g = this.live[i];
-      const done = (g.state !== 'live' && g.t > 0.9) || g.z > L.z + 25;
+      const done = (g.state !== 'live' && g.t > 0.9 && !g.ramp) || g.z > L.z + 25;
       if (done) { this.releaseVisual(g); this.live.splice(i, 1); }
     }
     for (let i = this.rows.length - 1; i >= 0; i--) if (this.rows[i].resolved && this.rows[i].gates.every((g) => !g.visual)) this.rows.splice(i, 1);
@@ -189,6 +233,7 @@ export class Gates {
   /** A hidden gate shows itself once nothing alive stands between the squad and it (or after enough hits). */
   checkReveal(g, L) {
     const horde = this.game.horde;
+    if (g.chainWait) return; // a chain follow-up waits for the pick one row earlier (gatefeat.resolveChain)
     if (g.revealHits >= REVEAL_HITS) { this.reveal(g); return; }
     if (L.z - g.z > REVEAL_NEAR) return;
     if (!horde || horde.densityAt(g.x, g.halfW + 0.3, g.z, L.z) === 0) this.reveal(g);
@@ -197,7 +242,7 @@ export class Gates {
   reveal(g) {
     if (!g.hidden) return;
     g.hidden = false; g.dirty = true; g.flash = 1; g.punch = 1.4;
-    this.burst(g.x, 0.3, g.z, g.width, GATE.height, g.colorT > 0.5 ? BLUE_GLOW : RED_GLOW, 10);
+    this.burst(g.x, g.ramp ? 0.3 + RAMP_H : 0.3, g.z, g.width, GATE.height, g.colorT > 0.5 ? BLUE_GLOW : RED_GLOW, 10);
     this.game.events.emit('gate:reveal', { id: g.id, pos: { x: g.x, y: 1.2, z: g.z } });
   }
 
@@ -214,7 +259,7 @@ export class Gates {
 
   shatter(g) {
     _c.copy(RED).lerp(BLUE, g.colorT);
-    this.burst(g.x, 0.3, g.z, g.width, GATE.height, _c, Math.round(10 * (g.width / GATE.width) + 8));
+    this.burst(g.x, g.ramp ? 0.3 + RAMP_H : 0.3, g.z, g.width, GATE.height, _c, Math.round(10 * (g.width / GATE.width) + 8));
   }
 
   /** Generic glass-shard burst (also used by shattering enemy shields and barrels). */
@@ -284,7 +329,7 @@ export class Gates {
       if (!v) continue;
       const target = this.targetColorT(g);
       g.colorT += (target - g.colorT) * Math.min(1, dt * 8);
-      if (g.hidden) { _c.copy(HIDDEN); _c2.copy(HIDDEN_GLOW); } else {
+      if (g.chainWait) { _c.copy(CHAIN); _c2.copy(CHAIN_GLOW); } else if (g.hidden) { _c.copy(HIDDEN); _c2.copy(HIDDEN_GLOW); } else {
         _c.copy(RED).lerp(BLUE, g.colorT);
         _c2.copy(RED_GLOW).lerp(BLUE_GLOW, g.colorT);
       }
@@ -302,7 +347,7 @@ export class Gates {
       if (g.dirty && labelReady(v.label)) { this.drawGateLabel(g); g.dirty = false; }
       if (g.state === 'live') {
         v.panelMat.opacity = 0.62 + fl * 0.25;
-        v.group.scale.set(1, 1, 1);
+        v.body.scale.set(1, 1, 1);
         v.labelMesh.material.opacity = 1;
         v.panel.visible = true;
       } else if (g.state === 'passed') {
@@ -310,12 +355,12 @@ export class Gates {
         v.panelMat.opacity = 0.9 * (1 - f);
         v.labelMesh.material.opacity = 1 - f;
         v.labelMesh.scale.setScalar(1 + f * 0.8);
-        v.group.scale.set(1 + f * 0.15, 1 - f * 0.9, 1);
+        v.body.scale.set(1 + f * 0.15, 1 - f * 0.9, 1);
       } else {
         v.panel.visible = false;
         const f = Math.min(1, g.t / 0.45);
         v.labelMesh.material.opacity = 1 - f;
-        v.group.scale.set(1, Math.max(0.01, 1 - f), 1);
+        v.body.scale.set(1, Math.max(0.01, 1 - f), 1);
       }
     }
     // shards
@@ -340,7 +385,9 @@ export class Gates {
     const blue = g.colorT > 0.5;
     g.labelBlue = blue;
     const stroke = blue ? '#0e3d9c' : '#8e0f22';
-    if (g.hidden) {
+    if (g.chainWait) {
+      drawLabel(v.label, '?', { fill: '#ffe27a', stroke: '#4a2a86', size: 130, strokeWidth: 20, y: 0.52, key: 'chain' });
+    } else if (g.hidden) {
       drawLabel(v.label, '?', { fill: '#e6e9f7', stroke: '#2a2f4a', size: 130, strokeWidth: 20, y: 0.52, key: 'hidden' });
     } else if (g.op === 'add') {
       drawLabel(v.label, signed(g.value), { fill: '#ffffff', stroke, size: 118, strokeWidth: 20, y: 0.52 });

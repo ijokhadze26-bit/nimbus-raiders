@@ -7,6 +7,7 @@ import { HERO_DEFS, DEFAULT_HERO } from '../data/heroes.js';
 import { bossDef } from '../data/bosses.js';
 import { isWeaponUnlocked, isHeroUnlocked } from '../save/unlocks.js';
 import { ENEMY_TYPES } from '../data/enemies.js';
+import { chainLook } from './gatefeat.js';
 
 export const BOT_DEFAULTS = { crates: 'auto', ability: true, loadout: 'keep' };
 // ability reaction per profile: delay (s) before using a trigger, chance to skip one (then 1 s before re-checking)
@@ -174,3 +175,25 @@ export function abilityTick(ap, dt) {
 }
 
 export { WEAPON_IDS };
+
+// ---------------- stage 4 road layout ----------------
+const CAGE_LOOK = 55;
+/** A locked rescue cage ahead (no gate decision before it): line up behind its lock so the squad's fire opens it. */
+export function cageGoal(ap, gate) {
+  const cg = ap.game.cages;
+  if (!cg || !cg.live.length) return null;
+  const L = ap.game.squad.leader;
+  for (const c of cg.live) {
+    if (c.state !== 'locked') continue;
+    const dz = L.z - c.z;
+    if (dz < 2 || dz > CAGE_LOOK || (gate && gate.dz < dz + 8)) continue;
+    return c.x;
+  }
+  return null;
+}
+
+/** Gate score with the chain look-ahead (the best gate of the row it unlocks); a naive read skips it. */
+export function chainScore(ap, g, after, naive) {
+  if (!g.chain || naive) return after;
+  return chainLook(ap.game.gates, g, after);
+}

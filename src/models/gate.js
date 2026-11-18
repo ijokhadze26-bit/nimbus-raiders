@@ -64,32 +64,35 @@ function cachedPlane(w, h) {
 export function buildGateVisual(width) {
   const height = GATE.height;
   const group = new THREE.Group();
+  // body: what stands on the road (raised on a ramp gate, scaled by the pass / shatter animation)
+  const body = new THREE.Group();
+  group.add(body);
 
   const frameMat = new THREE.MeshLambertMaterial({ color: '#59c1ff', emissive: '#2f8cff', emissiveIntensity: 0.55, vertexColors: true });
   const frame = new THREE.Mesh(frameGeometry(width, height), frameMat);
   frame.castShadow = true;
-  group.add(frame);
+  body.add(frame);
 
   const panelMat = new THREE.MeshBasicMaterial({ map: glassTexture(), color: '#59c1ff', transparent: true, opacity: 0.62, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true, fog: true });
   const panel = new THREE.Mesh(cachedPlane(width - 0.2, height), panelMat);
   panel.position.set(0, height / 2 + 0.06, 0);
   panel.renderOrder = 2;
-  group.add(panel);
+  body.add(panel);
 
   const stripMat = new THREE.MeshBasicMaterial({ color: '#59c1ff', transparent: true, opacity: 0.85, depthWrite: false });
   const strip = new THREE.Mesh(cachedPlane(width, 0.5), stripMat);
   strip.rotation.x = -Math.PI / 2;
   strip.position.set(0, 0.025, 0);
   strip.renderOrder = 1;
-  group.add(strip);
+  body.add(strip);
 
   const label = createLabel(256, 160);
   const lw = Math.min(width - 0.5, width > 6 ? 4.4 : 3.4);
   const lmesh = labelMesh(label, lw, lw * (160 / 256));
   lmesh.position.set(0, height * 0.56, 0.07);
-  group.add(lmesh);
+  body.add(lmesh);
 
-  return { group, frame, frameMat, panel, panelMat, strip, stripMat, label, labelMesh: lmesh, width, height };
+  return { group, body, ramp: null, links: null, frame, frameMat, panel, panelMat, strip, stripMat, label, labelMesh: lmesh, width, height };
 }
 
 /** Small shard used when an unchosen gate shatters. */
