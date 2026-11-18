@@ -11,6 +11,7 @@ const CH = await import('/src/game/modes/chaos.js');
 const TW = await import('/src/game/modes/twists.js');
 const L = await import('/src/data/levels.js');
 const SM = await import('/src/save/modes.js');
+const { sanitize } = await import('/src/save/save.js');
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const fails = [], info = {};
 const ok = (c, what) => { if (!c) fails.push(what); };
@@ -144,6 +145,17 @@ const board = DY.dailyBoard(g.save.data);
 ok(board.length === 10 && board.every((r, i) => i === 0 || r.score <= board[i - 1].score), 'leaderboard = top 10 sorted');
 ui.nav('modes'); await wait(20);
 ok(ui.screens.modes.el.querySelectorAll('.lb li').length === 10, 'modes page shows the top 10');
+{
+  const { modeResultHtml } = await import('/src/ui/screens/moderesult.js');
+  const box = document.createElement('div');
+  box.innerHTML = modeResultHtml({ win: true, mode: 'daily', date: '2026-11-17', score: 5, squad: 5, stars: 1, twists: [] }, null, g.save.data);
+  ok(box.querySelectorAll('.res-board .lb li').length === 10, 'daily result shows the top 10');
+}
+// one date = one level: the first Daily run of a day pins its level (unlocking more later never swaps it)
+ok(g.save.data.modes.dailyPin && g.save.data.modes.dailyPin.date === '2026-11-17' && g.save.data.modes.dailyPin.levelId === p1.levelId, 'daily level pinned for the day');
+ok(DY.dailyPlan({ unlockedLevel: 4, stars: {}, modes: g.save.data.modes }, '2026-11-17').levelId === p1.levelId, 'pinned level kept for that date');
+ok(DY.dailyPlan({ unlockedLevel: 4, stars: {}, modes: g.save.data.modes }, '2026-11-18').levelId <= 4, 'the pin is only for its date');
+ok(JSON.stringify(sanitize({ modes: { dailyPin: { date: '2026-11-17', levelId: 7 } } }).modes.dailyPin) === '{"date":"2026-11-17","levelId":7}' && !sanitize({ modes: { dailyPin: { date: 'x', levelId: 7 } } }).modes.dailyPin, 'dailyPin sanitized');
 
 // ---------------- 5. CHAOS ----------------
 const r1 = CH.rollChaos(g.save.data, 11), r2 = CH.rollChaos(g.save.data, 11), r3 = CH.rollChaos(g.save.data, 12);
@@ -165,7 +177,18 @@ g.squad.reset(80, 0); g.win();
 const CA = g.lastAward;
 ok(CA.mode === 'chaos' && CA.score === 80 * CA.stars && CA.chaosMul === 1.75 && g.save.data.modes.chaosBest === CA.score, `chaos award ${JSON.stringify(CA)}`);
 g.retry();
-ok(g.run.mode === 'chaos' && JSON.stringify(g.modes.twists) !== JSON.stringify(roll.twists) || g.run.levelId !== 12, 'chaos RETRY rolls again');
+ok(g.run.mode === 'chaos' && JSON.stringify(g.modes.twists) === JSON.stringify(roll.twists) && g.run.levelId === 12, 'chaos RETRY replays the same roll');
+// a new roll is only made for the loadout (shown before the start) and kept until it is played
+g.squad.reset(80, 0); g.win(); await wait(20);
+ui.screens.result.onAct('retry'); await wait(20);
+const nr = g.modes.pending;
+ok(ui.current === 'loadout' && g.state !== 'playing', `chaos PLAY AGAIN goes to the loadout (${ui.current}, ${g.state})`);
+ok(nr && nr !== roll && /CHAOS/.test(ui.screens.loadout.el.textContent) && nr.twists.every((t) => ui.screens.loadout.el.textContent.includes(TW.twistLabel(t))), 'the new roll is shown on the loadout');
+ui.nav('modes'); await wait(20);
+ui.screens.modes.onAct('chaos', ui.screens.modes.el.querySelector('[data-act="chaos"]')); await wait(20);
+ok(g.modes.pending === nr, 'backing out and tapping CHAOS again keeps the same roll (no re-roll fishing)');
+ui.screens.loadout.onAct('start');
+ok(g.run.mode === 'chaos' && JSON.stringify(g.modes.twists) === JSON.stringify(nr.twists) && !g.modes.pending, 'START plays that roll; the next one is new');
 d.startLevel(3);
 ok(g.runMods.steer(2) === 2 && g.run.mods.fogMul === 1 && !g.run.mods.ids.length && !g.modes.kind, 'a campaign run drops every twist');
 

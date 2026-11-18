@@ -1,6 +1,6 @@
 // MODES (stage 5): four cards next to the campaign - ENDLESS (world pick), BOSS RUSH, DAILY CHALLENGE (today's
 // level + twist, first-clear bonus, the local top-10 leaderboard below the cards) and CHAOS MODE (2-3 random
-// modifiers rolled when you tap it). Locked cards say what opens them (Boss Rush: beat L10, Chaos: beat L20).
+// modifiers, rolled once and kept until that run is played: backing out never re-rolls). Locked cards say what opens them (Boss Rush: beat L10, Chaos: beat L20).
 // Cards lead to the LOADOUT screen ({ mode }) like a level; Endless goes to its world pick first.
 import { screenEl, coinPill, fmt, bump } from '../ui.js';
 import { icon } from '../icons.js';
@@ -81,7 +81,7 @@ export function createModes(ui) {
       if (act === 'endless') ui.nav('endless');
       else if (act === 'bossrush' && bossRushOpen(d)) ui.nav('loadout', { mode: 'bossrush' });
       else if (act === 'daily') ui.nav('loadout', { mode: 'daily' });
-      else if (act === 'chaos' && chaosOpen(d)) ui.nav('loadout', { mode: 'chaos', roll: ui.game.modes.roll() });
+      else if (act === 'chaos' && chaosOpen(d)) ui.nav('loadout', { mode: 'chaos', roll: ui.game.modes.nextRoll() });
     },
     onBack() { ui.nav('title'); },
   };
@@ -89,7 +89,7 @@ export function createModes(ui) {
 
 /**
  * LOADOUT header of a mode run (opts.mode 'endless' | 'bossrush' | 'daily' | 'chaos'): { title, html }.
- * Chaos: rolls the run's modifiers when the opts have none yet (e.g. back from the Heroes page).
+ * Chaos: takes the pending roll when the opts have none yet (e.g. back from the Heroes page).
  */
 export function modeHeader(opts, ui) {
   const d = ui.save.data, m = opts.mode;
@@ -103,7 +103,7 @@ export function modeHeader(opts, ui) {
     return { title: 'DAILY', html: `<div class="lo-name">DAILY · ${L.name.toUpperCase()}</div><div class="lo-sub"><span>LV ${L.id} · ${shortDate(p.date)}</span>${tags([p.twist])}</div>` };
   }
   if (m === 'chaos') {
-    if (!opts.roll) opts.roll = ui.game.modes.roll();
+    if (!opts.roll) opts.roll = ui.game.modes.nextRoll();
     const L = getLevel(opts.roll.levelId);
     return { title: 'CHAOS', html: `<div class="lo-name">CHAOS · ${L.name.toUpperCase()}</div><div class="lo-sub chaos-sub">${tags(opts.roll.twists)}</div>` };
   }

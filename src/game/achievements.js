@@ -9,6 +9,8 @@ import { ACHIEVEMENTS, ACH_BY_ID } from '../data/achievements.js';
 import { WORLDS } from '../data/worlds.js';
 import { MENU_STATE_LIST } from './states.js';
 import { endlessBestOf } from '../save/modes.js';
+import { unlockedHeroes, unlockedWeapons } from '../save/unlocks.js';
+import { dailyDone } from './modes/daily.js';
 
 const SKIP_MODES = new Set(['practice', 'test']);
 const MAX_KEYS = new Set(['maxSquad', 'combo', 'mk5', 'endless', 'bossrush', 'rushBosses']); // kills come from run.kills (enemy:die is rate-limited)
@@ -21,6 +23,10 @@ const NEEDS = {
 };
 
 const ckey = (metric) => metric.replace(':', '-');
+/** Metrics read from the save only: they cannot change during a run, so the in-run check skips them. */
+const SAVE_ONLY = new Set(['beat', 'world3', 'threes', 'wins', 'elite', 'heroes', 'weapons', 'endlessWorlds', 'streak', 'bossrush', 'dailyClears']);
+/** Parsed metric per goal { name, arg, key } (no string work in the 0.5 s check). */
+const PARSED = new Map(ACHIEVEMENTS.map((def) => { const [name, arg] = def.metric.split(':'); return [def.id, { name, arg, key: ckey(def.metric), live: !SAVE_ONLY.has(name) }]; }));
 
 /** Longest run of consecutive dates among 'YYYY-MM-DD' keys. */
 export function longestDayRun(keys) {
@@ -40,7 +46,11 @@ export class Achievements {
     this.queued = false;
     const ev = game.events;
     const live = () => this.live();
-    ev.on('run:start', () => { this.pending = {}; this.t = game.time || 0; });
+    ev.on('run:start', () => {
+      this.pending = {}; this.t = game.time || 0;
+      const M = game.modes; // a Daily win counts once per date (replays of the same day do not)
+      this.dailyFresh = !!(M && M.kind === 'daily' && M.plan && !dailyDone(this.save.data, M.plan.date));
+    });
     ev.on('squad:change', (p) => { if (live()) this.max('maxSquad', p.count || 0); });
     ev.on('weapon:tier', (p) => { if (live() && p.mk >= 5) this.max('mk5', 1); });
     ev.on('boss:defeated', () => { if (live()) this.add('bosses'); });
@@ -95,7 +105,7 @@ export class Achievements {
     const m = String(p.mode || '');
     if (win && m === 'level' && run.hero) this.add('heroWin-' + run.hero);
     if (win && m.includes('chaos')) this.add('chaosWins');
-    if (win && m.includes('daily')) this.add('dailyClears');
+    if (win && m.includes('daily') && this.dailyFresh) { this.add('dailyClears'); this.dailyFresh = false; }
     if (win && m.includes('boss') && m.includes('rush')) this.max('bossrush', 1);
     if (m === 'bossrush') this.max('rushBosses', this.rushBeaten());
     this.max('combo', run.stats.maxCombo || 0); // the best combo of the run (combo:tier only fires at tier steps)
@@ -118,7 +128,7 @@ export class Achievements {
     const g = this.game;
     if (!this.live() || g.time - this.t < CHECK_EVERY) return;
     this.t = g.time;
-    this.check();
+    this.check(false, true);
   }
 
   available(def) { return !def.needs || !!NEEDS[def.needs]?.(this.game); }
@@ -126,7 +136,7 @@ export class Achievements {
 
   /** Current value of a goal's metric. */
   value(def) {
-    const d = this.save.data, [name, arg] = def.metric.split(':');
+    const d = this.save.data, { name, arg, key } = PARSED.get(def.id);
     const run = this.live();
     switch (name) {
       case 'beat': return d.stars[arg] > 0 ? 1 : 0;
@@ -136,19 +146,21 @@ export class Achievements {
       case 'elite': return Object.keys(d.elite).length;
       case 'kills': return d.stats.kills + (run ? run.kills || 0 : 0);
       case 'maxSquad': return Math.max(this.count('maxSquad'), run ? this.game.squad.count : 0);
-      case 'heroes': return d.heroes.owned.length;
-      case 'weapons': return d.arsenal.owned.length;
+      // bought OR opened by reaching their level (unlocked items can't be bought, save/unlocks.js canBuy)
+      case 'heroes': return unlockedHeroes(d).length;
+      case 'weapons': return unlockedWeapons(d).length;
       case 'combo': return Math.max(this.count('combo'), run ? Math.max(run.stats.maxCombo || 0, this.game.combo ? this.game.combo.n || 0 : 0) : 0);
       case 'rushBosses': return Math.max(this.count('rushBosses'), d.modes.bossRushBest > 0 ? 10 : 0, run ? this.rushBeaten() : 0);
       case 'endlessWorlds': { let n = 0; for (const w of WORLDS) if (endlessBestOf(d, w.id) >= +arg) n++; return n; }
       case 'endless': {
-        const live = run && String(run.mode).includes('endless') ? run.dist || 0 : 0;
-        return Math.max(d.endlessBest, ...Object.values(d.modes.endlessBest), this.count('endless'), live);
+        let best = Math.max(d.endlessBest, this.count('endless'), run && String(run.mode).includes('endless') ? run.dist || 0 : 0);
+        for (const k in d.modes.endlessBest) if (d.modes.endlessBest[k] > best) best = d.modes.endlessBest[k];
+        return best;
       }
       case 'streak': return Math.max(d.daily.streak, longestDayRun(Object.keys(d.modes.dailyBest)));
       case 'bossrush': return d.modes.bossRushBest > 0 ? 1 : this.count('bossrush');
       case 'dailyClears': return Math.max(this.count('dailyClears'), Object.keys(d.modes.dailyBest).length);
-      default: return this.count(ckey(def.metric));
+      default: return this.count(key);
     }
   }
 
@@ -166,15 +178,18 @@ export class Achievements {
     return a.done.filter((id) => ACH_BY_ID[id] && !a.claimed.includes(id) && this.available(ACH_BY_ID[id])).length;
   }
 
-  /** Marks newly finished goals done; returns their ids. silent: no toast event (boot). */
-  check(silent = false) {
+  /**
+   * Marks newly finished goals done; returns their ids. silent: no toast event (boot). liveOnly (the in-run check
+   * every 0.5 s): only goals the live run can move - the save-only ones are checked when the run ends.
+   */
+  check(silent = false, liveOnly = false) {
     const a = this.save.data.achievements;
-    const fresh = [];
+    let fresh = null;
     for (const def of ACHIEVEMENTS) {
-      if (a.done.includes(def.id) || !this.available(def)) continue;
-      if (this.value(def) >= def.goal) fresh.push(def.id);
+      if ((liveOnly && !PARSED.get(def.id).live) || a.done.includes(def.id) || !this.available(def)) continue;
+      if (this.value(def) >= def.goal) (fresh ||= []).push(def.id);
     }
-    if (!fresh.length) return fresh;
+    if (!fresh) return [];
     this.write((d) => { for (const id of fresh) if (!d.achievements.done.includes(id)) d.achievements.done.push(id); });
     if (!silent) for (const id of fresh) this.game.events.emit('achievement:done', { id, def: ACH_BY_ID[id] });
     return fresh;

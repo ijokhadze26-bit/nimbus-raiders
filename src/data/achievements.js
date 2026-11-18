@@ -61,8 +61,8 @@ export const ACHIEVEMENTS = [
   a('combat', 'prop-boulder', 'ROCK AND ROLL', 'Roll a boulder into the horde', 'damage', 'prop:boulder', 1, 150, { needs: 'props' }),
   // ---- heroes & gear ----
   ...HEROES.map((h) => a('heroes', `hero-${h.id}`, `${h.name.toUpperCase()} WINS`, `Win a level with ${h.name}`, 'trophy', `heroWin:${h.id}`, 1, 200, { hero: h.id })),
-  a('heroes', 'heroes-all', 'FULL ROSTER', `Own all ${HEROES.length} heroes`, 'squad', 'heroes', HEROES.length, 800),
-  a('heroes', 'weapons-all', 'ARSENAL', `Own all ${WEAPON_IDS.length} weapons`, 'tier', 'weapons', WEAPON_IDS.length, 800),
+  a('heroes', 'heroes-all', 'FULL ROSTER', `Unlock all ${HEROES.length} heroes`, 'squad', 'heroes', HEROES.length, 800),
+  a('heroes', 'weapons-all', 'ARSENAL', `Unlock all ${WEAPON_IDS.length} weapons`, 'tier', 'weapons', WEAPON_IDS.length, 800),
   // ---- modes & habits ----
   a('modes', 'endless-1k', 'LONG HAUL', 'Run 1,000 m in Endless', 'infinity', 'endless', 1000, 200),
   a('modes', 'endless-2k', 'MARATHON', 'Run 2 km in Endless (any world)', 'infinity', 'endless', 2000, 500),

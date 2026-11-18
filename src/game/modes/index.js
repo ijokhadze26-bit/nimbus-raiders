@@ -2,7 +2,7 @@
 // stays in game/endless.js + data/endless.js). game.js only calls in through one-line hooks:
 //   beginRun -> begin(mode)      (forgets the last mode run when another kind of run starts)
 //   win      -> onWin()          (true = the run goes on: next Boss Rush fight)
-//   retry    -> retry()          (same mode again; Chaos rolls new modifiers)
+//   retry    -> retry()          (same mode again; Chaos replays the same roll - a new roll goes through the loadout)
 // Run modes: 'bossrush' | 'daily' | 'chaos' (mode payouts + bests: save/modes.js; result: ui/screens/moderesult.js).
 // Twists are the shared run modifiers (data/modifiers.js, applied by game/runmods.js through beginRun opts.mods,
 // so fog / mirror / giant enemies / ONE LIFE behave exactly like the loadout modifiers); see ./twists.js.
@@ -10,7 +10,7 @@ import { getLevel } from '../../data/levels.js';
 import { worldOf } from '../../data/worlds.js';
 import { upgradeEffects } from '../../data/shop.js';
 import { bossRushDef, rushNext, rushTheme, rushBoss, BOSS_RUSH, RUSH_COUNT } from './bossrush.js';
-import { dailyPlan } from './daily.js';
+import { dailyPlan, pinDaily } from './daily.js';
 import { rollChaos } from './chaos.js';
 import { applyDef, sharedIds, twistsText } from './twists.js';
 
@@ -24,6 +24,7 @@ export class Modes {
     this.plan = null;          // daily plan / chaos roll of the current run
     this.twists = [];
     this.rolls = 0;            // chaos rolls under ?test=1 (deterministic)
+    this.pending = null;       // the next chaos roll, kept until it is played (going back never re-rolls)
     const ev = game.events;
     // Boss Rush: the next fight's world sky swaps in under the boss death flash (like endless zones)
     ev.on('boss:defeated', () => {
@@ -61,12 +62,14 @@ export class Modes {
       if (!L) return false;
       def = { ...applyDef(twists, L), name: `DAILY · ${L.name}`, daily: plan.date, modeLevel: true, ai: L.world };
     } else if (kind === 'chaos') {
-      plan = opts.roll || this.roll();
+      plan = opts.roll || this.nextRoll();
+      this.pending = null; // played: the next Chaos run gets a new roll
       twists = plan.twists.slice();
       const L = getLevel(plan.levelId);
       if (!L) return false;
       def = { ...applyDef(twists, L), name: `CHAOS · ${L.name}`, chaos: twists.slice(), modeLevel: true, ai: L.world };
     } else return false;
+    if (kind === 'daily') pinDaily(g.save, plan);
     this.starting = true;
     try {
       this.kind = kind; this.plan = plan; this.twists = twists;
@@ -82,6 +85,9 @@ export class Modes {
     return true;
   }
 
+  /** The next Chaos run's roll: the same one until it is played (no re-rolling by backing out of the loadout). */
+  nextRoll() { return this.pending || (this.pending = this.roll()); }
+
   /** A fresh chaos roll (Math.random seed; fixed counter under ?test=1). */
   roll(seed) {
     const g = this.game;
@@ -96,10 +102,14 @@ export class Modes {
     return rushNext(g, this.rush);
   }
 
-  /** Same mode again (RETRY): Boss Rush from fight 1, today's Daily, a new Chaos roll. */
+  /**
+   * Same mode again (RETRY): Boss Rush from fight 1, today's Daily, the same Chaos roll (level + modifiers). A new
+   * Chaos roll is only made for the loadout (nextRoll), where it is shown before the start.
+   */
   retry() {
     const k = this.kind || (this.game.run && this.game.run.mode);
-    return this.start(k, k === 'daily' && this.plan ? { date: this.plan.date } : {});
+    const opts = k === 'daily' && this.plan ? { date: this.plan.date } : k === 'chaos' && this.plan ? { roll: this.plan } : {};
+    return this.start(k, opts);
   }
 
   /** Steering target through the mirror twist (game/runmods.js owns it; kept for old callers). */

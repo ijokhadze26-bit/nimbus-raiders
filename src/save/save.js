@@ -27,7 +27,7 @@ const EXTRA_MAX = 16, EXTRA_BYTES = 4096;
 const LEVELS = TOTAL_LEVELS;
 /** The last level of update 2: beating it used to leave unlockedLevel there. */
 const OLD_LAST = 15;
-const WORLDS = WORLD_COUNT, ID_LIST = 200, DAILY_KEEP = 60, MIX_MAX = 100;
+const WORLDS = WORLD_COUNT, ID_LIST = 200, DAILY_KEEP = 60, MIX_MAX = 100, TYPE_MAX = 32;
 const QUALITIES = ['auto', 'high', 'low'];
 
 export function defaultSave() {
@@ -124,6 +124,11 @@ export function sanitize(raw) {
     const days = Object.keys(md.dailyBest).filter((k) => /^\d{4}-\d{2}-\d{2}$/.test(k)).sort().slice(-DAILY_KEEP);
     for (const k of days) { const v = int(md.dailyBest[k], 0, 1e9, 0); if (v) d.modes.dailyBest[k] = v; }
   }
+  // stage 5: today's Daily level, kept for the rest of that day (game/modes/daily.js pinDaily); absent by default
+  if (isObj(md.dailyPin) && typeof md.dailyPin.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(md.dailyPin.date)) {
+    const lv = key(md.dailyPin.levelId, 1, LEVELS);
+    if (lv) d.modes.dailyPin = { date: md.dailyPin.date, levelId: lv };
+  }
   if (isObj(md.endlessBest)) {
     for (const [k, v] of Object.entries(md.endlessBest)) { const w = key(k, 1, WORLDS), m = int(v, 0, 1e9, 0); if (w && m) d.modes.endlessBest[w] = m; }
   }
@@ -135,11 +140,14 @@ export function sanitize(raw) {
       const n = int(v, 0, 1e12, 0); if (n) d.achievements.counts[k] = n;
     }
   }
-  ids(raw.squadTypes?.owned, SQUAD_TYPE_IDS, d.squadTypes.owned); // known raider types only
+  // raider types are bought with coins and have no backup key: an id a newer build added is kept (safe ids only;
+  // the game only reads the ids it knows, data/squadtypes.js typeShare), so an older cached tab never deletes it
+  strIds(raw.squadTypes?.owned, d.squadTypes.owned, TYPE_MAX);
   if (isObj(raw.squadTypes?.mix)) {
     for (const [k, v] of Object.entries(raw.squadTypes.mix)) {
-      if (!SQUAD_TYPE_IDS.includes(k)) continue;
-      d.squadTypes.mix[k] = mixLevel(int(v, 0, MIX_MAX, 0)).share; // OFF / FEW / MANY
+      if (!SAFE_ID.test(k) || Object.keys(d.squadTypes.mix).length >= TYPE_MAX) continue;
+      const n = int(v, 0, MIX_MAX, 0);
+      d.squadTypes.mix[k] = SQUAD_TYPE_IDS.includes(k) ? mixLevel(n).share : n; // known: OFF / FEW / MANY
     }
   }
   ids(raw.modifiers, PLAYER_MOD_IDS, d.modifiers);

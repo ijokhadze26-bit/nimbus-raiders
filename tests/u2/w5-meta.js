@@ -169,5 +169,23 @@ ui.setQuality('low'); d.simulate(1);
 ui.setQuality('high'); d.simulate(0.5);
 g.save.setSetting('colorblind', false);
 g.toTitle();
+
+// ---------------- 6. review fixes ----------------
+// FULL ROSTER / ARSENAL count heroes + weapons opened by reaching their level (they can't be bought then)
+g.save.reset();
+g.save.update((x) => { x.unlockedLevel = 30; });
+const HE = AD.ACH_BY_ID['heroes-all'], WE = AD.ACH_BY_ID['weapons-all'];
+ok(A.value(HE) === HE.goal && A.value(WE) === WE.goal, `roster by level: heroes ${A.value(HE)}/${HE.goal}, weapons ${A.value(WE)}/${WE.goal}`);
+A.check(true);
+ok(g.save.data.achievements.done.includes('heroes-all') && g.save.data.achievements.done.includes('weapons-all'), 'roster goals finish');
+// DAILY HABIT: replays of the same day count once
+if (g.modes && AD.ACH_BY_ID['daily-5'] && A.available(AD.ACH_BY_ID['daily-5'])) {
+  const D5 = AD.ACH_BY_ID['daily-5'];
+  for (let i = 0; i < 5; i++) { g.startMode('daily', { date: '2026-11-19' }); g.squad.reset(40, 0); g.win(); await wait(5); }
+  ok(A.value(D5) === 1 && !g.save.data.achievements.done.includes('daily-5'), `5 replays of one day = 1 clear (${A.value(D5)})`);
+  g.startMode('daily', { date: '2026-11-20' }); g.squad.reset(40, 0); g.win(); await wait(5);
+  ok(A.value(D5) === 2, `a second day counts (${A.value(D5)})`);
+  g.toTitle();
+}
 g.save.reset();
 return { pass: fails.length === 0, fails, info };

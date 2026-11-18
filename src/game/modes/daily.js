@@ -4,7 +4,9 @@
 // one of that world), a twist from DAILY.twists. Score of a clear = squad at the finish x stars. The local
 // leaderboard is save.modes.dailyBest ('YYYY-MM-DD' -> that day's best score), shown as the top 10 with dates.
 // The first clear of a day pays DAILY.bonus coins on top of the level payout.
-import { WORLDS, levelKind, isWorldUnlocked } from '../../data/worlds.js';
+// Pinned per day: the level of the first Daily run of a date is kept in save.modes.dailyPin, so unlocking a world
+// later that day never swaps the level under the same leaderboard date (one date = one level for this player).
+import { WORLDS, levelKind, isWorldUnlocked, worldOf } from '../../data/worlds.js';
 import { dateKey } from '../../save/progress.js';
 
 export const DAILY = {
@@ -30,14 +32,27 @@ const normalLevels = (w) => {
 export function dailyPlan(save, now = new Date()) {
   const date = typeof now === 'string' ? now : dateKey(now);
   const seed = hashStr('nimbus-daily-' + date);
+  const twist = DAILY.twists[(seed >>> 16) % DAILY.twists.length];
+  const pin = save && save.modes && save.modes.dailyPin;
+  if (pin && pin.date === date && isDailyLevel(pin.levelId)) return { date, seed, levelId: pin.levelId, world: worldOf(pin.levelId), twist };
   let w = WORLDS[seed % WORLDS.length];
   if (!isWorldUnlocked(save, w.id)) w = [...WORLDS].reverse().find((x) => isWorldUnlocked(save, x.id)) || WORLDS[0];
   const list = normalLevels(w);
   let levelId = list[(seed >>> 8) % list.length];
   const open = (save && save.unlockedLevel) || 1;
   if (levelId > open) levelId = [...list].reverse().find((id) => id <= open) || w.first;
-  const twist = DAILY.twists[(seed >>> 16) % DAILY.twists.length];
   return { date, seed, levelId, world: w.id, twist };
+}
+
+/** A level a Daily can use (a normal / intro campaign level). */
+export const isDailyLevel = (id) => Number.isInteger(id) && id >= 1 && id <= WORLDS[WORLDS.length - 1].last && !['boss', 'mini'].includes(levelKind(id));
+
+/** Keeps today's level for the rest of the day (called when a Daily run starts). */
+export function pinDaily(save, plan) {
+  if (!save || !plan || !plan.date) return;
+  const pin = save.data.modes.dailyPin;
+  if (pin && pin.date === plan.date && pin.levelId === plan.levelId) return;
+  save.update((s) => { s.modes.dailyPin = { date: plan.date, levelId: plan.levelId }; });
 }
 
 /** Score of a clear. */

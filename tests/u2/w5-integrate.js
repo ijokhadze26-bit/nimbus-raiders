@@ -94,7 +94,7 @@ ok(JSON.stringify(back.squadTypes) === JSON.stringify(g.save.data.squadTypes), '
 const junk = sanitize({ modes: { bossRushBest: -5, chaosBest: 'x', dailyBest: { '2026-11-19': 99, bad: 3 }, endlessBest: { 9: 100, 2: -1, 3: 77 } }, achievements: { done: ['ok-id', 5, '<b>'], counts: { 'prop-bell': 2, 'x y': 1, gates: -4 } }, squadTypes: { owned: ['gunner', 'nope'], mix: { gunner: 50 } } });
 ok(junk.modes.bossRushBest === 0 && junk.modes.chaosBest === 0 && JSON.stringify(junk.modes.dailyBest) === '{"2026-11-19":99}' && JSON.stringify(junk.modes.endlessBest) === '{"3":77}', `modes junk ${JSON.stringify(junk.modes)}`);
 ok(JSON.stringify(junk.achievements.done) === '["ok-id"]' && JSON.stringify(junk.achievements.counts) === '{"prop-bell":2}', `achievements junk ${JSON.stringify(junk.achievements)}`);
-ok(JSON.stringify(junk.squadTypes) === '{"owned":["gunner"],"mix":{"gunner":20}}', `squad junk ${JSON.stringify(junk.squadTypes)}`);
+ok(JSON.stringify(junk.squadTypes) === '{"owned":["gunner","nope"],"mix":{"gunner":20}}', `squad junk ${JSON.stringify(junk.squadTypes)}`);
 
 g.save.reset();
 g.toTitle();

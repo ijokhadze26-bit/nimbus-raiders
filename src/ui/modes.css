@@ -75,7 +75,13 @@
 .lb-s { font-size: 19px; }
 .lb-empty { font-family: var(--font-body); font-weight: 800; font-size: 14px; color: #4a6aa8; text-align: center; padding: 6px 0; }
 .res-board { width: 100%; }
-.res-board .lb li { font-size: 15px; padding: 3px 10px 4px; }
+/* the result shows the whole top 10 in two compact columns (fits a 390 x 844 phone) */
+.res-board .lb { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.res-board .lb li { font-size: 14px; padding: 2px 7px 3px; gap: 5px; border-radius: 9px; min-width: 0; }
+.res-board .lb-r { width: 16px; }
+.res-board .lb-d { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.res-board .lb-d i { font-size: 9px; padding: 1px 4px; }
+.res-board .lb-s { font-size: 15px; }
 
 /* ---------- endless world pick ---------- */
 .ew-row { display: flex; gap: 7px; justify-content: center; flex-wrap: nowrap; width: 100%; }

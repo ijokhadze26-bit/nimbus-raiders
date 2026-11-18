@@ -21,7 +21,8 @@ export function installProgress(game) {
   ev.on('run:lose', (p) => { game.lastAward = PAID.has(p.mode) ? awardLose(save, p, game.run) : MODE_PAID.has(p.mode) ? awardMode(save, { ...p, type: 'lose' }, game) : null; });
 }
 
-export function coinMul(save) { return upgradeEffects(save.data.upgrades).coinMul; }
+/** Shop Coin Bonus multiplier; 1 when the run has NO UPGRADES on (every shop upgrade is off for that run). */
+export function coinMul(save, run = null) { return run && run.mods && run.mods.noUpgrades ? 1 : upgradeEffects(save.data.upgrades).coinMul; }
 
 /** Hero coin multiplier of a run (Bonbon's Sweet Tooth +25%), applied after the shop coin bonus. */
 export function heroCoinMul(run) { return (run && run.hero && heroDef(run.hero).passive.mods.coinMul) || 1; }
@@ -39,7 +40,7 @@ export function awardWin(save, p, run = null) {
   const prevStars = level ? d.stars[p.levelId] || 0 : 0;
   const prevElite = elite ? d.elite[p.levelId] || 0 : 0;
   const heroMul = heroCoinMul(run);
-  const coins = Math.round((p.coins || 0) * coinMul(save) * heroMul * modCoinMul(run));
+  const coins = Math.round((p.coins || 0) * coinMul(save, run) * heroMul * modCoinMul(run));
   let unlocked = 0;
   let galaxy = false;
   const before = unlockSet(d);
@@ -68,7 +69,7 @@ export function awardLose(save, p, run) {
   const endless = p.mode === 'endless';
   const base = endless ? Math.floor((p.dist || 0) / 10 + (p.kills || 0) / 20) + (p.coins || 0) : (p.coins || 0);
   const heroMul = heroCoinMul(run);
-  const coins = Math.round(base * coinMul(save) * heroMul * modCoinMul(run));
+  const coins = Math.round(base * coinMul(save, run) * heroMul * modCoinMul(run));
   const world = run?.worldId || 1;
   const prevBest = endlessBestOf(save.data, world); // stage 5: endless best per world (Sky = save.endlessBest)
   const newBest = endless && (p.dist || 0) > prevBest;

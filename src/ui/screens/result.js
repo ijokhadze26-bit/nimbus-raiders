@@ -36,11 +36,14 @@ export function createResult(ui) {
   let token = 0;
   let shownFor = null; // { levelId, done } for the result on screen: NEXT acts once, for that level
 
+  // the shop Coin Bonus did not pay on a NO UPGRADES run (save/progress.js coinMul)
+  const shopBonus = (a) => (a.mods && a.mods.includes('noUpgrades') ? 1 : coinMul(ui.save));
+
   function winHtml(a) {
     const endless = a.mode === 'endless';
     const next = !endless && !!getLevel(a.levelId + 1);
     const bonus = (a.elite ? '<span class="bonus elite-bonus">ELITE x2</span>' : '')
-      + (coinMul(ui.save) > 1 ? `<span class="bonus">+${Math.round((coinMul(ui.save) - 1) * 100)}% BONUS</span>` : '') + heroBonus(a);
+      + (shopBonus(a) > 1 ? `<span class="bonus">+${Math.round((shopBonus(a) - 1) * 100)}% BONUS</span>` : '') + heroBonus(a);
     const tag = a.galaxy ? '<div class="unlock-tag legendary">GALAXY SKIN UNLOCKED!</div>'
       : a.unlocked ? `<div class="unlock-tag">LEVEL ${a.unlocked} UNLOCKED!</div>` : '';
     return `
@@ -200,7 +203,8 @@ export function createResult(ui) {
         const id = shownFor.levelId + 1;
         if (!getLevel(id) || id > ui.save.data.unlockedLevel) ui.nav('map');
         else ui.nav('loadout', { levelId: id });
-      } else if (act === 'retry') g.retry();
+      } else if (act === 'retry' && g.lastResult?.mode === 'chaos') ui.nav('loadout', { mode: 'chaos', roll: g.modes.nextRoll() }); // new modifiers shown before the start
+      else if (act === 'retry') g.retry();
       else if (act === 'practice-back') { const p = g.practiceReturn || { screen: 'armory', opts: {} }; ui.nav(p.screen, p.opts); }
       else if (act === 'info') ui.nav(btn.dataset.kind === 'hero' ? 'heroes' : 'armory', { from: 'result', [btn.dataset.kind]: btn.dataset.id });
       else if (act === 'home') ui.nav('title');

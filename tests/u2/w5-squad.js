@@ -57,6 +57,23 @@ r = startWith(3, ['onlyRed']);
 const rg = evs('gate');
 ok(rg.length > 0 && rg.every((e) => (e.op === 'add' ? e.value <= 0 : e.rung !== undefined ? e.rung <= 2 : e.op === 'div')), `ONLY RED: every gate starts bad ${JSON.stringify(rg.slice(0, 4).map((e) => [e.op, e.value, e.rung]))}`);
 d.simulate(0.2);
+// chain follow-up gates take their offer from e.alt when they reveal: ONLY RED / HALF SQUAD edit those specs too
+{
+  const chainLv = L.LEVELS.find((lv) => lv.events.some((e) => e.type === 'gate' && e.alt));
+  ok(!!chainLv, 'a level with chain gates');
+  if (chainLv) {
+    const orig = chainLv.events.filter((e) => e.type === 'gate' && e.alt);
+    const origSnap = JSON.stringify(orig);
+    const specs = (list) => list.flatMap((e) => Object.values(e.alt));
+    startWith(chainLv.id, ['onlyRed']);
+    const red = specs(evs('gate').filter((e) => e.alt));
+    ok(red.length && red.every((s) => (s.op === 'add' ? s.value <= 0 : s.rung !== undefined ? s.rung <= 2 : s.op === 'div')), `ONLY RED: chain alt gates are red too ${JSON.stringify(red.map((s) => [s.op, s.value, s.rung]))}`);
+    startWith(chainLv.id, ['halfSquad']);
+    const half = specs(evs('gate').filter((e) => e.alt)), was = specs(orig);
+    ok(half.length === was.length && half.every((s, i) => (was[i].op === 'add' && was[i].value > 0 ? s.value === Math.max(1, Math.ceil(was[i].value / 2)) : s.value === was[i].value)), 'HALF SQUAD: chain alt + gates give half');
+    ok(JSON.stringify(orig) === origSnap, 'campaign chain specs untouched');
+  }
+}
 
 r = startWith(3, ['doubleSpeed']);
 ok(r.speed === base.speed * 2, `x2 SPEED ${r.speed} vs ${base.speed}`);
@@ -124,11 +141,17 @@ const aw = awardWin(g.save, { mode: 'level', levelId: 1, stars: 2, coins: 100 },
 ok(aw.coins === 170 && aw.modMul === 1.7 && aw.mods.length === 3, `win payout x1.7: ${aw.coins}`);
 const al = awardLose(g.save, { mode: 'level', levelId: 1, coins: 50 }, fakeRun);
 ok(al.coins === 85, `loss payout x1.7: ${al.coins}`);
+g.save.update((x) => { x.upgrades.coins = 2; });
+const awNU = awardWin(g.save, { mode: 'level', levelId: 1, stars: 2, coins: 100 }, { mods: { bonus: 0.3, ids: ['noUpgrades'], noUpgrades: true } });
+const awUp = awardWin(g.save, { mode: 'level', levelId: 1, stars: 2, coins: 100 }, { mods: { bonus: 0, ids: [] } });
+ok(awNU.coins === 130 && awUp.coins === 120, `NO UPGRADES also switches the Coin Bonus off (${awNU.coins}, upgraded run ${awUp.coins})`);
+g.save.update((x) => { x.upgrades.coins = 0; });
 
 // save
 const sv = sanitize({ modifiers: ['fog', 'oneLife', 'fog', 'mirror', 'nope', 3], squadTypes: { owned: ['shield', 'medic', 'wizard', 'shield'], mix: { shield: 20, medic: 999, wizard: 10, gunner: 7 } } });
 ok(JSON.stringify(sv.modifiers) === '["fog","oneLife"]', `save.modifiers sanitized ${JSON.stringify(sv.modifiers)}`);
-ok(sv.squadTypes.owned.length === 2 && sv.squadTypes.mix.shield === 20 && sv.squadTypes.mix.medic === 20 && sv.squadTypes.mix.gunner === 10 && !('wizard' in sv.squadTypes.mix), `squadTypes sanitized ${JSON.stringify(sv.squadTypes)}`);
+// a type id this build does not know (a newer build's) is kept, never deleted by an older tab
+ok(sv.squadTypes.owned.join() === 'shield,medic,wizard' && sv.squadTypes.mix.shield === 20 && sv.squadTypes.mix.medic === 20 && sv.squadTypes.mix.gunner === 10 && sv.squadTypes.mix.wizard === 10, `squadTypes sanitized ${JSON.stringify(sv.squadTypes)}`);
 ok(JSON.stringify(sanitize({ version: 2, coins: 5 }).modifiers) === '[]', 'old save: no modifiers');
 
 // ---------------- 2. squad types ----------------

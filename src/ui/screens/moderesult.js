@@ -1,12 +1,13 @@
 // Result panels of the stage 5 mode runs (result.js picks these for mode 'bossrush' | 'daily' | 'chaos').
 // Boss Rush: time + bosses beaten (+ best time / NEW BEST); Daily: score = squad x stars, first-clear bonus and
 // the local top 10; Chaos: the modifiers, score + best, the chaos coin bonus. Buttons: PLAY AGAIN (RETRY = the
-// same mode again; Chaos rolls new modifiers), MODES, HOME. The coin line keeps the .amt count-up of result.js.
+// same mode again; Chaos goes to the loadout with a new roll, shown before the start), MODES, HOME. The coin line keeps the .amt count-up of result.js.
 import { icon } from '../icons.js';
 import { fmt } from '../ui.js';
 import { fmtTime, RUSH_COUNT } from '../../game/modes/bossrush.js';
 import { twistLabel, TWISTS } from '../../game/modes/twists.js';
 import { boardHtml } from './modes.js';
+import { DAILY } from '../../game/modes/daily.js';
 
 const tags = (ids) => `<div class="res-twists">${(ids || []).map((id) => `<span class="mc-tag">${icon((TWISTS[id] && TWISTS[id].ico) || 'star')}${twistLabel(id)}</span>`).join('')}</div>`;
 const stars = () => `<div class="big-stars"><span class="bs bs1">${icon('star')}</span><span class="bs bs2">${icon('star')}</span><span class="bs bs3">${icon('star')}</span></div>`;
@@ -55,7 +56,7 @@ export function modeResultHtml(a, heroDef, save) {
       ${win ? stars() : `<div class="lose-ico">${icon('heart')}<span class="crack"></span></div>`}
       ${score}
       ${coinLine(extra)}
-      ${daily ? `<div class="res-board">${boardHtml(save, a.date, 3)}</div>` : ''}
+      ${daily ? `<div class="res-board">${boardHtml(save, a.date, DAILY.top)}</div>` : ''}
       ${btns()}
     </div>`;
 }

@@ -35,8 +35,8 @@ export const DEFAULT_SHARE = 10;
 /** Tuning (game/squadtypes.js). */
 export const MEDIC = { every: 6, maxPer: 3 };
 export const GUNNER = { per: 0.03, max: 0.15 };
-/** Loss reasons a shield blocks (enemy touch, Fizzbomb blast, enemy shots, boss attacks). */
-export const SHIELD_BLOCKS = ['horde', 'bomb', 'shot', 'boss'];
+/** Loss reasons a shield blocks (enemy touch, Fizzbomb blast, sniper / blaster shots = 'spit', boss attacks). */
+export const SHIELD_BLOCKS = ['horde', 'bomb', 'spit', 'boss'];
 
 /** The mix level of a share (nearest of OFF / FEW / MANY). */
 export function mixLevel(share) {

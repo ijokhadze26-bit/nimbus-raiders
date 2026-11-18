@@ -17,8 +17,37 @@ function editEvents(run, type, fn) {
   run.byType[type] = out;
 }
 
+/**
+ * Edits every gate spec of the gate events through fn(spec) (mutates the copy): the gate itself and, for a chain
+ * follow-up gate (data/roadplan.js), each spec in e.alt[family] that it takes when it reveals (game/gatefeat.js).
+ */
+function editGates(run, fn) {
+  editEvents(run, 'gate', (e) => {
+    fn(e);
+    if (e.alt) { const alt = {}; for (const [f, s] of Object.entries(e.alt)) alt[f] = s ? fn({ ...s }) : s; e.alt = alt; }
+    return e;
+  });
+}
+
 /** Ladder rungs (config GATE.rungs): 0..2 are ÷4 ÷3 ÷2, 3..5 are ×2 ×3 ×4; mirror = the same k on the bad side. */
 const badRung = (r) => (r >= 3 ? 5 - r : r);
+
+/** HALF SQUAD: a + gate gives half (at least 1). */
+function halfSpec(s) {
+  if (s.op === 'add' && (s.value | 0) > 0) {
+    s.value = Math.max(1, Math.ceil(s.value / 2));
+    if (s.max != null) s.max = Math.max(s.value, Math.ceil(s.max / 2));
+  }
+  return s;
+}
+
+/** ONLY RED GATES: + becomes - (half), x becomes the same-size ÷ (shoot it back up). */
+function redSpec(s) {
+  if (s.op === 'add') { if ((s.value | 0) > 0) s.value = -Math.max(1, Math.round(s.value / 2)); }
+  else if (s.rung !== undefined) { s.rung = badRung(s.rung); if (s.op === 'mul') s.op = 'div'; }
+  else if (s.op === 'mul') s.op = 'div';
+  return s;
+}
 
 export const MODIFIERS = [
   {
@@ -31,18 +60,12 @@ export const MODIFIERS = [
     desc: 'Start with half the Raiders, and + gates give half.',
     apply(def, run) {
       run.mods.startMul *= 0.5;
-      editEvents(run, 'gate', (e) => {
-        if (e.op === 'add' && (e.value | 0) > 0) {
-          e.value = Math.max(1, Math.ceil(e.value / 2));
-          if (e.max != null) e.max = Math.max(e.value, Math.ceil(e.max / 2));
-        }
-        return e;
-      });
+      editGates(run, halfSpec);
     },
   },
   {
     id: 'oneLife', name: 'ONE LIFE', bonus: 0.40, player: true, icon: 'heart', color: '#ff3b4e',
-    desc: 'No Guard, no shields. Lose half your biggest squad and the run ends.',
+    desc: 'No hero Guard, no shield power-ups. Lose half your biggest squad and the run ends.',
     apply(def, run) {
       run.mods.oneLife = true;
       editEvents(run, 'powerup', (e) => { if (e.kind === 'shield') e.kind = 'rapid'; return e; });
@@ -74,12 +97,7 @@ export const MODIFIERS = [
     id: 'onlyRed', name: 'ONLY RED GATES', bonus: 0, player: false, icon: 'damage', color: '#ff3b4e',
     desc: 'Every gate starts red. Shoot them blue!',
     apply(def, run) {
-      editEvents(run, 'gate', (e) => {
-        if (e.op === 'add') { if ((e.value | 0) > 0) e.value = -Math.max(1, Math.round(e.value / 2)); }
-        else if (e.rung !== undefined) e.rung = badRung(e.rung);
-        else if (e.op === 'mul') e.op = 'div';
-        return e;
-      });
+      editGates(run, redSpec);
     },
   },
   {
