@@ -20,7 +20,7 @@ function once() {
   let es = setup();
   let e = es[0];
   S.burn(e, 2, 1.5);
-  const K = g.formation ? g.formation.hordeK : 1; // update 3 stage 4: the run's formation x combo damage boost (LINE 1.12)
+  const K = 1; // update 3 stage 4: the formation x combo boost applies to gun damage only, never to burns
   d.simulate(0.75); nums.push(r3(e.hp));
   if (Math.abs(e.hp - (5 - K)) > 0.06) fails.push('burn half-way hp ' + e.hp);
   d.simulate(0.8); nums.push(r3(e.hp));

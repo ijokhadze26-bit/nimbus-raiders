@@ -36,8 +36,10 @@ export function applyDamage(h, e, dmg, unit = dmg, src = SRC) {
     return R;
   }
   const row = VS_INDEX[src.el] || VS_INDEX.neutral;
-  // update 3 stage 4: formation x combo boost (game/formation.js hordeK; 1 outside a run)
-  const m = row[e.type] * (e.freezeT > 0 ? FROZEN_MUL : 1) * (game.formation && game.run ? game.formation.hordeK : 1);
+  // update 3 stage 4: formation x combo boost on gun damage only (game/formation.js hordeK; 1 outside a run;
+  // abilities, burns, props and helpers keep their own budgets)
+  const boost = src.cause === 'weapon' && game.formation && game.run ? game.formation.hordeK : 1;
+  const m = row[e.type] * (e.freezeT > 0 ? FROZEN_MUL : 1) * boost;
   const hpBefore = e.hp;
   e.hp -= dmg * m;
   if (e.flash < 0.35 && src.events !== false) e.flash = 1;
