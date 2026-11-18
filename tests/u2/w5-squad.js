@@ -99,6 +99,12 @@ g.squad.setCount(9, 'horde'); d.simulate(0.1);
 ok(g.squad.count === 0 && !g.run.active && g.run.failReason === 'oneLife', `ONE LIFE: under half the peak the run ends (${g.squad.count}, ${g.run.phase})`);
 d.simulate(2);
 ok(g.lastAward && g.lastAward.failReason === 'oneLife' && g.lastAward.mods.includes('oneLife'), 'ONE LIFE loss reported');
+{
+  const { modsResultHtml } = await import('/src/ui/modsui.js');
+  const h = modsResultHtml(g.lastAward);
+  ok(/rm-why/.test(h) && /ONE LIFE/.test(h) && /\+40% COINS/.test(h), 'ONE LIFE loss: result explains why + shows the bonus');
+  ok(modsResultHtml({ win: true, mods: [], modMul: 1 }) === '', 'no modifiers: nothing on the result');
+}
 
 // RETRY keeps them, never applies twice; the campaign defs are untouched
 r = startWith(3, ['halfSquad', 'onlyRed', 'giantEnemies']);
