@@ -3,7 +3,9 @@
 // the distance, and ends in a boss arena. Uses its own seeded Rng, so the same seed builds the same bridge.
 import { Rng } from '../core/rng.js';
 import { THEME_ORDER } from './themes.js';
-import { gate, barrel, horde, blade, gap, powerup, coins, toughFor } from './levels.js';
+import { gate, barrel, horde, blade, gap, powerup, coins, toughFor, getLevel } from './levels.js';
+import { WORLDS } from './worlds.js';
+import { WORLD_KINDS, MAKERS, HINTS } from './hazardplan.js';
 
 export const ENDLESS = {
   bossEvery: 700,     // a boss guards every 700 u
@@ -34,12 +36,25 @@ export const ENDLESS_BOSSES = ['grawlstone', 'oculon', 'mothermurk', 'ironhorn',
  * Boss config of arena n (1-based): rotates through the roster. HP grows with the arena; later arenas also
  * get meaner through tier = faster cadence, shorter warnings and bigger broods.
  */
-export function endlessBoss(n) {
-  const type = ENDLESS_BOSSES[(n - 1) % ENDLESS_BOSSES.length];
+export function endlessBoss(n, world = 1) {
   const T = ENDLESS.bossHp, last = T[T.length - 1];
   const raw = n <= T.length ? T[n - 1] : last * Math.pow(ENDLESS.bossGrowth, n - T.length);
   const hp = Math.min(ENDLESS.bossMax, Math.round(raw / 500) * 500);
+  if (world > 1) { const R = worldBosses(world), b = R[(n - 1) % R.length]; return { ...b, hp, tier: Math.min(7, n) }; }
+  const type = ENDLESS_BOSSES[(n - 1) % ENDLESS_BOSSES.length];
   return { type, hp, tier: Math.min(7, n) };
+}
+
+/**
+ * Stage 5 endless per world: the arena rotation of a world 2-5 bridge = its mini-boss and world boss (as the
+ * campaign dresses them), then the rest of the roster in the world's skin. World 1 keeps ENDLESS_BOSSES.
+ */
+export function worldBosses(world) {
+  const w = WORLDS[world - 1];
+  if (!w || world <= 1) return ENDLESS_BOSSES.map((type) => ({ type }));
+  const own = [...w.minis, w.boss].map((id) => getLevel(id)?.boss).filter(Boolean).map((b) => (b.skin ? { type: b.type, skin: b.skin } : { type: b.type }));
+  const rest = ENDLESS_BOSSES.filter((t) => !own.some((b) => b.type === t)).map((type) => ({ type, skin: w.key }));
+  return [...own, ...rest];
 }
 
 /** Horde hp multiplier at distance d. */
@@ -54,20 +69,32 @@ export function endlessReward(n) {
 }
 
 export function endlessSpeed(zone) { return Math.round(Math.min(ENDLESS.speedMax, ENDLESS.speed0 + ENDLESS.speedPerZone * (zone - 1)) * 100) / 100; }
-export function endlessTheme(zone) { return THEME_ORDER[(zone - 1) % THEME_ORDER.length]; }
+export function endlessTheme(zone, world = 1) {
+  const list = world > 1 && WORLDS[world - 1] ? WORLDS[world - 1].themes : THEME_ORDER;
+  return list[(zone - 1) % list.length];
+}
 
-/** Level-like def the run starts from (the controller extends length/boss/events zone by zone). */
-export function endlessDef() {
-  return { id: 0, name: 'Endless', theme: endlessTheme(1), length: ENDLESS.bossEvery, speed: endlessSpeed(1), stars: [0, 0], reward: 0, boss: endlessBoss(1), events: [] };
+/**
+ * Level-like def the run starts from (the controller extends length/boss/events zone by zone). Stage 5: world
+ * (1-5) picks the theme, enemy skin + music (def.world), smarter enemies (def.ai), the arena bosses and, on worlds
+ * 2-5, the world's hazards in the generator's hazard slots. World 1 is the old Sky Bridge endless, unchanged.
+ */
+export function endlessDef(world = 1) {
+  const w = WORLDS[world - 1] ? world : 1;
+  const def = { id: 0, name: 'Endless', theme: endlessTheme(1, w), length: ENDLESS.bossEvery, speed: endlessSpeed(1), stars: [0, 0], reward: 0, boss: endlessBoss(1, w), events: [] };
+  if (w > 1) Object.assign(def, { world: w, ai: w, name: `Endless · ${WORLDS[w - 1].name}` });
+  return def;
 }
 
 const other = (lane) => (lane === 'L' ? 'R' : 'L');
 
 export class EndlessGen {
-  constructor(seed = 1) {
+  constructor(seed = 1, world = 1) {
     this.rng = new Rng(seed);
     this.last = '';
     this.barrelRows = 0;
+    this.world = world;       // stage 5: worlds 2-5 place their own hazard kinds (WORLD_KINDS)
+    this.taught = new Set();  // hazard kinds that already showed their hint this run
   }
 
   /**
@@ -123,7 +150,7 @@ export class EndlessGen {
     else if (slot === 1) kind = weighted(r, [['barrels', 4], ['bonus', d > 100 ? 1 : 0]]);
     // past ~900 u the squad sits near the cap: threats that cost troops whatever the count (hazards, and
     // gauntlets = a horde with a blade or gap in the same stretch) take a growing share
-    else kind = weighted(r, [['horde', 5], ['hordeSide', d > 200 ? 2.5 : 0], ['hazard', d > 300 ? 2 + d / 700 : 0], ['gauntlet', d > 900 ? 1.5 + d / 1400 : 0]]);
+    else kind = weighted(r, [['horde', 5], ['hordeSide', d > 200 ? 2.5 : 0], ['hazard', this.world > 1 ? (d > 200 ? 3 + d / 700 : 0) : d > 300 ? 2 + d / 700 : 0], ['gauntlet', d > 900 ? 1.5 + d / 1400 : 0]]);
     if (kind === this.last && kind !== 'horde' && kind !== 'barrels') kind = slot === 0 ? 'gates' : slot === 1 ? 'barrels' : 'horde';
     this.last = kind;
     return kind;
@@ -214,6 +241,7 @@ export class EndlessGen {
         return step + 8;
       }
       case 'hazard':
+        if (WORLD_KINDS[this.world] && r.chance(0.7)) return this.worldHazard(at, out);
         if (r.chance(0.5)) out.push(blade(at, side, at > 1200 ? { moving: { range: 1.4, speed: 1.2 } } : {}));
         else out.push(gap(at - 6, side, Math.round(10 + Math.min(8, at / 300))));
         out.push(coins(at - 4, o, 8, 'line'));
@@ -225,6 +253,19 @@ export class EndlessGen {
     }
   }
 }
+
+/** One of the world's hazard kinds at `at` (the slot keeps the road clear of gates / barrels around it). */
+EndlessGen.prototype.worldHazard = function worldHazard(at, out) {
+  const r = this.rng, kind = r.pick(WORLD_KINDS[this.world]);
+  const t = Math.max(0, Math.min(1, at / 2800)), gentle = !this.taught.has(kind) && at < 1400;
+  const p = MAKERS[kind](r, { t, gentle, p: 0.5 });
+  const len = Math.round(p.length || 0);
+  const ev = { type: 'hazard', kind, at: at + 6, ...p, length: len };
+  if (!this.taught.has(kind)) { this.taught.add(kind); ev.hint = HINTS[kind]; }
+  out.push(ev);
+  if (r.chance(0.5)) out.push(coins(at + 6 + len + 6, r.pick(['L', 'R']), 6, 'line'));
+  return len + 28;
+};
 
 function weighted(r, opts) {
   let total = 0;

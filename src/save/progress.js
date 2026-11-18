@@ -6,6 +6,7 @@ import { HERO_BY_ID, PAID_SKIN_IDS, WEAPON_SKIN_BY_ID } from '../data/skins.js';
 import { LAST_LEVEL } from '../data/levels.js';
 import { heroDef } from '../data/heroes.js';
 import { unlockSet, newlyUnlocked } from './unlocks.js';
+import { MODE_PAID, awardMode, endlessBestOf, setEndlessBest } from './modes.js';
 
 /** Only these modes pay out (practice, boss tests and custom test runs never touch the save). */
 const PAID = new Set(['level', 'endless']);
@@ -14,8 +15,9 @@ const PAID = new Set(['level', 'endless']);
 export function installProgress(game) {
   const save = game.save;
   const ev = game.events;
-  ev.on('run:win', (p) => { game.lastAward = PAID.has(p.mode) ? awardWin(save, p, game.run) : null; });
-  ev.on('run:lose', (p) => { game.lastAward = PAID.has(p.mode) ? awardLose(save, p, game.run) : null; });
+  // stage 5: Boss Rush / Daily / Chaos pay through save/modes.js
+  ev.on('run:win', (p) => { game.lastAward = PAID.has(p.mode) ? awardWin(save, p, game.run) : MODE_PAID.has(p.mode) ? awardMode(save, { ...p, type: 'win' }, game) : null; });
+  ev.on('run:lose', (p) => { game.lastAward = PAID.has(p.mode) ? awardLose(save, p, game.run) : MODE_PAID.has(p.mode) ? awardMode(save, { ...p, type: 'lose' }, game) : null; });
 }
 
 export function coinMul(save) { return upgradeEffects(save.data.upgrades).coinMul; }
@@ -40,7 +42,7 @@ export function awardWin(save, p, run = null) {
     s.coins = Math.min(1e9, s.coins + coins);
     s.stats.runs++; s.stats.wins++;
     s.stats.kills += p.kills || 0;
-    if (!level && dist > s.endlessBest) s.endlessBest = dist;
+    if (!level) setEndlessBest(s, run?.worldId || 1, dist); // stage 5: per world
     if (elite) s.elite[p.levelId] = Math.max(prevElite, Math.min(3, p.stars || 1)); // ELITE: its own stars
     if (level) {
       if (!elite) s.stars[p.levelId] = Math.max(prevStars, Math.min(3, p.stars || 1));
@@ -62,16 +64,17 @@ export function awardLose(save, p, run) {
   const base = endless ? Math.floor((p.dist || 0) / 10 + (p.kills || 0) / 20) + (p.coins || 0) : (p.coins || 0);
   const heroMul = heroCoinMul(run);
   const coins = Math.round(base * coinMul(save) * heroMul);
-  const prevBest = save.data.endlessBest;
+  const world = run?.worldId || 1;
+  const prevBest = endlessBestOf(save.data, world); // stage 5: endless best per world (Sky = save.endlessBest)
   const newBest = endless && (p.dist || 0) > prevBest;
   save.update((s) => {
     s.coins = Math.min(1e9, s.coins + coins);
     s.stats.runs++;
     s.stats.kills += p.kills || 0;
-    if (newBest) s.endlessBest = Math.round(p.dist);
+    if (newBest) setEndlessBest(s, world, p.dist);
   });
   const length = run?.length || 0;
-  return { win: false, mode: p.mode, levelId: p.levelId, dist: Math.round(p.dist || 0), length, coins, newBest, best: Math.max(prevBest, Math.round(p.dist || 0)), kills: p.kills, heroMul, hero: run?.hero || null, elite: !!p.elite };
+  return { win: false, mode: p.mode, levelId: p.levelId, dist: Math.round(p.dist || 0), length, coins, newBest, world, best: Math.max(prevBest, Math.round(p.dist || 0)), kills: p.kills, heroMul, hero: run?.hero || null, elite: !!p.elite };
 }
 
 // ---------------- shop ----------------

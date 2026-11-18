@@ -27,7 +27,7 @@ export function planFor(game, ev) {
   let w = ev.waves || def.waves;
   if (def.waves === false && !ev.waves) return null;
   if (!w) {
-    if (run.mode !== 'level' || !(def.world >= 1) || (ev.count | 0) < WAVES.minCount) return null;
+    if ((run.mode !== 'level' && !def.modeLevel) || !(def.world >= 1) || (ev.count | 0) < WAVES.minCount) return null;
     const pause = WAVES.pause[def.world] ?? 1.6;
     w = ev.rush ? WAVES.rush(pause) : WAVES.normal(pause);
   }

@@ -106,7 +106,7 @@ export function createInfoPage(ui, cfg) {
   function back() {
     const o = page.opts || {};
     const to = o.from && o.from !== 'result' ? o.from : (o.from === 'result' ? 'map' : 'title');
-    ui.nav(to, to === 'loadout' ? { levelId: o.levelId, mode: o.mode } : null);
+    ui.nav(to, to === 'loadout' ? { levelId: o.levelId, mode: o.mode, world: o.world, roll: o.roll } : null); // stage 5: mode runs keep world / chaos roll
   }
 
   page.render = render;

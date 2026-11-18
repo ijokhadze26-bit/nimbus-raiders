@@ -117,7 +117,7 @@ check(g.state === 'playing' && d.state().levelId === 1, 'RETRY -> ' + g.state);
 
 // ---- title buttons ----
 ui.nav('title'); await wait(20);
-for (const [a, want] of [['armory', 'armory'], ['heroes', 'heroes'], ['play', 'map'], ['endless', 'endless'], ['shop', 'shop']]) {
+for (const [a, want] of [['armory', 'armory'], ['heroes', 'heroes'], ['play', 'map'], ['modes', 'modes'], ['shop', 'shop']]) {
   ui.nav('title'); await wait(10);
   act('title', a);
   check(g.state === want, `title ${a} -> ${g.state}`);

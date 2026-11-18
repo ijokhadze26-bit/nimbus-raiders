@@ -14,6 +14,7 @@ import { heroDef } from '../../data/heroes.js';
 import { weaponIcon, heroIcon } from '../icons2.js';
 import { mkLabel } from '../infofmt.js';
 import { ELITE_BADGE } from '../elite.js';
+import { MODE_RESULTS, modeResultHtml } from './moderesult.js';
 
 const eliteTag = () => `<div class="res-elite-tag">${ELITE_BADGE}<span>ELITE</span></div>`;
 
@@ -181,7 +182,7 @@ export function createResult(ui) {
       token++;
       shownFor = { levelId: a.levelId || 0, done: false };
       const practice = a.mode === 'practice';
-      wrap.innerHTML = practice ? practiceHtml(a, g.run) : a.win ? winHtml(a) : loseHtml(a);
+      wrap.innerHTML = practice ? practiceHtml(a, g.run) : MODE_RESULTS.has(a.mode) ? modeResultHtml(a, heroDef, ui.save.data) : a.win ? winHtml(a) : loseHtml(a); // stage 5 modes
       root.classList.toggle('is-win', !!a.win && !practice);
       if (practice) ui.sfx(a.win ? 'star' : 'coin', { index: 2 }); else play(a, token);
       ui.refreshCoins(true);
@@ -200,6 +201,7 @@ export function createResult(ui) {
       else if (act === 'info') ui.nav(btn.dataset.kind === 'hero' ? 'heroes' : 'armory', { from: 'result', [btn.dataset.kind]: btn.dataset.id });
       else if (act === 'home') ui.nav('title');
       else if (act === 'map') ui.nav('map');
+      else if (act === 'modes') ui.nav('modes');
     },
     onBack() {
       if (ui.game.lastResult?.mode === 'practice') { const p = ui.game.practiceReturn || { screen: 'armory', opts: {} }; ui.nav(p.screen, p.opts); } else ui.nav('title');

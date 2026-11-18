@@ -34,7 +34,7 @@ export class Endless {
     // the boss death flash is fully white for a moment: swap the sky there so the new zone feels new
     game.events.on('boss:defeated', () => {
       if (!this.active || !this.run || this.run !== game.run) return;
-      const theme = endlessTheme(this.zone + 1);
+      const theme = endlessTheme(this.zone + 1, this.world);
       this.run.theme = theme;
       game.world.setTheme(theme);
     });
@@ -46,12 +46,13 @@ export class Endless {
     this.run = run;
     this.zone = 1;
     this.bosses = 0;
-    this.gen = new EndlessGen(seed);
+    this.world = (run.def && run.def.world) || 1; // stage 5: endless per world (data/endless.js endlessDef)
+    this.gen = new EndlessGen(seed, this.world);
     this.crateRng = new Rng(seed * 31 + 7);
     run.seed = seed;
     run.segStart = 0;
     run.length = ENDLESS.bossEvery;
-    run.boss = endlessBoss(1);
+    run.boss = endlessBoss(1, this.world);
     run.speed = endlessSpeed(1);
     run.stats.bosses = 0;
     run.append(this.gen.fill(ENDLESS.startClear, run.length - ENDLESS.preBoss));
@@ -81,7 +82,7 @@ export class Endless {
     const from = Math.max(run.dist, run.length);
     run.segStart = run.dist;
     run.length = this.zone * ENDLESS.bossEvery;
-    run.boss = endlessBoss(this.zone);
+    run.boss = endlessBoss(this.zone, this.world);
     run.speed = endlessSpeed(this.zone);
     const rows = this.gen.fill(from + ENDLESS.postBoss, run.length - ENDLESS.preBoss);
     run.append(rows);

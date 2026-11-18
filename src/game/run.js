@@ -48,7 +48,7 @@ export class Run {
   update(dt, dist) {
     this.time += dt;
     this.dist = dist;
-    if (this.mode === 'endless') {
+    if (this.mode === 'endless' || this.def.rush) { // stage 5 Boss Rush: the bar spans the road to the next arena
       const seg = Math.max(1, this.length - this.segStart);
       this.bus.emit('run:progress', { dist: Math.max(0, Math.min(seg, dist - this.segStart)), length: seg, total: Math.max(0, Math.round(dist)) });
     } else this.bus.emit('run:progress', { dist: Math.max(0, dist), length: this.length });
