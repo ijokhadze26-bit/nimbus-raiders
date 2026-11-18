@@ -1,12 +1,17 @@
 // README "Weapons & Heroes" section generator (SPEC2 §7.5 / §7.7). Every name, blurb, number, strong / weak entry
 // and unlock comes from the data files (src/data/weapons.js, heroes.js, via src/ui/infofmt.js), never typed here,
 // so the README follows the balanced data.
-//   node scripts/readme-gen.mjs           prints the section (markers included)
-//   node scripts/readme-gen.mjs --write   replaces the <!-- u2:begin --> ... <!-- u2:end --> section in README.md
-// The module also runs in the browser (tests/u2/integrate-readme.js imports generateSection() through Vite).
+// Update 3 stage 6: a SECOND generated section, "Worlds and Bosses" (<!-- u3:begin --> ... <!-- u3:end -->), built by
+// scripts/readme-worlds.mjs from the worlds / levels / bosses / hazards / enemy data (generateWorlds()).
+//   node scripts/readme-gen.mjs           prints both sections (markers included)
+//   node scripts/readme-gen.mjs --write   replaces both marker sections in README.md
+// The module also runs in the browser (tests/u2/integrate-readme.js imports it through Vite).
 import { WEAPON_DEFS, WEAPON_BY_ID, MAX_MK, mkLabel } from '../src/data/weapons.js';
 import { HERO_DEFS, FAVOURITE_BONUS, GUARD_REGEN } from '../src/data/heroes.js';
 import { targetName, speedLine, num } from '../src/ui/infofmt.js';
+import { generateWorlds, BEGIN3, END3 } from './readme-worlds.mjs';
+
+export { generateWorlds, BEGIN3, END3 };
 
 export const BEGIN = '<!-- u2:begin -->';
 export const END = '<!-- u2:end -->';
@@ -49,26 +54,47 @@ export function generateSection() {
   return L.join('\n') + '\n';
 }
 
-/** README text with the marker section replaced (appended before "## Run it" when the markers are missing). */
+/** [start, end) of a marker section in a README (end includes one trailing newline), or null. */
+function span(readme, begin, end) {
+  const a = readme.indexOf(begin), b = readme.indexOf(end);
+  if (a < 0 || b < a) return null;
+  let e = b + end.length;
+  if (readme[e] === '\n') e++;
+  return [a, e];
+}
+
+/** README text with the u2 marker section replaced (appended before "## Run it" when the markers are missing). */
 export function replaceSection(readme, section = generateSection()) {
-  const a = readme.indexOf(BEGIN), b = readme.indexOf(END);
-  if (a >= 0 && b > a) {
-    let end = b + END.length;
-    if (readme[end] === '\n') end++;
-    return readme.slice(0, a) + section + readme.slice(end);
-  }
+  const s = span(readme, BEGIN, END);
+  if (s) return readme.slice(0, s[0]) + section + readme.slice(s[1]);
   const at = readme.indexOf('## Run it');
   return at >= 0 ? readme.slice(0, at) + section + '\n' + readme.slice(at) : readme + '\n' + section;
 }
 
-/** The marker section currently in a README ('' when missing). */
+/** The u2 marker section currently in a README ('' when missing). */
 export function currentSection(readme) {
-  const a = readme.indexOf(BEGIN), b = readme.indexOf(END);
-  if (a < 0 || b < a) return '';
-  let end = b + END.length;
-  if (readme[end] === '\n') end++;
-  return readme.slice(a, end);
+  const s = span(readme, BEGIN, END);
+  return s ? readme.slice(s[0], s[1]) : '';
 }
+
+/** README text with the u3 "Worlds and Bosses" section replaced (placed before the u2 section, or before
+ *  "## Run it", when its markers are missing). */
+export function replaceWorlds(readme, section = generateWorlds()) {
+  const s = span(readme, BEGIN3, END3);
+  if (s) return readme.slice(0, s[0]) + section + readme.slice(s[1]);
+  let at = readme.indexOf(BEGIN);
+  if (at < 0) at = readme.indexOf('## Run it');
+  return at >= 0 ? readme.slice(0, at) + section + '\n' + readme.slice(at) : readme + '\n' + section;
+}
+
+/** The u3 marker section currently in a README ('' when missing). */
+export function currentWorlds(readme) {
+  const s = span(readme, BEGIN3, END3);
+  return s ? readme.slice(s[0], s[1]) : '';
+}
+
+/** Both generated sections replaced. */
+export const replaceAll = (readme) => replaceWorlds(replaceSection(readme));
 
 // ---- CLI (Node only) ----
 const proc = globalThis.process;
@@ -80,8 +106,8 @@ if (proc && proc.argv && proc.argv[1] && import.meta.url.endsWith(proc.argv[1].s
   const file = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'README.md');
   if (proc.argv.includes('--write')) {
     const before = fs.readFileSync(file, 'utf8');
-    const after = replaceSection(before);
+    const after = replaceAll(before);
     fs.writeFileSync(file, after);
-    console.log(before === after ? 'README.md already up to date' : 'README.md section updated');
-  } else proc.stdout.write(generateSection());
+    console.log(before === after ? 'README.md already up to date' : 'README.md sections updated');
+  } else proc.stdout.write(generateWorlds() + '\n' + generateSection());
 }
