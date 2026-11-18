@@ -4,6 +4,7 @@
 //
 // Public API (UI): audio.setMusic(on), audio.setSfx(on), audio.isMusic(), audio.isSfx(),
 // audio.play(name, opts) e.g. play('click'), play('star', { index: 1 }), play('purchase').
+// Update 3 stage 5: audio.setVolumes(music01, sfx01) scales the buses live (settings sliders); mute stays separate.
 import { Sfx } from './sfx.js';
 import { Music } from './music.js';
 import { bindAudio } from './bindings.js';
@@ -42,6 +43,8 @@ export class AudioSystem {
     this.game = null;
     this.musicOn = true;
     this.sfxOn = true;
+    this.musicVol = 0.8; // slider levels 0..1 (save.settings.musicVol / sfxVol)
+    this.sfxVol = 0.9;
     this.hiddenSuspend = false;
     this.offs = [];
     this.onGesture = this.onGesture.bind(this);
@@ -147,7 +150,7 @@ export class AudioSystem {
   // ---------------- mute + persistence ----------------
   loadSettings() {
     const s = this.game && this.game.save && this.game.save.data && this.game.save.data.settings;
-    if (s) { this.musicOn = s.music !== false; this.sfxOn = s.sfx !== false; return; }
+    if (s) { this.musicOn = s.music !== false; this.sfxOn = s.sfx !== false; this.readVolumes(s); return; }
     try {
       const j = JSON.parse(localStorage.getItem(KEY) || 'null');
       if (j) { this.musicOn = j.music !== false; this.sfxOn = j.sfx !== false; }
@@ -181,6 +184,20 @@ export class AudioSystem {
     if (!s || this.applying) return;
     if (typeof s.music === 'boolean') this.setMusic(s.music, false);
     if (typeof s.sfx === 'boolean') this.setSfx(s.sfx, false);
+    if (typeof s.musicVol === 'number' || typeof s.sfxVol === 'number') this.setVolumes(s.musicVol, s.sfxVol);
+  }
+
+  readVolumes(s) {
+    const v = (x, d) => (typeof x === 'number' && Number.isFinite(x) ? Math.max(0, Math.min(1, x)) : d);
+    this.musicVol = v(s.musicVol, this.musicVol);
+    this.sfxVol = v(s.sfxVol, this.sfxVol);
+  }
+
+  /** Slider levels 0..1 (undefined keeps a level); applied live with a short glide. */
+  setVolumes(music, sfx) {
+    const m = this.musicVol, f = this.sfxVol;
+    this.readVolumes({ musicVol: music, sfxVol: sfx });
+    if (m !== this.musicVol || f !== this.sfxVol) this.applyGains();
   }
 
   setMusic(on, save = true) {
@@ -212,8 +229,9 @@ export class AudioSystem {
     if (!this.graph) return;
     const t = this.ctx.currentTime;
     const set = (param, v) => { param.cancelScheduledValues(t); if (instant) param.setValueAtTime(v, t); else param.setTargetAtTime(v, t, 0.06); };
-    set(this.graph.music.gain, this.musicOn ? MUSIC_VOLUME : 0);
-    set(this.graph.sfx.gain, this.sfxOn ? SFX_VOLUME : 0);
+    // slider curve: squared, so the low half of the slider is still audible steps (0 = silent)
+    set(this.graph.music.gain, this.musicOn ? MUSIC_VOLUME * this.musicVol * this.musicVol / 0.64 : 0);
+    set(this.graph.sfx.gain, this.sfxOn ? SFX_VOLUME * this.sfxVol * this.sfxVol / 0.81 : 0);
     // both off: let the device sleep its audio hardware
     if (!this.musicOn && !this.sfxOn) { if (this.ctx.state === 'running') this.ctx.suspend().catch(() => {}); }
     else if (this.ctx.state === 'suspended' && this.primed && !document.hidden) this.ctx.resume().catch(() => {});
@@ -236,7 +254,8 @@ export class AudioSystem {
   status() {
     return {
       ctx: this.ctx ? this.ctx.state : 'none',
-      music: this.musicOn, sfx: this.sfxOn,
+      music: this.musicOn, sfx: this.sfxOn, musicVol: this.musicVol, sfxVol: this.sfxVol,
+      gains: this.graph ? { music: this.graph.music.gain.value, sfx: this.graph.sfx.gain.value } : null,
       track: this.music && this.music.current ? this.music.current.name : null,
       players: this.music ? this.music.players.length : 0,
       voices: this.sfxEngine ? this.sfxEngine.liveCount() : 0,

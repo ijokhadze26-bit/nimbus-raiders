@@ -45,3 +45,8 @@
   80% { transform: translateX(-50%) scale(1); opacity: 1; } 100% { transform: translateX(-50%) scale(0.8); opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .ability-btn.ready .ab-ring, .ability-btn.ready::after { animation: none; } }
+/* Left-handed play (update 3 stage 5 settings, save.settings.abilitySide 'left'): ui.applyHand() sets .hud.left-hand.
+   The ability button moves to the bottom-left and the weapon badge to the bottom-right. Stage 4 controls
+   (formation / dodge buttons) follow the same class: mirror their left/right in a `.hud.left-hand` rule. */
+.hud.left-hand .hud-ability-mount { right: auto; left: calc(var(--safe-l, 0px) + 12px); }
+.hud.left-hand .hud-weapon { left: auto; right: calc(var(--safe-r, 0px) + 12px); }

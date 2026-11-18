@@ -1,6 +1,7 @@
 // Title: animated logo over the live attract scene, big PLAY (-> level map), MODES / SHOP / SETTINGS,
 // music + sound toggles, daily reward badge and the coin total. Update 2: an ARMORY / HEROES tile row (same
 // .tbtn tiles) sits between the logo and the attract squad, with a NEW dot while an unlocked item is unseen.
+// Update 3 stage 5: a trophy button (ACHIEVEMENTS page) beside the sound toggles, badge = unclaimed rewards.
 import { screenEl, coinPill } from '../ui.js';
 import { icon } from '../icons.js';
 import { createLogo, replayLogo } from '../logo.js';
@@ -19,6 +20,7 @@ export function createTitle(ui) {
       <div class="row-gap">
         <button type="button" class="ibtn ibtn-blue" data-act="music" aria-label="Music">${icon('music')}<span class="slash">${icon('mute')}</span></button>
         <button type="button" class="ibtn ibtn-blue" data-act="sfx" aria-label="Sound">${icon('sound')}<span class="slash">${icon('mute')}</span></button>
+        <button type="button" class="ibtn btn-purple ach-btn" data-act="achievements" aria-label="Achievements">${icon('trophy')}<i class="ach-dot" hidden>0</i></button>
       </div>
       <div class="row-gap right">
         <button type="button" class="daily-badge" data-act="daily" aria-label="Daily reward">
@@ -50,6 +52,8 @@ export function createTitle(ui) {
   const musicBtn = el.querySelector('[data-act="music"]');
   const dots = { armory: el.querySelector('[data-act="armory"] .tdot'), heroes: el.querySelector('[data-act="heroes"] .tdot') };
   const sfxBtn = el.querySelector('[data-act="sfx"]');
+  const achDot = el.querySelector('.ach-dot');
+  const refreshAch = () => { const n = ui.game.achievements?.unclaimed() || 0; achDot.hidden = !n; achDot.textContent = n > 99 ? '99+' : String(n); };
 
   function syncToggles() {
     const st = ui.save.data.settings;
@@ -79,6 +83,7 @@ export function createTitle(ui) {
       dots.armory.hidden = !WEAPON_IDS.some((id) => isNew(d, 'weapon', id) && id !== 'thunderclap');
       dots.heroes.hidden = !HERO_IDS.some((id) => isNew(d, 'hero', id) && id !== 'pip');
       syncToggles();
+      refreshAch();
       ui.refreshCoins(true);
       replayLogo(logo);
     },
@@ -87,11 +92,13 @@ export function createTitle(ui) {
       else if (act === 'modes' || act === 'endless') ui.nav('modes'); // stage 5: ENDLESS lives on the MODES page
       else if (act === 'shop') ui.nav('shop');
       else if (act === 'settings') ui.nav('settings');
+      else if (act === 'achievements') ui.nav('achievements');
       else if (act === 'armory') ui.nav('armory', { from: 'title' });
       else if (act === 'heroes') ui.nav('heroes', { from: 'title' });
       else if (act === 'daily') ui.openModal('daily');
       else if (act === 'music' || act === 'sfx') toggle(act);
     },
+    refreshAch,
     refreshDaily() { daily.classList.toggle('ready', ui.screens.daily.available()); },
   };
 }

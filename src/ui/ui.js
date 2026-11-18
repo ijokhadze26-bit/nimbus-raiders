@@ -20,6 +20,9 @@ import { createLoadout } from './screens/loadout.js';
 import { createCompare } from './screens/compare.js';
 import { createModes } from './screens/modes.js';
 import { mountModeHud } from './hudmodes.js';
+import { createAchievements } from './screens/achievements.js';
+import { mountAchToast } from './achtoast.js';
+import { haptic } from '../core/haptics.js';
 import { MENU_STATE_LIST } from '../game/states.js';
 
 const MENU_STATES = MENU_STATE_LIST;
@@ -40,6 +43,7 @@ export class UI {
       result: createResult, daily: createDaily, endless: createEndless, confirm: createConfirm,
       armory: createArmory, heroes: createHeroes, loadout: createLoadout, compare: createCompare, modes: createModes };
     for (const [k, f] of Object.entries(make)) this.screens[k] = f(this);
+    this.screens.achievements = createAchievements(this); // update 3 stage 5
     this.current = null;     // page screen name
     this.modals = [];        // stack of modal screen names (pause, settings over pause, daily, confirm)
     this.dailyChecked = false;
@@ -52,6 +56,8 @@ export class UI {
     const ev = game.events;
     ev.on('game:state', ({ state }) => this.onState(state));
     ev.on('save:changed', () => this.refreshCoins());
+    ev.on('settings:changed', () => this.applyHand());
+    this.achToast = mountAchToast(this); // update 3 stage 5: achievement toast
     this.applySettings(true);
     this.onState(game.state);
   }
@@ -180,10 +186,7 @@ export class UI {
   }
 
   // ---------------- feedback ----------------
-  vibrate(ms) {
-    if (!this.save?.data.settings.vibration) return;
-    try { navigator.vibrate?.(ms); } catch { /* unsupported */ }
-  }
+  vibrate(ms) { haptic(this.save, ms); }
 
   audio() { return this.game.audio || window.__game?.audio || null; }
 
@@ -197,8 +200,17 @@ export class UI {
   applySettings(boot = false) {
     const st = this.save.data.settings;
     const a = this.audio();
-    try { a?.setMusic?.(st.music); a?.setSfx?.(st.sfx); } catch { /* optional */ }
+    try { a?.setMusic?.(st.music); a?.setSfx?.(st.sfx); a?.setVolumes?.(st.musicVol, st.sfxVol); } catch { /* optional */ }
+    this.applyHand();
     if (!(boot && (this.params.quality || this.params.test))) this.setQuality(st.quality);
+  }
+
+  /** Left-handed play (update 3 stage 5): `.hud.left-hand` moves the ability (and stage 4 control) buttons left. */
+  /** (stage 4's hudcontrols.css mirrors on `.hud.side-left`: both classes are set so either rule set applies.) */
+  applyHand() {
+    const left = this.save.data.settings.abilitySide === 'left';
+    this.hud.el.classList.toggle('left-hand', left);
+    this.hud.el.classList.toggle('side-left', left);
   }
 
   setQuality(q) {
