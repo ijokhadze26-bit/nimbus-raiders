@@ -101,7 +101,11 @@ function mk5(hpMul) {
   const ev = (at) => horde(at, 300, { grunt: 1 }, 'both', hpMul ? { hpMul } : {});
   arena([ev(60), ev(110), ev(160)], { speed: 9, mk: 5, squad: 900, fire: true });
   g.heroes.guard = 99;
-  d.simulate(14);
+  // the freeze cap is a property of the weapon alone: stage 4's formation x combo gun boost is held at 1 here
+  const fr = g.formation, ref = fr.refresh;
+  fr.refresh = function () { this.hordeK = 1; this.bossK = 1; };
+  fr.refresh();
+  try { d.simulate(14); } finally { fr.refresh = ref; fr.refresh(); }
   const S = beh().stats;
   return { hits: S.hits, freezes: S.freezes, rate: Math.round((S.freezes / Math.max(1, S.hits)) * 1000) / 1000, maxPe: Math.round(S.maxPe * 1000) / 1000, kills: g.run.kills };
 }
