@@ -11,7 +11,8 @@ export const ROTOR_Y = 0.62;
 const YELLOW = '#ffc531', BLACK = '#2a2e3a', STEEL = '#6f7f99', STEEL_D = '#3c475c';
 
 const cache = {};
-const once = (k, make) => cache[k] || (cache[k] = make());
+const LIP_VARIANTS = 6;
+const once =(k, make) => cache[k] || (cache[k] = make());
 
 function canvasTex(w, h, draw, opts = {}) {
   const c = document.createElement('canvas');
@@ -219,6 +220,10 @@ function rnd(seed) {
  * Jagged slab chunks (white top, theme side color) sag a little, with cracks and a few loose shards.
  */
 export function gapLipGeometry(width, theme, seed = 1) {
+  // LIP_VARIANTS shapes per width + theme: every hole used to build (and cache for good) two fresh ~60-part
+  // geometries, and world 2-5 cut many holes (gaps, cracks, collapses, platforms) - a build spike per hole and a
+  // geometry count that only grew. Cosmetic only: the lip shape never touches the game.
+  seed = ((seed % LIP_VARIANTS) + LIP_VARIANTS) % LIP_VARIANTS + 1;
   return once(`lip:${width.toFixed(2)}:${theme.id}:${seed}`, () => {
     const r = rnd(seed * 977 + 13);
     const parts = [];
