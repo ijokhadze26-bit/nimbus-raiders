@@ -83,16 +83,16 @@ export function planProps(def) {
     kinds = pool.slice(0, few ? 1 : 2);
   }
   const used = new Set();
-  kinds.forEach((kind, j) => {
+  const place = (kind, j, n, reach) => {
     // the j-th object goes near the horde at fraction (j + 0.5) / n of the level, then its neighbours
-    const want = Math.min(hordes.length - 1, Math.floor(((j + 0.5) / kinds.length) * hordes.length));
+    const want = Math.min(hordes.length - 1, Math.floor(((j + 0.5) / n) * hordes.length));
     const order = [];
     for (let k = 0; k < hordes.length; k++) for (const i of k ? [want + k, want - k] : [want]) if (i >= 0 && i < hordes.length && !order.includes(i)) order.push(i);
     for (const i of order) {
       if (used.has(i)) continue;
       const h = hordes[i], base = spotFor(kind, h);
       let at = null;
-      for (let d = 0; d <= 8 && at == null; d += 1) for (const z of d ? [base - d, base + d] : [base]) if (at == null && fits(blocks, kind, z, lo, hi)) at = z;
+      for (let d = 0; d <= reach && at == null; d += 1) for (const z of d ? [base - d, base + d] : [base]) if (at == null && fits(blocks, kind, z, lo, hi)) at = z;
       if (at == null) continue;
       used.add(i);
       const ev = { type: 'prop', kind, at };
@@ -101,9 +101,14 @@ export function planProps(def) {
       if (lesson && TEACH[kind] === def.id) ev.hint = PROP_HINTS[kind];
       def.events.push(ev);
       blocks.push([at - CLEAR.prop[0], at + CLEAR.prop[1]]);
-      break;
+      return true;
     }
-  });
+    return false;
+  };
+  let placed = 0;
+  kinds.forEach((kind, j) => { if (place(kind, j, kinds.length, 8)) placed++; });
+  // crowded level (e.g. L24 after the stage-4 road pass): no spot found - try every kind once with a wider search
+  if (!placed && !lesson) for (const kind of PROP_KINDS) if (place(kind, 0, 1, 24)) break;
   return def;
 }
 
