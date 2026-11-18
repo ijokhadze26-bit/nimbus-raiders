@@ -371,6 +371,7 @@ function heroDemo(ctx) {
   const id = hero.ability.id;
   let shot = 0.3, abT = showAbility ? ABILITY_EVERY - 1.2 : -1, pose = -1, extra = null, flashed = false;
   const H = (rigH.scale || 1.25) / 1.25 * (hero.scale || 1);
+  const cone = (weapon.preview && weapon.preview.pattern) === 'cone', flames = [];
   const cleanup = () => {
     if (!extra) return;
     content.root.remove(extra.obj);
@@ -426,7 +427,14 @@ function heroDemo(ctx) {
         fx.ring(0, 0.08, METEOR_Z, 0.3, 2.4, '#ff7a1f', 0.6);
         fx.ring(0, 0.08, METEOR_Z, 0.2, 1.7, '#ffd34d', 0.45);
         fx.burst(0, 0.3, METEOR_Z, 22, '#ff7a1f', 4.5, 0.11, 0.7, 0.9);
-        fx.disc(0, METEOR_Z, 0.85, '#c9672e', 1.0, { y: 0.03, fade: 0.7 }); // ember scorch, shrinks away
+        // stage 6: no ground scorch disc any more (the opaque brown disc read as a dirty mark beside Cinder on the
+        // Heroes page). Instead a brief bright ember flash: an additive ring burst + glowing embers that rise,
+        // shrink and are gone within 0.6 s, so nothing sits on the pedestal.
+        fx.ring(0, 0.09, METEOR_Z, 0.05, 0.95, '#fff2b0', 0.32);
+        for (let i = 0, k = fx.n(8); i < k; i++) {
+          const a = rnd(0, 6.28), r = rnd(0.15, 0.8);
+          fx.spark(Math.cos(a) * r, 0.1, METEOR_Z + Math.sin(a) * r, 0, rnd(0.6, 1.4), 0, i % 2 ? '#ffd34d' : '#ff9a3d', rnd(0.06, 0.1), rnd(0.35, 0.6));
+        }
       } else if (u > 1.8) cleanup();
     } else if (extra.kind === 'bubble') {
       const k = u < 0.25 ? u / 0.25 : u > 1.8 ? Math.max(0, 1 - (u - 1.8) / 0.3) : 1;
@@ -451,8 +459,17 @@ function heroDemo(ctx) {
       shot -= dt;
       if (shot <= 0 && pose < 0) {
         shot = 0.45;
-        fx.proj('main', m.x, m.y, m.z, 0, 0, -12, { life: 0.45, s: S * 0.9 });
+        // flame shots (cone weapons: Cinder's Emberstorm) die out over the pedestal instead of flying full size
+        // past the camera, where they read as a big pale smear on the floor
+        if (cone) flames.push(fx.proj('main', m.x, m.y, m.z, 0, 0, -6, { life: 0.3, s: S * 0.45 }));
+        else fx.proj('main', m.x, m.y, m.z, 0, 0, -12, { life: 0.45, s: S * 0.9 });
         fx.spark(m.x, m.y, m.z - 0.1, 0, 0, -0.5, look.core, 0.14, 0.06);
+      }
+      for (let i = flames.length - 1; i >= 0; i--) {
+        const f = flames[i];
+        if (f.age >= f.life || flames.length > 6) { flames.splice(i, 1); continue; }
+        const u = f.age / f.life;
+        f.s = S * 0.45 * (0.8 + 0.6 * u) * (u > 0.55 ? Math.max(0.05, 1 - (u - 0.55) * 2.2) : 1);
       }
       if (showAbility) {
         abT += dt;

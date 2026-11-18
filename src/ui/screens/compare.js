@@ -10,7 +10,8 @@ import { icon } from '../icons.js';
 import { WEAPON_DEFS, WEAPON_BY_ID } from '../../data/weapons.js';
 import { HERO_DEFS, HERO_DEF_BY_ID } from '../../data/heroes.js';
 import { isWeaponUnlocked, isHeroUnlocked, heroWeapon, lockText } from '../../save/unlocks.js';
-import { weaponBars, heroBars, weaponParts, abilityParts, healthLine, speedLine, bonusLine, favouriteInfo, targets, mkLabel, SCALED_ABILITIES } from '../infofmt.js';
+import { weaponBars, heroBars, weaponParts, abilityParts, healthLine, speedLine, bonusLine, favouriteInfo, targets, targetName, mkLabel, SCALED_ABILITIES } from '../infofmt.js';
+import { targetBlurb } from '../enemyblurbs.js';
 import { weaponIcon, heroIcon, targetIcon } from '../icons2.js';
 import { createPreview } from '../preview.js';
 import { chipHtml, mkControl, ENTER_MS } from './armory.js';
@@ -51,7 +52,18 @@ export function createCompare(ui) {
     const fav = favouriteInfo(d, ui.save.data);
     return [healthLine(d), speedLine(d), bonusLine(d), `${d.passive.name}: ${d.passive.text}`, `${d.ability.name}: ${abilityParts(d, mk).join('. ')}`, fav.text];
   }
-  const sw = (d, key) => `<ul class="cmp-sw">${targets(d[key]).map((t) => `<li title="${t.name}${t.why ? ': ' + t.why : ''}"><span class="sw-ico">${targetIcon(t.id)}</span><span>${t.name}</span></li>`).join('')}</ul>`;
+  // strong / weak icons; a tap shows that enemy's / boss's one-line description under the list
+  const sw = (d, key) => `<ul class="cmp-sw">${targets(d[key]).map((t) => `<li data-act="swc" data-id="${t.id}" role="button" title="${t.name}${t.why ? ': ' + t.why : ''}">`
+    + `<span class="sw-ico">${targetIcon(t.id)}</span><span>${t.name}</span></li>`).join('')}</ul><p class="cmp-d" hidden></p>`;
+  function describe(btn) {
+    const p = btn.parentElement && btn.parentElement.nextElementSibling;
+    if (!p || !p.classList.contains('cmp-d')) return;
+    const id = btn.dataset.id, same = p.dataset.id === id && !p.hidden;
+    for (const li of btn.parentElement.children) li.classList.toggle('on', !same && li === btn);
+    p.hidden = same;
+    p.dataset.id = same ? '' : id;
+    p.textContent = same ? '' : `${targetName(id)}: ${targetBlurb(id)}`;
+  }
   function col(d, side) {
     const lk = !unlocked(d.id);
     return `<div class="cmp-col ${side}"><div class="cmp-name"><span class="ip-ico">${iconOf(d.id)}</span><b>${d.name}</b></div>`
@@ -111,7 +123,8 @@ export function createCompare(ui) {
         mk = Number(btn.dataset.mk) || 3;
         render(true);
         if (!isHero()) { prevA.set(item(o.a)); prevB.set(item(o.b)); }
-      } else if (act === 'try') {
+      } else if (act === 'swc') describe(btn);
+      else if (act === 'try') {
         const id = btn.dataset.side === 'b' ? o.b : o.a;
         const key = isHero() ? 'hero' : 'weapon';
         ui.game.practiceReturn = { screen: o.page || (isHero() ? 'heroes' : 'armory'), opts: { ...(o.opts || {}), [key]: o.a, mk } };

@@ -28,6 +28,23 @@ const ENEMY_SVG = {
     <circle cx="26" cy="4.6" r="2.6" fill="#ffd34d"/><circle cx="26" cy="4.6" r="1.2" fill="#fff"/>
     <circle cx="15" cy="18.5" r="11" fill="${c}" stroke="${O}" stroke-width="2.2"/>${eye(11.5, 17)}${eye(18.5, 17)}
     <path d="M10.5 23c3 2 6 2 9 0" stroke="#5a0a14" stroke-width="2" fill="none" stroke-linecap="round"/>`,
+  // update 3 enemies (stage 6)
+  blaster: (c) => `<circle cx="16" cy="17" r="14" fill="none" stroke="#ff7a1f" stroke-width="1.6" stroke-dasharray="3 2.4" opacity=".8"/>
+    <path d="M16 3.5v3.5M6 8l2.4 2.4M26 8l-2.4 2.4" stroke="#ff7a1f" stroke-width="2.4" stroke-linecap="round"/>
+    <circle cx="16" cy="18" r="9.5" fill="${c}" stroke="${O}" stroke-width="2.2"/>${eye(12.5, 17, 2.3)}${eye(19.5, 17, 2.3)}
+    <ellipse cx="16" cy="23" rx="2.6" ry="1.8" fill="#5a2a05"/>`,
+  healer: (c) => `<ellipse cx="16" cy="20" rx="10.5" ry="9" fill="${c}" stroke="${O}" stroke-width="2.2"/>${eye(12.4, 19, 2.3)}${eye(19.6, 19, 2.3)}
+    <path d="M13 24.5c2 1.3 4 1.3 6 0" stroke="#0c5a3a" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+    <path d="M16 1.8v8.4M11.8 6h8.4" stroke="#fff" stroke-width="5" stroke-linecap="round"/><path d="M16 2.8v6.4M12.8 6h6.4" stroke="#17c46a" stroke-width="2.6" stroke-linecap="round"/>`,
+  spawner: (c) => `<path d="M5 27c-2-6 0-13 4-17 3-3 11-4 15-1 5 4 6 12 3 18z" fill="${c}" stroke="${O}" stroke-width="2.2" stroke-linejoin="round"/>
+    <ellipse cx="11" cy="16" rx="2.6" ry="2.2" fill="#3a1650"/><ellipse cx="20.5" cy="13.5" rx="2.2" ry="1.9" fill="#3a1650"/><ellipse cx="18" cy="21.5" rx="3" ry="2.5" fill="#3a1650"/>
+    <circle cx="18" cy="21.6" r="1.8" fill="#8a4dff"/><circle cx="18.4" cy="21.3" r=".7" fill="#ffd23d"/>`,
+  sniper: (c) => `<ellipse cx="12" cy="19" rx="9" ry="8.5" fill="${c}" stroke="${O}" stroke-width="2.2"/>${eye(10, 16.5, 2.3)}
+    <path d="M17 17.5l8-3.5 1.6 4-8.4 3z" fill="#7fae18" stroke="${O}" stroke-width="1.8" stroke-linejoin="round"/>
+    <circle cx="28.5" cy="12" r="2.6" fill="#c8ff4a" stroke="${O}" stroke-width="1.4"/>`,
+  flyer: (c) => `<path d="M14 15C9 7 3 8 1.5 11c4 0 6 3 7.5 6zM18 15c5-8 11-7 12.5-4-4 0-6 3-7.5 6z" fill="#bfe9ff" stroke="${O}" stroke-width="1.8" stroke-linejoin="round"/>
+    <ellipse cx="16" cy="19" rx="8" ry="7.5" fill="${c}" stroke="${O}" stroke-width="2.2"/>${eye(13, 18, 2.1)}${eye(19, 18, 2.1)}
+    <path d="M14 23.4l2 1.6 2-1.6" stroke="#0b4a66" stroke-width="1.6" fill="none" stroke-linejoin="round"/>`,
 };
 export function enemyIcon(id) {
   const e = ENEMIES[id];
@@ -52,6 +69,15 @@ const BOSS_SVG = {
   tempestking: `<path d="M7 11l2-6 4 4 3-6 3 6 4-4 2 6z" fill="#ffc531" stroke="${O}" stroke-width="1.6" stroke-linejoin="round"/>
     <path d="M4 22c0-7 5-11 12-11s12 4 12 11c0 4-4 6-12 6S4 26 4 22z" fill="#5d6487" stroke="${O}" stroke-width="2.2"/>
     <path d="M17 13l-4 7h4l-3 7 7-9h-4l3-5z" fill="#ffe14d" stroke="${O}" stroke-width="1.2" stroke-linejoin="round"/>`,
+  // update 3 bosses (stage 6)
+  glacius: `<path d="M8 10l2-7 3 5 3-6 3 6 3-5 2 7z" fill="#e8fbff" stroke="${O}" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M4 28V16c0-4 5-7 12-7s12 3 12 7v12z" fill="#8fd6f2" stroke="${O}" stroke-width="2.2" stroke-linejoin="round"/>
+    <path d="M8 13l3 3M24 13l-3 3" stroke="#fff" stroke-width="1.6" stroke-linecap="round" opacity=".8"/>
+    <circle cx="12" cy="18" r="2.4" fill="#2fb6ff"/><circle cx="20" cy="18" r="2.4" fill="#2fb6ff"/><path d="M11 24h10" stroke="#2a5f86" stroke-width="2.4" stroke-linecap="round"/>`,
+  gumdrop: `<path d="M12 6l1.4-3 2.6 2 2.6-2L20 6z" fill="#ffc531" stroke="${O}" stroke-width="1.4" stroke-linejoin="round"/>
+    <path d="M3 28c0-12 5-21 13-21s13 9 13 21z" fill="#ff7ad1" stroke="${O}" stroke-width="2.2" stroke-linejoin="round"/>
+    <circle cx="9" cy="16" r="1" fill="#fff"/><circle cx="23" cy="14" r="1" fill="#fff"/><circle cx="25" cy="22" r="1" fill="#fff"/><circle cx="7" cy="24" r="1" fill="#fff"/>
+    ${eye(12.5, 18, 2.6)}${eye(19.5, 18, 2.6)}<path d="M12.5 24c2.4 1.6 4.6 1.6 7 0" stroke="#7a1250" stroke-width="2" fill="none" stroke-linecap="round"/>`,
 };
 export function bossIcon(id) { return BOSS_SVG[id] ? svg(BOSS_SVG[id], 'ico-boss') : disc('#5d6487', (id || '?')[0].toUpperCase()); }
 /** Strong / weak list entry id -> icon (enemy or boss). */

@@ -9,6 +9,7 @@ import { WEAPON_DEFS, WEAPON_BY_ID } from '../../data/weapons.js';
 import { isWeaponUnlocked, buyWeapon, selectWeapon, markSeen, canBuy, isNew } from '../../save/unlocks.js';
 import { lockText, weaponParts, weaponBars, weaponMkTable, targets, shieldRule, mkLabel, ROMAN, MAX_MK } from '../infofmt.js';
 import { weaponIcon, targetIcon } from '../icons2.js';
+import { targetBlurb } from '../enemyblurbs.js';
 import { createPreview } from '../preview.js';
 import '../info.css';
 
@@ -33,11 +34,27 @@ export function mkControl(mk, label = 'Power level') {
   return h + '</span></div>';
 }
 
-/** STRONG AGAINST / WEAK AGAINST blocks with enemy / boss icons (heroes show each entry's why). */
+/**
+ * STRONG AGAINST / WEAK AGAINST blocks with enemy / boss icons (heroes show each entry's why). Every entry is a
+ * button: a tap opens a one-line "what is it" (ui/enemyblurbs.js) under the name (toggleSw).
+ */
 export function swHtml(def, showWhy) {
-  const list = (arr) => targets(arr).map((t) => `<li class="sw-i${t.boss ? ' boss' : ''}"><span class="sw-ico">${targetIcon(t.id)}</span><span class="sw-n">${t.name}</span>${showWhy && t.why ? `<small>${t.why}</small>` : ''}</li>`).join('');
+  const list = (arr) => targets(arr).map((t) => {
+    const d = targetBlurb(t.id);
+    return `<li class="sw-i${t.boss ? ' boss' : ''}"${d ? ` data-act="sw" data-id="${t.id}" role="button" tabindex="0" aria-expanded="false" title="${t.name}: ${d}"` : ''}>`
+      + `<span class="sw-ico">${targetIcon(t.id)}</span><span class="sw-n">${t.name}</span>${showWhy && t.why ? `<small>${t.why}</small>` : ''}`
+      + `${d ? `<small class="sw-d">${d}</small>` : ''}</li>`;
+  }).join('');
   return `<div class="sw"><div class="sw-col strong"><h4>STRONG AGAINST</h4><ul>${list(def.strong)}</ul></div>`
-    + `<div class="sw-col weak"><h4>WEAK AGAINST</h4><ul>${list(def.weak)}</ul></div></div>`;
+    + `<div class="sw-col weak"><h4>WEAK AGAINST</h4><ul>${list(def.weak)}</ul></div></div>`
+    + '<p class="sw-hint">Tap an enemy or boss to see what it does.</p>';
+}
+
+/** Opens / closes one entry's description line (the tapped one only). */
+export function toggleSw(btn) {
+  const open = !btn.classList.contains('open');
+  btn.classList.toggle('open', open);
+  btn.setAttribute('aria-expanded', String(open));
 }
 
 /**
@@ -149,7 +166,8 @@ export function createInfoPage(ui, cfg) {
     } else if (act === 'try') {
       ui.game.practiceReturn = { screen: cfg.name, opts: { ...page.opts, [cfg.optKey]: page.cur, mk: page.mk } };
       ui.game.startPractice(cfg.tryIt(def, page));
-    } else if (cfg.onAct) cfg.onAct(act, btn, page);
+    } else if (act === 'sw') toggleSw(btn);
+    else if (cfg.onAct) cfg.onAct(act, btn, page);
   };
   return { el, page, preview, show: page.show, hide: page.hide, onAct: page.onAct, onBack: back };
 }
