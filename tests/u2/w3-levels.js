@@ -119,7 +119,7 @@ for (const k of ['coins', 'stars', 'upgrades', 'skins', 'daily', 'endlessBest', 
 eq(Object.fromEntries(Object.keys(v2.settings).map((k) => [k, sv.data.settings[k]])), v2.settings, 'v2 settings');
 eq([sv.data.version, sv.data.unlockedLevel], [3, 16], 'v2 that beat L15 -> v3, unlockedLevel 16');
 eq([sv.data.settings.musicVol, sv.data.settings.sfxVol, sv.data.settings.abilitySide, sv.data.settings.colorblind, sv.data.settings.haptics], [0.8, 0.9, 'right', false, false], 'v3 settings (haptics = old vibration)');
-eq([sv.data.elite, sv.data.modes, sv.data.achievements, sv.data.squadTypes], [{}, { bossRushBest: 0, dailyBest: {}, chaosBest: 0, endlessBest: {} }, { done: [], claimed: [] }, { owned: [], mix: {} }], 'v3 defaults');
+eq([sv.data.elite, sv.data.modes, sv.data.achievements, sv.data.squadTypes], [{}, { bossRushBest: 0, dailyBest: {}, chaosBest: 0, endlessBest: {} }, { done: [], claimed: [], counts: {} }, { owned: [], mix: {} }], 'v3 defaults');
 sv.setSetting('haptics', true); eq(sv.data.settings.vibration, true, 'haptics drives the old vibration switch');
 sv.flush();
 eq(JSON.parse(localStorage.getItem(SAVE_KEY)).unlockedLevel, 16, 'written unlockedLevel');
@@ -142,8 +142,8 @@ eq([sv.data.stars[33], sv.data.stars[50], sv.data.stars[51], sv.data.stars.x], [
 eq(sv.data.elite, { 3: 3, 49: 3 }, 'elite sanitized');
 eq([sv.data.settings.musicVol, sv.data.settings.sfxVol, sv.data.settings.abilitySide, sv.data.settings.colorblind, sv.data.settings.haptics], [1, 0.25, 'right', true, false], 'v3 settings sanitized');
 eq(sv.data.modes, { bossRushBest: 1234, chaosBest: 0, dailyBest: { '2026-11-16': 900 }, endlessBest: { 1: 800 } }, 'modes sanitized');
-eq(sv.data.achievements, { done: ['first_win'], claimed: [] }, 'achievements sanitized');
-eq(sv.data.squadTypes, { owned: ['medic'], mix: { medic: 100, gunner: 30 } }, 'squadTypes sanitized');
+eq(sv.data.achievements, { done: ['first_win'], claimed: [], counts: {} }, 'achievements sanitized'); // stage 5 adds counts
+eq(sv.data.squadTypes, { owned: ['medic'], mix: { medic: 20, gunner: 20 } }, 'squadTypes sanitized'); // stage 5: mix snaps to OFF / FEW / MANY (0 / 10 / 20)
 // old tab (update 2 build) clamps progress to 15 levels: the v3 progress backup brings it back
 clear();
 localStorage.setItem(SAVE_KEY, JSON.stringify({ ...v2, version: 3, unlockedLevel: 31, stars: { ...v2.stars, 20: 3, 30: 2 } }));
