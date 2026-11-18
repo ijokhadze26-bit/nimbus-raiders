@@ -1,5 +1,5 @@
 // Stage 5 game modes (STAGE5.md A): MODES screen, ENDLESS per world, BOSS RUSH, DAILY CHALLENGE + local
-// leaderboard, CHAOS MODE, the run twists (local stub of data/modifiers.js), mode payouts / bests, the loadout and
+// leaderboard, CHAOS MODE, the run twists (shared data/modifiers.js + the local eliteHorde), mode payouts / bests, the loadout and
 // result screens of the modes, High and Low quality, and a quick autopilot spot check (casual, Pip + Thunderclap).
 const g = window.__game, d = g.debug, ui = g.ui;
 g.loop.stop();
@@ -158,7 +158,7 @@ ui.nav('loadout', { mode: 'chaos', roll }); await wait(20);
 ok(/CHAOS/.test(ui.screens.loadout.el.textContent) && /x2 SPEED/.test(ui.screens.loadout.el.textContent) && /MIRROR/.test(ui.screens.loadout.el.textContent), 'loadout shows the chaos roll');
 ui.screens.loadout.onAct('start');
 ok(g.run.mode === 'chaos' && g.run.levelId === 12 && Math.abs(g.run.speed - L.getLevel(12).speed * 2) < 0.02, `chaos x2 speed ${g.run.speed}`);
-ok(g.modes.steer(2) === -2 && g.modes.fx.fogMul < 1, 'mirror + fog active');
+ok(g.runMods.steer(2) === -2 && g.run.mods.fogMul < 1 && g.run.mods.ids.includes('mirror'), 'mirror + fog active (shared modifiers)');
 d.simulate(1);
 ok(g.hazards.mods.fogMul <= 0.41, 'fog pulls the view in');
 g.squad.reset(80, 0); g.win();
@@ -167,29 +167,33 @@ ok(CA.mode === 'chaos' && CA.score === 80 * CA.stars && CA.chaosMul === 1.75 && 
 g.retry();
 ok(g.run.mode === 'chaos' && JSON.stringify(g.modes.twists) !== JSON.stringify(roll.twists) || g.run.levelId !== 12, 'chaos RETRY rolls again');
 d.startLevel(3);
-ok(g.modes.steer(2) === 2 && g.modes.fx.fogMul === 1 && !g.modes.kind, 'a campaign run drops every twist');
+ok(g.runMods.steer(2) === 2 && g.run.mods.fogMul === 1 && !g.run.mods.ids.length && !g.modes.kind, 'a campaign run drops every twist');
 
 // ---------------- 6. twists ----------------
 const base = L.getLevel(9), snap = JSON.stringify(base);
+const runEvents = (id) => { // shared twists edit the run's event copies (data/modifiers.js via game/runmods.js)
+  g.startMode('chaos', { roll: { seed: 1, levelId: 9, twists: [id] } });
+  return [...new Set(Object.values(g.run.byType).flat())];
+};
 for (const id of TW.TWIST_IDS) {
-  const def = TW.applyDef([id], base);
+  const def = TW.usesShared(id) ? { events: runEvents(id) } : TW.applyDef([id], base);
   ok(JSON.stringify(base) === snap, `${id}: campaign def untouched`);
-  if (id === 'onlyRed') ok(def.events.filter((e) => e.type === 'gate').every((e) => (e.op === 'add' ? e.value < 0 : e.op === 'div')), 'onlyRed: every gate starts red');
-  if (id === 'noGuns') ok(!def.events.some((e) => e.type === 'crate' || (e.type === 'barrel' && e.reward.kind === 'weapon')), 'noGuns');
-  if (id === 'giantEnemies') ok(def.events.filter((e) => e.type === 'horde').every((e, i) => e.hpMul > (base.events.filter((x) => x.type === 'horde')[i].hpMul || 1)), 'giant hordes are tougher');
+  if (id === 'onlyRed') ok(def.events.filter((e) => e.type === 'gate').every((e) => (e.op === 'add' ? e.value <= 0 : e.rung !== undefined ? e.rung <= 2 : e.op === 'div')), 'onlyRed: every gate starts red');
+  if (id === 'noGuns') ok(!def.events.some((e) => e.type === 'barrel' && e.reward && e.reward.kind === 'weapon'), 'noGuns');
+  if (id === 'giantEnemies') ok(def.events.filter((e) => e.type === 'horde').every((e) => { const b = base.events.find((x) => x.type === 'horde' && x.at === e.at); return !b || e.hpMul > (b.hpMul ?? base.enemyHp ?? 1); }), 'giant hordes are tougher');
   if (id === 'eliteHorde') ok(def.events.filter((e) => e.type === 'horde').every((e) => e.elite >= 0.33), 'elite horde');
 }
 ok(TW.twistsText(['doubleSpeed', 'tinySquad']) === 'x2 SPEED + TINY SQUAD', 'twist text');
 info.sharedModifiers = TW.TWIST_IDS.filter((id) => TW.usesShared(id));
 g.startMode('chaos', { roll: { seed: 1, levelId: 4, twists: ['giantEnemies', 'tinySquad'] } });
-ok(g.squad.count === 1, 'tiny squad starts alone');
+ok(g.squad.count <= 20 && g.squad.capMax === 20, `tiny squad capped at 20 (${g.squad.count})`);
 d.simulate(12);
-ok(g.horde.list.length === 0 || g.horde.list.some((e) => e.giant && e.size >= 1.5), 'giant enemies drawn big');
+ok(g.horde.list.length === 0 || g.horde.list.some((e) => e.size >= 1.4), 'giant enemies drawn big');
 g.startMode('chaos', { roll: { seed: 1, levelId: 4, twists: ['halfSquad'] } });
-ok(['noUpgrades', 'halfSquad', 'oneLife', 'fog', 'doubleSpeed', 'tinySquad', 'onlyRed', 'giantEnemies', 'noGuns', 'mirror'].every((id) => TW.TWISTS[id] && TW.TWISTS[id].label), 'stub maps all 10 shared modifier ids');
+ok(['noUpgrades', 'halfSquad', 'oneLife', 'fog', 'doubleSpeed', 'tinySquad', 'onlyRed', 'giantEnemies', 'noGuns', 'mirror'].every((id) => TW.TWISTS[id] && TW.TWISTS[id].label && TW.usesShared(id)), 'all 10 modifier ids come from data/modifiers.js');
 setSave((x) => { x.upgrades.tier = 2; });
 g.startMode('chaos', { roll: { seed: 1, levelId: 4, twists: ['oneLife', 'noUpgrades'] } });
-ok(g.weapons.mk === 1 && g.heroes.guard === 0 && !g.run.def.events.some((e) => e.type === 'powerup' && e.kind === 'shield'), `noUpgrades + oneLife set up (mk ${g.weapons.mk})`);
+ok(g.weapons.mk === 1 && g.heroes.guard === 0 && !(g.run.byType.powerup || []).some((e) => e.kind === 'shield'), `noUpgrades + oneLife set up (mk ${g.weapons.mk})`);
 g.squad.reset(40, 0); d.simulate(0.2);
 ok(g.state === 'playing', 'one life: a full squad plays on');
 g.squad.reset(15, 0); d.simulate(0.2);

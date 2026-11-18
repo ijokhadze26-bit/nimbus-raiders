@@ -17,6 +17,7 @@ import { WEAPON_IDS, DEFAULT_WEAPON } from '../data/weapons.js';
 import { isHeroUnlocked, isWeaponUnlocked } from './unlocks.js';
 import { TOTAL_LEVELS, WORLD_COUNT } from '../data/worlds.js';
 import { PLAYER_MOD_IDS } from '../data/modifiers.js';
+import { SQUAD_TYPE_IDS, mixLevel } from '../data/squadtypes.js';
 
 export const SAVE_KEY = 'nimbusRaiders.save.v1';
 export const OWNED_KEY = 'nimbusRaiders.owned.v2';
@@ -26,7 +27,7 @@ const EXTRA_MAX = 16, EXTRA_BYTES = 4096;
 const LEVELS = TOTAL_LEVELS;
 /** The last level of update 2: beating it used to leave unlockedLevel there. */
 const OLD_LAST = 15;
-const WORLDS = WORLD_COUNT, ID_MAX = 64, ID_LIST = 200, DAILY_KEEP = 60, MIX_MAX = 100;
+const WORLDS = WORLD_COUNT, ID_LIST = 200, DAILY_KEEP = 60, MIX_MAX = 100;
 const QUALITIES = ['auto', 'high', 'low'];
 
 export function defaultSave() {
@@ -134,11 +135,11 @@ export function sanitize(raw) {
       const n = int(v, 0, 1e12, 0); if (n) d.achievements.counts[k] = n;
     }
   }
-  strIds(raw.squadTypes?.owned, d.squadTypes.owned, ID_MAX);
+  ids(raw.squadTypes?.owned, SQUAD_TYPE_IDS, d.squadTypes.owned); // known raider types only
   if (isObj(raw.squadTypes?.mix)) {
     for (const [k, v] of Object.entries(raw.squadTypes.mix)) {
-      if (Object.keys(d.squadTypes.mix).length >= ID_MAX || !SAFE_ID.test(k)) continue;
-      d.squadTypes.mix[k] = int(v, 0, MIX_MAX, 0);
+      if (!SQUAD_TYPE_IDS.includes(k)) continue;
+      d.squadTypes.mix[k] = mixLevel(int(v, 0, MIX_MAX, 0)).share; // OFF / FEW / MANY
     }
   }
   ids(raw.modifiers, PLAYER_MOD_IDS, d.modifiers);

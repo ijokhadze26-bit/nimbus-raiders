@@ -8,9 +8,10 @@
 import { ACHIEVEMENTS, ACH_BY_ID } from '../data/achievements.js';
 import { WORLDS } from '../data/worlds.js';
 import { MENU_STATE_LIST } from './states.js';
+import { endlessBestOf } from '../save/modes.js';
 
 const SKIP_MODES = new Set(['practice', 'test']);
-const MAX_KEYS = new Set(['maxSquad', 'combo', 'mk5', 'endless', 'bossrush']); // kills come from run.kills (enemy:die is rate-limited)
+const MAX_KEYS = new Set(['maxSquad', 'combo', 'mk5', 'endless', 'bossrush', 'rushBosses']); // kills come from run.kills (enemy:die is rate-limited)
 const CHECK_EVERY = 0.5;
 
 /** Features some goals need (stage 4 systems, stage 5 modes): a goal whose feature is missing stays hidden. */
@@ -96,11 +97,16 @@ export class Achievements {
     if (win && m.includes('chaos')) this.add('chaosWins');
     if (win && m.includes('daily')) this.add('dailyClears');
     if (win && m.includes('boss') && m.includes('rush')) this.max('bossrush', 1);
+    if (m === 'bossrush') this.max('rushBosses', this.rushBeaten());
+    this.max('combo', run.stats.maxCombo || 0); // the best combo of the run (combo:tier only fires at tier steps)
     if (m === 'endless' || m.includes('endless')) this.max('endless', p.dist || 0);
     this.max('maxSquad', p.squad || 0);
     this.commit();
     this.soon(); // progress.js pays stars / kills in its own run:win handler: check after all handlers ran
   }
+
+  /** Bosses beaten in the live Boss Rush (game/modes; 0 when not in one). */
+  rushBeaten() { const M = this.game.modes; return (M && M.kind === 'bossrush' && M.rush && M.rush.beaten) || 0; }
 
   soon() {
     if (this.queued) return;
@@ -132,7 +138,9 @@ export class Achievements {
       case 'maxSquad': return Math.max(this.count('maxSquad'), run ? this.game.squad.count : 0);
       case 'heroes': return d.heroes.owned.length;
       case 'weapons': return d.arsenal.owned.length;
-      case 'combo': return Math.max(this.count('combo'), run && this.game.combo ? this.game.combo.n || 0 : 0);
+      case 'combo': return Math.max(this.count('combo'), run ? Math.max(run.stats.maxCombo || 0, this.game.combo ? this.game.combo.n || 0 : 0) : 0);
+      case 'rushBosses': return Math.max(this.count('rushBosses'), d.modes.bossRushBest > 0 ? 10 : 0, run ? this.rushBeaten() : 0);
+      case 'endlessWorlds': { let n = 0; for (const w of WORLDS) if (endlessBestOf(d, w.id) >= +arg) n++; return n; }
       case 'endless': {
         const live = run && String(run.mode).includes('endless') ? run.dist || 0 : 0;
         return Math.max(d.endlessBest, ...Object.values(d.modes.endlessBest), this.count('endless'), live);

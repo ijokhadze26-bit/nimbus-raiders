@@ -69,8 +69,11 @@ export const ACHIEVEMENTS = [
   a('modes', 'streak-3', 'REGULAR', 'Play 3 days in a row (daily gift)', 'gift', 'streak', 3, 150),
   a('modes', 'streak-7', 'DEVOTED', 'Play 7 days in a row (daily gift)', 'gift', 'streak', 7, 500),
   a('modes', 'bossrush', 'BOSS RUSH CHAMPION', 'Beat all 10 bosses in Boss Rush', 'skull', 'bossrush', 1, 1500, { needs: 'modes' }),
+  a('modes', 'endless-worlds', 'WORLD WANDERER', 'Run 500 m in Endless in all 5 worlds', 'map', 'endlessWorlds:500', 5, 800, { needs: 'modes' }),
+  a('modes', 'bossrush-5', 'HALF RUSH', 'Beat 5 bosses in one Boss Rush', 'skull', 'rushBosses', 5, 400, { needs: 'modes' }),
   a('modes', 'chaos-win', 'CHAOS TAMER', 'Win a Chaos Mode run', 'bolt', 'chaosWins', 1, 500, { needs: 'modes' }),
   a('modes', 'daily-clear', 'CHALLENGER', 'Clear a Daily Challenge', 'map', 'dailyClears', 1, 300, { needs: 'modes' }),
+  a('modes', 'daily-5', 'DAILY HABIT', 'Clear 5 Daily Challenges', 'gift', 'dailyClears', 5, 600, { needs: 'modes' }),
 ];
 
 export const ACH_BY_ID = Object.fromEntries(ACHIEVEMENTS.map((x) => [x.id, x]));

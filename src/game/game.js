@@ -67,10 +67,8 @@ export class Game {
     this.run = null;
     this.save = null;
     this.bank = { coins: 0 };
-    // later-stage systems (null until implemented)
-    this.obstacles = null; this.pickups = null; this.powers = null; this.boss = null;
-    this.resultTimer = -1;
-    this.lastResult = null;
+    this.obstacles = null; this.pickups = null; this.powers = null; this.boss = null; // set below
+    this.resultTimer = -1; this.lastResult = null;
     this.idleFrames = 0;
     this.camLook = new THREE.Vector3(0, 0, -14);
     this.camPos = new THREE.Vector3(0, CAMERA.height, CAMERA.back);
@@ -115,8 +113,7 @@ export class Game {
     this.crates = new Crates();
     this.hazards = new Hazards(); // update 3 world hazards (mods / danger read by squad, world, obstacles, autopilot)
     this.dodge = new Dodge(); this.combo = new Combo(); this.formation = new Formation(); // update 3 stage 4 controls
-    this.cages = new Cages(); // stage 4 rescue cages (shoot the lock, freed Raiders join)
-    this.props = new Props();     // stage 4 road objects: crane, dam, bell, boulder
+    this.cages = new Cages(); this.props = new Props(); // stage 4 rescue cages + road objects (crane, dam, bell, boulder)
     this.systems = [this.combo, this.formation, this.dodge, this.world, this.bullets, this.squad, this.status, this.zones, this.heroes, this.helpers, this.weapons, this.gates, this.cages, this.horde, this.barrels, this.telegraph, this.bosses, this.obstacles, this.hazards, this.props, this.pickups, this.powers, this.crates, this.autopilot];
     this.runMods = new RunMods(); this.runMods.init(this); this.squadTypes = new SquadTypes(); this.squadTypes.init(this); // stage 5
     for (const s of this.systems) s.init(this);
@@ -191,9 +188,7 @@ export class Game {
     this.run.killsBy = { weapon: 0, ability: 0, helper: 0, other: 0 };
     this.modes.begin(mode);
     if (mode === 'endless') this.endless.start(this.run, seed); else this.endless.stop();
-    this.timeScale = 1;
-    this.resultTimer = -1;
-    this.lastResult = null;
+    this.timeScale = 1; this.resultTimer = -1; this.lastResult = null;
     this.world.setTheme(def.theme);
     this.world.setGaps([]);
     this.world.reset();
@@ -384,7 +379,6 @@ export class Game {
       this.obstacles.update(dt);
       this.hazards.update(dt);
       this.cages.update(dt);
-      this.modes.update(dt);
       this.pickups.update(dt);
       this.powers.update(dt);
       this.heroes.update(dt);

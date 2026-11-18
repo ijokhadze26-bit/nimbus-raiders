@@ -126,9 +126,9 @@ const al = awardLose(g.save, { mode: 'level', levelId: 1, coins: 50 }, fakeRun);
 ok(al.coins === 85, `loss payout x1.7: ${al.coins}`);
 
 // save
-const sv = sanitize({ modifiers: ['fog', 'oneLife', 'fog', 'mirror', 'nope', 3], squadTypes: { owned: ['shield', 'medic'], mix: { shield: 20, medic: 999 } } });
+const sv = sanitize({ modifiers: ['fog', 'oneLife', 'fog', 'mirror', 'nope', 3], squadTypes: { owned: ['shield', 'medic', 'wizard', 'shield'], mix: { shield: 20, medic: 999, wizard: 10, gunner: 7 } } });
 ok(JSON.stringify(sv.modifiers) === '["fog","oneLife"]', `save.modifiers sanitized ${JSON.stringify(sv.modifiers)}`);
-ok(sv.squadTypes.owned.length === 2 && sv.squadTypes.mix.shield === 20 && sv.squadTypes.mix.medic === 100, 'squadTypes sanitized');
+ok(sv.squadTypes.owned.length === 2 && sv.squadTypes.mix.shield === 20 && sv.squadTypes.mix.medic === 20 && sv.squadTypes.mix.gunner === 10 && !('wizard' in sv.squadTypes.mix), `squadTypes sanitized ${JSON.stringify(sv.squadTypes)}`);
 ok(JSON.stringify(sanitize({ version: 2, coins: 5 }).modifiers) === '[]', 'old save: no modifiers');
 
 // ---------------- 2. squad types ----------------

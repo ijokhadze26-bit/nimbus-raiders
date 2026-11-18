@@ -16,6 +16,7 @@ export class RunMods {
   begin(run, ids) {
     const g = this.game;
     this.mods = run ? applyMods(run.mode === 'practice' ? [] : ids, run.def, run, g) : freshMods();
+    if (run && g.modes && g.modes.owns(run.mode)) this.mods.bonus = 0; // mode twists: the mode pays its own bonus
     g.squad.capMax = this.mods.cap ? Math.min(FORMATION.cap, this.mods.cap) : FORMATION.cap;
     if (this.mods.oneLife && g.heroes) { g.heroes.guard = 0; g.heroes.guardMax = 0; }
   }

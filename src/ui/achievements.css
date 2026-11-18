@@ -71,7 +71,8 @@
 }
 .ach-btn .ach-dot[hidden] { display: none; }
 .ach-btn .ico { font-size: 30px; filter: drop-shadow(0 2px 0 #48208f); }
-.screen-achievements .topbar .plaque { font-size: clamp(14px, 4.5cqw, 20px); gap: 6px; padding-inline: 10px; }
+.screen-achievements .topbar .plaque { font-size: clamp(13px, 4cqw, 20px); gap: 6px; padding-inline: 10px; min-width: 0; }
+@media (max-width: 420px) { .screen-achievements .topbar .plaque .ico { display: none; } } /* a 5-digit coin pill still fits at 390 px */
 .screen-achievements .topbar .plaque .ico { font-size: 20px; }
 
 /* toast: slides in under the HUD top bar (or the menu topbar) and out again */
@@ -81,6 +82,7 @@
   background: linear-gradient(180deg, rgba(255, 210, 70, 0.97), rgba(255, 160, 20, 0.97)); border: 3px solid #fff;
   box-shadow: 0 0 0 3px #a85400, 0 6px 0 3px #7a3d00, 0 0 24px rgba(255, 200, 60, 0.8);
 }
+.ach-toast.below-chips { top: calc(var(--safe-t) + 112px); } /* a mode run's twist chips stay readable */
 .ach-toast.show { animation: ach-toast 3s cubic-bezier(.2, 1.2, .4, 1) forwards; }
 .ach-toast .t-ico { width: 42px; height: 42px; flex: none; border-radius: 50%; display: grid; place-items: center; font-size: 26px; background: #fff; color: #ffae1a; box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.12); }
 .ach-toast .t-col { display: flex; flex-direction: column; min-width: 0; }

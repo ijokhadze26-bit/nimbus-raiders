@@ -23,6 +23,8 @@ export function mountAchToast(ui) {
     name.textContent = def.name;
     coins.textContent = fmt(def.reward);
     node.classList.remove('show');
+    const chips = ui.root.querySelector('.mode-chip:not(.hidden):not(.in-boss)'); // mode twist chips sit under the top bar
+    node.classList.toggle('below-chips', !!(chips && chips.offsetHeight));
     void node.offsetWidth;
     node.classList.add('show');
     ui.sfx('star', { index: 2 });

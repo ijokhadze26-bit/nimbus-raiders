@@ -24,7 +24,7 @@ export function createSettings(ui) {
         <div class="set-row set-audio"><span class="set-ico">${icon('sound')}</span><span class="set-label">Sound</span>${sw('sfx')}${vol('sfx', 'Sound')}</div>
         <div class="set-row"><span class="set-ico">${icon('vibration')}</span><span class="set-label">Haptics<small class="set-note no-vib">not on this device</small></span>${sw('haptics')}</div>
         <div class="set-row set-wrap">
-          <span class="set-ico">${HAND_SVG}</span><span class="set-label">Ability button</span>
+          <span class="set-ico">${HAND_SVG}</span><span class="set-label">Action buttons</span>
           <div class="seg seg-hand"><button type="button" data-act="hand" data-side="left">${icon('back')} LEFT</button><button type="button" data-act="hand" data-side="right">RIGHT <span class="flip">${icon('back')}</span></button></div>
         </div>
         <div class="set-row set-wrap">
