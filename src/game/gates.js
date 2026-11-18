@@ -4,15 +4,16 @@
 // grey '?' panel that ignores raise hits until it is revealed - when no live enemy stands between the squad and
 // it (checked from REVEAL_NEAR u out, so the screen has to be shot through) or after REVEAL_HITS real hits.
 // Passing it still applies its real op (a blind gamble).
+// Update 3 stage 5: colours come from models/gatecolors.js (COLOURBLIND setting: blue ▲ good / orange ▼ striped bad).
 import * as THREE from 'three';
-import { GATE, LANES, COLORS, FORMATION, HIT } from '../config.js';
+import { GATE, LANES, FORMATION, HIT } from '../config.js';
 import { buildGateVisual, shardGeometry } from '../models/gate.js';
 import { drawLabel, signed, labelReady } from '../models/labels.js';
 import { hasHit } from './bullets.js';
 import { markInstances } from '../core/pool.js';
+import { gatePalette, stripeTexture, drawMarks } from '../models/gatecolors.js';
 
-const RED = new THREE.Color(COLORS.bad), BLUE = new THREE.Color(COLORS.good);
-const RED_GLOW = new THREE.Color('#ff6b7a'), BLUE_GLOW = new THREE.Color('#7fd0ff');
+const BLUE_GLOW = new THREE.Color('#7fd0ff'); // shard tint (colours: gatecolors.js palette)
 const _c = new THREE.Color(), _c2 = new THREE.Color();
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _p = new THREE.Vector3(), _s = new THREE.Vector3();
 const MAX_SHARDS = 160;
@@ -197,7 +198,8 @@ export class Gates {
   reveal(g) {
     if (!g.hidden) return;
     g.hidden = false; g.dirty = true; g.flash = 1; g.punch = 1.4;
-    this.burst(g.x, 0.3, g.z, g.width, GATE.height, g.colorT > 0.5 ? BLUE_GLOW : RED_GLOW, 10);
+    const P = this.palette();
+    this.burst(g.x, 0.3, g.z, g.width, GATE.height, g.colorT > 0.5 ? P.goodGlow : P.badGlow, 10);
     this.game.events.emit('gate:reveal', { id: g.id, pos: { x: g.x, y: 1.2, z: g.z } });
   }
 
@@ -213,7 +215,8 @@ export class Gates {
   }
 
   shatter(g) {
-    _c.copy(RED).lerp(BLUE, g.colorT);
+    const P = this.palette();
+    _c.copy(P.bad).lerp(P.good, g.colorT);
     this.burst(g.x, 0.3, g.z, g.width, GATE.height, _c, Math.round(10 * (g.width / GATE.width) + 8));
   }
 
@@ -278,16 +281,27 @@ export class Gates {
   upcoming() { return this.rows.filter((r) => !r.resolved); }
 
   // ---- visuals ----
+  /** Current gate palette (normal / colourblind); a switch redraws every live label. */
+  palette() {
+    const P = gatePalette(!!this.game.save?.data?.settings?.colorblind);
+    if (P !== this.pal) { this.pal = P; for (const g of this.live) g.dirty = true; }
+    return P;
+  }
+
   sync(dt) {
+    const P = this.palette();
     for (const g of this.live) {
       const v = g.visual;
       if (!v) continue;
       const target = this.targetColorT(g);
       g.colorT += (target - g.colorT) * Math.min(1, dt * 8);
       if (g.hidden) { _c.copy(HIDDEN); _c2.copy(HIDDEN_GLOW); } else {
-        _c.copy(RED).lerp(BLUE, g.colorT);
-        _c2.copy(RED_GLOW).lerp(BLUE_GLOW, g.colorT);
+        _c.copy(P.bad).lerp(P.good, g.colorT);
+        _c2.copy(P.badGlow).lerp(P.goodGlow, g.colorT);
       }
+      if (!v.glassMap) v.glassMap = v.panelMat.map;
+      const map = P.cb && !g.hidden && g.colorT <= 0.5 ? stripeTexture(v.glassMap) : v.glassMap; // colourblind: bad = striped
+      if (v.panelMat.map !== map) v.panelMat.map = map;
       const fl = g.flash;
       v.panelMat.color.copy(_c).lerp(_c2, 0.25 + fl * 0.5);
       v.frameMat.color.copy(_c2);
@@ -339,20 +353,24 @@ export class Gates {
     const v = g.visual;
     const blue = g.colorT > 0.5;
     g.labelBlue = blue;
-    const stroke = blue ? '#0e3d9c' : '#8e0f22';
+    const P = this.palette(), cb = P.cb;
+    const stroke = blue ? P.goodStroke : P.badStroke;
+    const marks = cb ? (ctx, w) => drawMarks(ctx, w, blue, stroke) : null; // colourblind: ▲ good / ▼ bad
+    const dy = cb ? 0.06 : 0, ck = cb ? 'cb' : '';
     if (g.hidden) {
       drawLabel(v.label, '?', { fill: '#e6e9f7', stroke: '#2a2f4a', size: 130, strokeWidth: 20, y: 0.52, key: 'hidden' });
     } else if (g.op === 'add') {
-      drawLabel(v.label, signed(g.value), { fill: '#ffffff', stroke, size: 118, strokeWidth: 20, y: 0.52 });
+      drawLabel(v.label, signed(g.value), { fill: '#ffffff', stroke, size: cb ? 108 : 118, strokeWidth: 20, y: 0.52 + dy, key: ck, after: marks });
     } else if (g.hitsPerStep >= 10000) {
       // fixed ×/÷ gate (levels.js FIX): no 'shoot to climb' bar, so it never looks like a ladder
-      drawLabel(v.label, rungLabel(g.rung), { fill: '#ffffff', stroke, size: 118, strokeWidth: 20, y: 0.5 });
+      drawLabel(v.label, rungLabel(g.rung), { fill: '#ffffff', stroke, size: cb ? 108 : 118, strokeWidth: 20, y: 0.5 + dy, key: ck, after: marks });
     } else {
       const frac = g.rung < GATE.rungs.length - 1 ? g.hits / g.hitsPerStep : 1;
       const fq = Math.round(frac * 20);
       drawLabel(v.label, rungLabel(g.rung), {
-        fill: '#ffffff', stroke, size: 112, strokeWidth: 20, y: 0.44, key: 'p' + fq,
+        fill: '#ffffff', stroke, size: cb ? 100 : 112, strokeWidth: 20, y: 0.44 + dy * 0.6, key: 'p' + fq + ck,
         after: (ctx, w, h) => {
+          if (marks) marks(ctx, w);
           const bw = w * 0.56, bh = 16, bx = (w - bw) / 2, by = h - 30;
           ctx.fillStyle = 'rgba(10,25,70,0.45)';
           roundRect(ctx, bx - 4, by - 4, bw + 8, bh + 8, 12); ctx.fill();

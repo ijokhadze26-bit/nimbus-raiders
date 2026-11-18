@@ -9,6 +9,7 @@ import { PerfProbe } from './core/perf.js';
 import { Game } from './game/game.js';
 import { Save } from './save/save.js';
 import { installProgress } from './save/progress.js';
+import { installAchievements } from './game/achievements.js';
 import { UI } from './ui/ui.js';
 import { createAudio } from './audio/audio.js';
 import { installFx } from './fx/fx.js';
@@ -39,6 +40,7 @@ async function boot() {
   game.save = new Save(game.events);
   game.loadout.syncFromSave(); // saved hero + weapon (update 2)
   installProgress(game);
+  installAchievements(game); // update 3 stage 5: achievement tracking (game.achievements)
   createAudio().install(game); // unlocks on first gesture; reads mute state from game.save
   installFx(game); // sets game.fx (updated from game.sync)
   const ui = new UI(game, document.getElementById('ui'), params);

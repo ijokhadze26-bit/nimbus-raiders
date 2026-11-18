@@ -46,7 +46,7 @@ export function defaultSave() {
     // v3
     elite: {},                                                        // levelId -> best ELITE stars (1..3)
     modes: { bossRushBest: 0, dailyBest: {}, chaosBest: 0, endlessBest: {} }, // dailyBest: 'YYYY-MM-DD' -> score; endlessBest: worldId -> m
-    achievements: { done: [], claimed: [] },                          // achievement ids
+    achievements: { done: [], claimed: [], counts: {} },              // achievement ids; counts: tracker key -> number
     squadTypes: { owned: [], mix: {} },                               // raider type ids; mix: id -> share 0..100
   };
 }
@@ -126,6 +126,12 @@ export function sanitize(raw) {
   }
   strIds(raw.achievements?.done, d.achievements.done);
   strIds(raw.achievements?.claimed, d.achievements.claimed);
+  if (isObj(raw.achievements?.counts)) {
+    for (const [k, v] of Object.entries(raw.achievements.counts)) {
+      if (Object.keys(d.achievements.counts).length >= ID_LIST || !SAFE_ID.test(k)) continue;
+      const n = int(v, 0, 1e12, 0); if (n) d.achievements.counts[k] = n;
+    }
+  }
   strIds(raw.squadTypes?.owned, d.squadTypes.owned, ID_MAX);
   if (isObj(raw.squadTypes?.mix)) {
     for (const [k, v] of Object.entries(raw.squadTypes.mix)) {
