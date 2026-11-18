@@ -1,4 +1,4 @@
-// Title: animated logo over the live attract scene, big PLAY (-> level map), ENDLESS / SHOP / SETTINGS,
+// Title: animated logo over the live attract scene, big PLAY (-> level map), MODES / SHOP / SETTINGS,
 // music + sound toggles, daily reward badge and the coin total. Update 2: an ARMORY / HEROES tile row (same
 // .tbtn tiles) sits between the logo and the attract squad, with a NEW dot while an unlocked item is unseen.
 import { screenEl, coinPill } from '../ui.js';
@@ -38,7 +38,7 @@ export function createTitle(ui) {
         <span class="play-ico">${icon('play')}</span><span class="col"><span class="big">PLAY</span><span class="sub wl lvl">WORLD 1 · LEVEL 1</span></span>
       </button>
       <div class="title-row">
-        <button type="button" class="tbtn btn-purple" data-act="endless">${icon('infinity')}<span>ENDLESS</span></button>
+        <button type="button" class="tbtn btn-purple" data-act="modes">${icon('star')}<span>MODES</span></button>
         <button type="button" class="tbtn btn-green" data-act="shop">${icon('cart')}<span>SHOP</span></button>
         <button type="button" class="tbtn btn-blue" data-act="settings">${icon('gear')}<span>SETTINGS</span></button>
       </div>
@@ -84,7 +84,7 @@ export function createTitle(ui) {
     },
     onAct(act) {
       if (act === 'play') ui.nav('map');
-      else if (act === 'endless') ui.nav('endless');
+      else if (act === 'modes' || act === 'endless') ui.nav('modes'); // stage 5: ENDLESS lives on the MODES page
       else if (act === 'shop') ui.nav('shop');
       else if (act === 'settings') ui.nav('settings');
       else if (act === 'armory') ui.nav('armory', { from: 'title' });

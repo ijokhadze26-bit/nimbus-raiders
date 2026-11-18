@@ -26,7 +26,7 @@ export function createPause(ui) {
     show() {
       const r = ui.game.run;
       const practice = !!r && r.mode === 'practice';
-      lvl.textContent = !r ? '' : r.mode === 'endless' ? 'ENDLESS RUN'
+      lvl.textContent = !r ? '' : r.mode === 'endless' ? 'ENDLESS RUN' : ui.game.modes?.owns(r.mode) ? r.name // stage 5 modes
         : practice ? `PRACTICE · ${heroDef(r.hero).name} + ${weaponDef(r.weapon).name}` : `LEVEL ${r.levelId} · ${r.name}`;
       home.hidden = practice;
       endP.hidden = !practice;

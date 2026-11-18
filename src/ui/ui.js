@@ -18,6 +18,8 @@ import { createArmory } from './screens/armory.js';
 import { createHeroes } from './screens/heroes.js';
 import { createLoadout } from './screens/loadout.js';
 import { createCompare } from './screens/compare.js';
+import { createModes } from './screens/modes.js';
+import { mountModeHud } from './hudmodes.js';
 import { MENU_STATE_LIST } from '../game/states.js';
 
 const MENU_STATES = MENU_STATE_LIST;
@@ -32,10 +34,11 @@ export class UI {
     this.layer = el('div', 'screens');
     root.appendChild(this.layer);
     this.hud = new Hud(game, root, this);
+    this.modeHud = mountModeHud(this.hud); // stage 5: Boss Rush timer, twist tags, mode banners
     this.screens = {};
     const make = { title: createTitle, map: createMap, shop: createShop, settings: createSettings, pause: createPause,
       result: createResult, daily: createDaily, endless: createEndless, confirm: createConfirm,
-      armory: createArmory, heroes: createHeroes, loadout: createLoadout, compare: createCompare };
+      armory: createArmory, heroes: createHeroes, loadout: createLoadout, compare: createCompare, modes: createModes };
     for (const [k, f] of Object.entries(make)) this.screens[k] = f(this);
     this.current = null;     // page screen name
     this.modals = [];        // stack of modal screen names (pause, settings over pause, daily, confirm)
@@ -223,6 +226,7 @@ export class UI {
 
   update(dt) {
     this.hud.update(dt);
+    this.modeHud.update(dt);
     const top = this.top();
     if (top) this.screens[top]?.update?.(dt);
   }

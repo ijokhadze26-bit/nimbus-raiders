@@ -40,6 +40,7 @@ import { Finish } from './finish.js';
 import { worldFor } from './worldlook.js';
 import { Hazards } from './hazards/index.js';
 import { eliteDef } from '../data/elite.js';
+import { Modes } from './modes/index.js';
 
 const ATTRACT_COUNT = 9;
 
@@ -111,6 +112,7 @@ export class Game {
     this.endless.init(this);
     this.zoneViews = createZoneViews(this);
     this.finish = new Finish(); this.finish.init(this); // update 3 finish arch
+    this.modes = new Modes(); this.modes.init(this); // stage 5 modes: Boss Rush, Daily Challenge, Chaos (game/modes)
 
     if (this.quality.setting === 'low') this.applyQuality('low');
     this.debug = createDebug(this);
@@ -136,10 +138,14 @@ export class Game {
   }
 
   /** Endless run on a fresh seeded bridge (fixed seed under ?test=1 or ?seed=N so runs are reproducible). */
-  startEndless(seed) {
+  startEndless(seed, world = this.endlessWorld || 1) {
     const s = seed ?? (this.params.seed != null ? Number(this.params.seed) : this.params.test ? 4242 : Math.floor(Math.random() * 1e9));
-    this.beginRun(endlessDef(), 'endless', s >>> 0, { hero: this.loadout.hero, weapon: this.loadout.weapon });
+    this.endlessWorld = world; // stage 5: endless per world (RETRY keeps it)
+    this.beginRun(endlessDef(world), 'endless', s >>> 0, { hero: this.loadout.hero, weapon: this.loadout.weapon });
   }
+
+  /** Stage 5 modes: 'bossrush' | 'daily' | 'chaos' (opts: chaos { roll }, daily { date }); see game/modes. */
+  startMode(kind, opts) { return this.modes.start(kind, opts); }
 
   /**
    * TRY IT practice (SPEC2 §5): a fixed short course at the chosen Mk; no shop upgrades, squad = 60 + the
@@ -171,6 +177,7 @@ export class Game {
     this.run.hero = hero; this.run.weapon = weapon;
     const world = worldFor(def, mode); this.run.world = world.key; this.run.worldId = world.id; // update 3 looks
     this.run.killsBy = { weapon: 0, ability: 0, helper: 0, other: 0 };
+    this.modes.begin(mode);
     if (mode === 'endless') this.endless.start(this.run, seed); else this.endless.stop();
     this.timeScale = 1;
     this.resultTimer = -1;
@@ -238,6 +245,7 @@ export class Game {
     const o = this.runOpts || {};
     if (this.run && this.run.mode === 'endless') this.startEndless();
     else if (this.run && this.run.mode === 'practice') this.startPractice(o);
+    else if (this.run && this.modes.owns(this.run.mode)) this.modes.retry();
     else if (this.run) this.beginRun(this.run.def, this.run.mode, 1, o);
     else this.startLevel(1);
   }
@@ -318,6 +326,7 @@ export class Game {
     const run = this.run;
     if (!run || !run.active) return;
     if (run.mode === 'endless' && this.endless.active) { this.endless.bossDown(); return; } // the run goes on
+    if (this.modes.onWin()) return; // Boss Rush: the next fight
     const squad = this.squad.count;
     run.stars = run.starsFor(squad);
     // ELITE (data/elite.js): reward x2 is in the def, collected coins x def.coinMul
@@ -349,13 +358,14 @@ export class Game {
     if (this.state === 'playing') {
       const run = this.run;
       this.input.update(dt);
-      const target = this.autopilot.enabled ? this.autopilot.update(dt) : this.input.targetX;
+      const target = this.autopilot.enabled ? this.autopilot.update(dt) : this.modes.steer(this.input.targetX);
       this.squad.update(dt, target, this.forwardSpeed(dt));
       run.update(dt, -this.squad.leader.z);
       run.stats.maxSquad = Math.max(run.stats.maxSquad, this.squad.count);
       this.gates.update(dt);
       this.obstacles.update(dt);
       this.hazards.update(dt);
+      this.modes.update(dt);
       this.pickups.update(dt);
       this.powers.update(dt);
       this.heroes.update(dt);

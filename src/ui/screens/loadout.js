@@ -23,6 +23,7 @@ import { bossName, kindTag } from '../worldart.js';
 import '../info.css';
 import { eliteUnlocked, eliteStars } from '../../data/elite.js';
 import { eliteRowHtml } from '../elite.js';
+import { modeHeader } from './modes.js';
 
 const STAR = `<i class="fav-star" aria-hidden="true">${icon('star')}</i>`;
 
@@ -59,11 +60,7 @@ export function createLoadout(ui) {
 
   function renderLevel() {
     const L = def(), d = ui.save.data;
-    if (!L) {
-      title.textContent = 'ENDLESS';
-      level.innerHTML = `<div class="lo-name">ENDLESS RUN</div><div class="lo-sub">${icon('trophy')}<span>BEST DISTANCE ${fmt(d.endlessBest)} m</span></div>`;
-      return;
-    }
+    if (!L) { const h = modeHeader(opts, ui); title.textContent = h.title; level.innerHTML = h.html; return; } // endless / stage 5 modes
     title.textContent = `LEVEL ${L.id}`;
     const B = L.boss ? bossDef(L.boss.type) : null;
     const fav = favours().map((id) => `<span class="lo-favw${isWeaponUnlocked(d, id) ? ' on' : ''}" title="${WEAPON_BY_ID[id].name}">${weaponIcon(id)}${isWeaponUnlocked(d, id) ? STAR : ''}</span>`).join('');
@@ -114,7 +111,7 @@ export function createLoadout(ui) {
     startBtn.querySelector('span').textContent = on ? 'START ELITE' : 'START';
   }
   function render() { renderLevel(); renderChips(); renderCap(); renderLock(); renderElite(); }
-  function back() { ui.nav(opts.mode === 'endless' ? 'endless' : 'map'); }
+  function back() { ui.nav(opts.mode === 'endless' ? 'endless' : opts.mode ? 'modes' : 'map'); }
   function tap(kind, id) {
     const d = ui.save.data;
     const ok = kind === 'hero' ? isHeroUnlocked(d, id) : isWeaponUnlocked(d, id);
@@ -150,13 +147,14 @@ export function createLoadout(ui) {
         const ok = pending.kind === 'hero' ? buyHero(ui.save, pending.id) : buyWeapon(ui.save, pending.id);
         if (ok) { ui.sfx('purchase'); ui.vibrate(25); pending = null; render(); preview.set(item()); }
       } else if (act === 'info-hero' || act === 'info-weapon') {
-        const back2 = { from: 'loadout', levelId: opts.levelId, mode: opts.mode };
+        const back2 = { from: 'loadout', levelId: opts.levelId, mode: opts.mode, world: opts.world, roll: opts.roll };
         if (act === 'info-hero') ui.nav('heroes', { ...back2, hero: pending?.kind === 'hero' ? pending.id : d.heroes.selected });
         else ui.nav('armory', { ...back2, weapon: pending?.kind === 'weapon' ? pending.id : d.arsenal.selected });
       } else if (act === 'start') {
         // the selection is stored in the save on every tap; START copies it into the run's loadout
         ui.game.loadout.syncFromSave();
-        if (opts.mode === 'endless') ui.game.startEndless();
+        if (opts.mode === 'endless') ui.game.startEndless(undefined, opts.world);
+        else if (opts.mode) ui.game.startMode(opts.mode, opts); // stage 5: bossrush / daily / chaos
         else if (!ui.game.startLevel(opts.levelId || 1, { elite: eliteOn && eliteOpen() })) ui.nav('map');
       }
     },
