@@ -16,6 +16,7 @@ import { generateLevels } from './levelgen.js';
 import { worldOf, levelKind, TOTAL_LEVELS } from './worlds.js';
 import { planHazards } from './hazardplan.js';
 import { planRoad } from './roadplan.js';
+import { planProps } from './propplan.js';
 import { hardenHand } from './harder.js';
 
 export {
@@ -351,6 +352,8 @@ for (const l of LEVELS) { l.world = worldOf(l.id).id; l.kind = levelKind(l.id); 
 for (const l of LEVELS) planHazards(l);
 // stage 4 road layout: 3-lane stretches, ramp / chain gates, rescue cages (after the hazards, beats stay put)
 for (const l of LEVELS) planRoad(l);
+// stage 4 road objects (crane, dam, bell, boulder) from L3 on, after hazards + road so they keep off them
+for (const l of LEVELS) planProps(l);
 
 const BY_ID = new Map(LEVELS.map((l) => [l.id, l]));
 export function getLevel(id) { return BY_ID.get(Number(id)) || null; }

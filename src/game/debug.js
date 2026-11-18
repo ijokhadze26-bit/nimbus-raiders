@@ -135,6 +135,7 @@ export function createDebug(game) {
       game.barrels.skipAll();
       if (game.obstacles) game.obstacles.skipAll();
       if (game.hazards) game.hazards.skipAll();
+      if (game.props) game.props.skipAll();
       if (game.pickups) game.pickups.skipAll();
       if (game.crates) game.crates.skipAll();
       game.snapCamera();
@@ -159,6 +160,8 @@ export function createDebug(game) {
     },
     /** Update 3 world hazards: live objects, current mods, danger zone count, spawn / kill tallies. */
     worldHazards() { return game.hazards ? game.hazards.state() : null; },
+    /** Stage 4 road objects (crane, dam, bell, boulder): live objects, spawn / trigger / kill tallies. */
+    props() { return game.props ? game.props.state() : null; },
     killBoss() { if (game.boss && game.boss.kill) game.boss.kill(); return debug.state(); },
     /** Throwaway arena run against one boss: bossTest('oculon', { weapon: id | mk, mk, hero, squad, hp, tier }). */
     bossTest(type, opts) { return bossTest(game, type, opts); },

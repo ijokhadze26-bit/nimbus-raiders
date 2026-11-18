@@ -157,6 +157,7 @@ export class Autopilot {
       keep = near && x === gate.x ? gate.gain : 0;
       if (x === null && cg) x = cg.x;
       if (x === null) x = this.pickupGoal(gate, false);
+      if (x === null && game.props) x = game.props.botGoal(this, gate); // stage 4: push a boulder / shoot a road object
       if (x === null) x = this.hordeGoal();
       if (x === null) x = cageGoal(this, gate);
       if (x === null) x = this.barrelGoal(gate);

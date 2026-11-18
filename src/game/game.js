@@ -40,6 +40,7 @@ import { Finish } from './finish.js';
 import { worldFor } from './worldlook.js';
 import { Hazards } from './hazards/index.js';
 import { Cages } from './cages.js';
+import { Props } from './props/index.js';
 import { eliteDef } from '../data/elite.js';
 import { Dodge } from './dodge.js';
 import { Combo } from './combo.js';
@@ -112,7 +113,8 @@ export class Game {
     this.hazards = new Hazards(); // update 3 world hazards (mods / danger read by squad, world, obstacles, autopilot)
     this.dodge = new Dodge(); this.combo = new Combo(); this.formation = new Formation(); // update 3 stage 4 controls
     this.cages = new Cages(); // stage 4 rescue cages (shoot the lock, freed Raiders join)
-    this.systems = [this.combo, this.formation, this.dodge, this.world, this.bullets, this.squad, this.status, this.zones, this.heroes, this.helpers, this.weapons, this.gates, this.cages, this.horde, this.barrels, this.telegraph, this.bosses, this.obstacles, this.hazards, this.pickups, this.powers, this.crates, this.autopilot];
+    this.props = new Props();     // stage 4 road objects: crane, dam, bell, boulder
+    this.systems = [this.combo, this.formation, this.dodge, this.world, this.bullets, this.squad, this.status, this.zones, this.heroes, this.helpers, this.weapons, this.gates, this.cages, this.horde, this.barrels, this.telegraph, this.bosses, this.obstacles, this.hazards, this.props, this.pickups, this.powers, this.crates, this.autopilot];
     for (const s of this.systems) s.init(this);
     this.endless.init(this);
     this.zoneViews = createZoneViews(this);
@@ -214,6 +216,7 @@ export class Game {
     this.obstacles.reset(run);
     this.hazards.reset(run);
     this.cages.reset(run);
+    this.props.reset(run);
     this.pickups.reset(run);
     this.powers.reset();
     this.status.reset();
@@ -372,6 +375,7 @@ export class Game {
       this.crates.update(dt);
       this.barrels.update(dt);
       this.horde.update(dt);
+      this.props.update(dt);
       this.helpers.update(dt);
       if (run.active) this.weapons.update(dt);
       this.bullets.update(dt);
@@ -441,6 +445,7 @@ export class Game {
     this.obstacles.sync(dt);
     this.hazards.sync(dt);
     this.cages.sync(dt);
+    this.props.sync(dt);
     this.pickups.sync(dt);
     this.powers.sync(dt);
     this.telegraph.sync(dt);
