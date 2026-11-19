@@ -220,7 +220,9 @@ const HAND = [
     B([320, 'turret', 1], [300, 'drone', 1]),  // at this size troops are not the prize: helpers are
   ]),
   // L11: sliding-blade gauntlet. Opens on one centre gate; blades follow every gate row.
-  level({ id: 11, name: 'Twilight Siege', theme: 'forgeNight', length: 610, speed: 11, stars: [870, 970], reward: 160, tough: 32, boss: null }, [
+  // Stage 6 review: the Volcanic Forge's first level is its short hazard lesson, like L21 / L31 / L41: it keeps
+  // its first 11 beats and its big ×2 blade row, then one horde and the helpers (was 20 beats over 610 u).
+  level({ id: 11, name: 'Twilight Siege', theme: 'forgeNight', length: 430, speed: 11, stars: [870, 970], reward: 160, tough: 32, boss: null }, [
     [C(a(3, 10)), K('R', 6)],
     [B([10, 'weapon', 1], [10, 'troops', 7]), Xd('L', 14, mv(0.9, 0.9))],
     [H(26, GR(0.25), 'R'), K('L', 8)],
@@ -232,14 +234,8 @@ const HAND = [
     [H(160, M6(0.22, 0.14, 0.12, 0.06)), U('R', 'shield')],
     [P(a(30, 50, mv(1.3, 1.8)), x(2)), Xd('L', 14, mv(1.4, 1.6))],
     [H(240, M6(0.22, 0.14, 0.14, 0.08), 'L'), K('R', 10)],
-    B([170, 'turret', 1], [170, 'troops', 40]),
-    [P(dv(2, 600), a(60, 100)), Xd('R', 12, mv(1.4, 1.5))],
-    [H(320, M6(0.22, 0.16, 0.14, 0.08)), U('L', 'rapid')],
-    [B([240, 'weapon', 1], [220, 'drone', 1]), Xd('R', 14, mv(1.5, 1.6))],
     [P(x(2), a(250, 400)), Xd('L', 12, mv(1.5, 1.7)), Xd('R', 26, mv(1.5, 1.7))],
     [H(420, M6(0.2, 0.24, 0.14, 0.1)), K('R', 10, 'zigzag')],
-    [P(a(60, 140), a(-80, 120)), Xd('R', 12, mv(1.5, 1.8))],
-    [H(480, M6(0.2, 0.26, 0.15, 0.1)), U('L', 'freeze')],
     B([320, 'drone', 1], [300, 'turret', 1]),
   ]),
   // L12: gap staircase. ×3 on one troop is the trap of the opening row; the holes alternate lanes early on,

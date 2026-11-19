@@ -148,7 +148,7 @@ function fitAt(blocks, base, len, lo, hi, overlay, lethal, range = 60) {
 function itemsFor(def, kinds, r, idx) {
   if (def.kind === 'intro') {
     const out = kinds.map((k, i) => ({ k, p: 0.06 + i * 0.16, gentle: true, hint: HINTS[k], range: 140 }));
-    // a long intro (L11 keeps its full-length beats) repeats the first kind twice near the end
+    // a long intro (over 450 u; none since L11 was shortened in stage 6) repeats the first kind twice near the end
     if ((def.layout ?? def.length) > 450) out.push({ k: kinds[0], p: 0.78 }, { k: kinds[0], p: 0.92 });
     return out;
   }

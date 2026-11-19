@@ -9,7 +9,7 @@
 //   rising share in worlds 3-5 (a few late in world 2).
 // - Hidden gates: a small Shieldbearer-led horde stands right in front of one gate of a row; that gate is
 //   flagged `hidden` (dimmed '?' until the enemies in front are cleared or it takes enough hits).
-// World 1 is untouched. Levels 11-15 (hand-made) only get the mix pass (hardenHand). Every pass uses its own Rng
+// World 1 is untouched. Levels 11-15 (hand-made) only get the mix pass and the red-gate top-up (hardenHand). Every pass uses its own Rng
 // (seed from the level id), so the beat Rng of levelgen.js and everything it places stay exactly as they were.
 import { Rng } from '../core/rng.js';
 import { worldOf, indexInWorld, levelKind } from './worlds.js';
@@ -82,16 +82,45 @@ function redPass(def, r, wi) {
     if (!L || !R || worth(L) <= 0 || worth(R) <= 0) continue;          // only rows where both gates are free
     const g = worth(L) <= worth(R) ? L : R;
     if (g.op !== 'add' || prog(def, at) < 0.08 || !r.chance(RED_P[wi])) continue;
-    const p = prog(def, at);
-    if (r.chance(0.6)) {
-      g.value = -Math.max(2, Math.round(g.value * r.range(0.7, 1.0)));
-      g.max = Math.max(g.max, Math.abs(g.value));
-    } else {
-      // ÷2 ladder (rung 2), climbing slowly
-      g.op = 'div'; g.rung = 2; g.hitsPerStep = Math.round(240 + 500 * p + 120 * wi);
-      delete g.value; delete g.max;
-    }
-    g.red = true;
+    makeRed(g, r, prog(def, at), wi); // -N or a ÷2 ladder (rung 2), climbing slowly
+  }
+}
+
+/** -N (60% of + gates) or a slowly climbing ÷2 ladder in place of the + / × gate g at progress p. */
+function makeRed(g, r, p, wi) {
+  if (g.op === 'add' && r.chance(0.6)) {
+    g.value = -Math.max(2, Math.round(g.value * r.range(0.7, 1.0)));
+    g.max = Math.max(g.max, Math.abs(g.value));
+  } else {
+    g.op = 'div'; g.rung = 2; g.hitsPerStep = Math.round(240 + 500 * p + 120 * wi);
+    delete g.value; delete g.max;
+  }
+  g.red = true;
+}
+
+// Stage 6 review: red gates (-N / ÷) must rise world by world (world 1 has ~33% of its gates red). After the
+// random redPass, a level below its world's share turns the weaker + gate of more free rows red (own Rng, so
+// cursed barrels and hidden gates stay where they were). Intro levels stay gentle.
+export const RED_SHARE = [0.35, 0.39, 0.42, 0.47];
+const isRed = (g) => (g.op === 'add' && g.value < 0) || g.op === 'div';
+
+function redTop(def, wi, intro) {
+  if (intro) return;
+  const r = new Rng(def.id * 4241 + 7);
+  const gates = def.events.filter((e) => e.type === 'gate');
+  let red = gates.filter(isRed).length;
+  const weak = ({ L, R }) => (worth(L) <= worth(R) ? L : R);
+  // the weaker gate of a free row (never a hidden one: a hidden good gate beside a new red one is the point)
+  const free = gateRows(def).filter(([at, row]) => row.L && row.R && worth(row.L) > 0 && worth(row.R) > 0 && prog(def, at) >= 0.08
+    && !weak(row).hidden && ['add', 'mul'].includes(weak(row).op));
+  for (let i = free.length - 1; i > 0; i--) { const j = r.int(0, i); [free[i], free[j]] = [free[j], free[i]]; }
+  // a + / × row is what a chain gate starts from (roadplan.js): use those last
+  const mixed = ({ L, R }) => (L.op === 'mul') !== (R.op === 'mul');
+  free.sort((a, b) => mixed(a[1]) - mixed(b[1]));
+  for (const [at, row] of free) {
+    if (red >= RED_SHARE[wi] * gates.length) break;
+    makeRed(weak(row), r, prog(def, at), wi);
+    red++;
   }
 }
 
@@ -151,15 +180,23 @@ export function hardenLevel(def) {
   redPass(def, r, wi);
   cursePass(def, r, wi);
   hidePass(def, r, wi, intro);
+  redTop(def, wi, intro);
   mixPass(def, wi, i, intro);
   return def;
 }
+
+// Stage 6 review: tougher hordes on the hand-made Forge levels (x `tough`, so the late hordes get most of it),
+// so the Volcanic Forge needs some shop upgrades like L16-20 (levelgen.js WORLD_HP)
+export const HAND_TOUGH = { 12: 2, 13: 2.2, 14: 1.4, 15: 1.6 };
 
 /** Hand-made Forge levels (11-15): their beats stay exactly as built; only the horde mixes gain the new types. */
 export function hardenHand(def) {
   const w = worldOf(def.id), wi = w.id - 2;
   if (wi < 0) return def;
-  mixPass(def, wi, indexInWorld(def.id), levelKind(def.id) === 'intro');
+  const intro = levelKind(def.id) === 'intro';
+  redTop(def, wi, intro); // stage 6 review: the Forge's red-gate share, like L16-20
+  if (HAND_TOUGH[def.id]) { def.tough = r2(def.tough * HAND_TOUGH[def.id]); retough(def); }
+  mixPass(def, wi, indexInWorld(def.id), intro);
   return def;
 }
 

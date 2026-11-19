@@ -485,3 +485,62 @@ pro - L42 2; novice - L23 3, L25 5, L34 2, L36 3, L42 3, L45 5, L46-48 X.
 - `w3-harder-levels`: float tolerance on the cursed-barrel ratio (12/10 vs 0.8 x 15/10).
 - New `w3-balance-rush`: climax kills >= 30% non-contact on L16 / L26 / L36 / L46, every horde spawned at its data
   size (within 2%, the rush >= 94%).
+
+## Stage 6 review (fixer): harder again after the stage 4-5 helpers
+
+The stage 4-5 additions (LINE formation +12% vs the horde by default, combo up to x1.3, dodge, Medic, Heavy
+Gunner) made worlds 2-5 easier than the stage 3 pass left them, and no balance pass ran after them. Quick check
+on `b6780ab` (casual Pip + Thunderclap, one try per bot seed, X = lost, digits = stars, (squad left)):
+no upgrades L13 4/4, L16 2/4, L19 4/4, L20 4/4, L23 1/4, L26 4/4, L29 4/4, L30 0/4; campaign upgrades
+(snapshots3 U[id]) L33 / L36 / L40 / L46 / L50 4/4 (mostly 3 stars), L43 2/4, L49 4/4; pro L50 3/3.
+
+What changed (data only, `src/data/levelgen.js`, `src/data/harder.js`, `src/data/levels.js`):
+- `WORLD_HP` [2.2, 2.2, 1.9, 1.9]: every horde of a generated bossless level past the opening (ramping in from
+  p 0.1 to 0.35, the final rush included) is that much tougher; `LEVEL_TUNE.hp` scales the extra per level (L43 0:
+  already the hard spot; L36 0.5 and L46 0.6: the pro bot's ELITE / small squads). Intro levels and boss / mini
+  levels are untouched (with the extra, `w3-bosses-play` lost L25 / L40 / L50 with Cinder + Emberstorm and
+  `w3-elite` lost L36 / L40 ELITE).
+- L20 Ironhorn hp x1.4 (casual with no upgrades beat it 4 of 4); L50 Tempest King hp x0.75 -> x0.9.
+- Hand-made Forge levels: `HAND_TOUGH` L12 x2, L13 x2.2, L14 x1.4, L15 x1.6 on `tough`.
+- L11 is now a short lesson (430 u, 14 beats: its first 11 beats, the big x2 blade row, one horde, helpers).
+- Red gates rise world by world (`redTop`, own Rng: cursed barrels / hidden gates stay put): share of gates that
+  are -N or ÷: W1 33%, W2 37%, W3 41%, W4 44%, W5 43% (was 33 / 32 / 33 / 40 / 39). W5 is short of free rows;
+  + / × rows (where chain gates start, `w4-road` wants >= 20 chains) are used last.
+
+Tried and dropped: `WORLD_SMAX` 0.42 / 0.45 for worlds 2-3 (smaller gates): casual with upgrades then lost
+L16 3 of 3 and L25 2 of 3 while L19 / L26 without upgrades did not change; L50 boss x1.0 with W5 hp x1.6:
+pro and casual lost L50 7 of 7.
+
+After (this commit; same bot, one try per seed):
+
+| | L12 | L13 | L14 | L15 | L16 | L19 | L20 | L23 | L25 | L26 | L29 | L30 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| casual, no upgrades | 4/4 | 2/4 | 4/4 | 4/4 | 0/4 | 4/4 | 3/4 | 0/4 | 0/4 | 4/4 | 2/4 | 0/4 |
+| casual, campaign upgrades | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 | 2/3 | 2/3 |
+
+(L12 / L14 / L15 / L19 / L23 / L26 no-upgrade and L12-L15 / L19 / L26 upgrade numbers from the run before the
+last W4-5 / hand-level touch-up, which does not change world 2-3 generated levels; L12 / L14 were x2.2 / x2
+there.)
+
+| casual, campaign upgrades | L33 | L34 | L36 | L39 | L40 | L43 | L46 | L49 | L50 |
+|---|---|---|---|---|---|---|---|---|---|
+| wins | 3/4 | 3/4 | 4/4 | 4/4 | 4/4 | 2/4 | 4/4 | 2/4 | 3/4 |
+| pro (seeds 1-3) | 3/3 | - | 3/3 | - | - | 1/3 | 3/3 | - | 3/3 |
+
+(L20 / L25 / L30 / L36 / L40 / L50 re-run with the final boss-level rule: L20 no upgrades 3/4, L25 / L30 0/4;
+with upgrades L20 / L25 3/3, L30 2/3; L36 casual 4/4, pro 3/3; L40 casual 4/4 (squads 869-999: easy again);
+L50 casual 3/4, pro 3/3.)
+
+Against the targets:
+- W2-3, casual without upgrades usually fails: partly. It now loses L16 / L23 / L25 / L30 every time and L13 /
+  L20 / L29 about half the time (was: only L23 / L30). L12 / L14 / L15 / L19 / L26 are still won: their squad
+  hits the 999 cap mid-level and most late enemies die on contact, so tougher hordes barely change the result
+  (L19 ends at ~500-590 whatever the toughness or the gate sizes). Fixing those needs a layout change (fewer
+  growth gates), not a number.
+- W2-3 with upgrades: still cleared (L29 2 of 3 first try).
+- W4-5, casual with upgrades needs retries: partly. About 80% of first tries win (was ~90%), with smaller squads
+  and fewer stars; L43 / L49 are about a coin flip, L50 3 of 4, L40 is easy. Pro with upgrades: L43 1 of 3, so
+  `foundation-campaign` (pro <= 3 tries per level on L31-50) is the limit on going further: the bots are about
+  equally strong (see "Not met / needs a decision" above).
+- L50 the hardest: not met. Boss hp x0.9 (was x0.75) makes it one of the harder levels, but L43 / L49 are harder,
+  and `w3-bosses-play` (pro Cinder + Emberstorm must win L40 / L50 within 3) caps the boss levels.

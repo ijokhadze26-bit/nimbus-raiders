@@ -48,7 +48,8 @@ for (const lv of L.LEVELS) {
     ok(!(e.elite > 0) || (w >= 4 && e.elite <= 0.18), `L${lv.id} elite ${e.elite} in world ${w}`);
   }
   if (lv.id <= 15) {
-    ok(s.cursed === 0 && s.screens === 0 && lv.events.every((e) => !e.red && !e.hidden), `L${lv.id}: hand-made level got more than a mix pass`);
+    // stage 6 review: L12-15 also get the red-gate top-up (redTop; the L11 lesson does not), nothing else
+    ok(s.cursed === 0 && s.screens === 0 && lv.events.every((e) => !e.hidden && (lv.id > 11 || !e.red)), `L${lv.id}: hand-made level got more than a mix pass + red top-up`);
     continue;
   }
   // every L/R gate row keeps a gate worth taking
@@ -77,7 +78,8 @@ for (const w of [2, 3, 4, 5]) {
 ok(perWorld[2].types.size === 2 && !perWorld[2].types.has('sniper'), 'world 2 types');
 ok(perWorld[5].elite > perWorld[4].elite && perWorld[5].elite <= 0.18 && perWorld[4].elite >= 0.08, `elite W4 ${perWorld[4].elite} W5 ${perWorld[5].elite}`);
 const redShare = (w) => perWorld[w].red / perWorld[w].gates;
-ok(redShare(5) > redShare(3) && redShare(4) > redShare(2) && redShare(3) >= redShare(2), `red share ${[1, 2, 3, 4, 5].map((w) => redShare(w).toFixed(2))}`);
+// stage 6 review: the share also rises from world 1 (hand-made, ~33%) to world 2 and on to world 3
+ok(redShare(2) > redShare(1) + 0.02 && redShare(3) > redShare(2) && redShare(5) > redShare(3) && redShare(4) > redShare(2), `red share ${[1, 2, 3, 4, 5].map((w) => redShare(w).toFixed(2))}`);
 // the red pass turned free + gates red in every later world (more of them later); free rows (both gates good) get rarer
 for (const w of [2, 3, 4, 5]) ok(perWorld[w].turned >= 4, `world ${w}: only ${perWorld[w].turned} gates turned red`);
 const freeShare = (w) => perWorld[w].free / perWorld[w].rows;

@@ -30,13 +30,13 @@ export const NAMES = {
 // Boss per level: { type, hp, tier, skin?, mini? }. 'glacius' (L30) and 'gumdrop' (L35) are their own boss
 // classes (update 3 stage 2); their world skin here is their native look, so bossLook keeps their colours.
 const BOSS_PLAN = {
-  20: { type: 'ironhorn', tier: 5 },
+  20: { type: 'ironhorn', tier: 5, hpMul: 1.4 }, // stage 6 review: casual with no upgrades beat it 4 of 4
   25: { type: 'ironhorn', tier: 5, skin: 'frost', mini: true },
   30: { type: 'glacius', tier: 5, skin: 'frost', hpMul: 0.9 }, // review fix: Vex + Void Siphon could not clear it
   35: { type: 'gumdrop', tier: 6, skin: 'candy', mini: true },
   40: { type: 'mothermurk', tier: 6, skin: 'candy', hpMul: 0.75 }, // stage 3: the Candy Kingdom's smaller squads reach it
   45: { type: 'oculon', tier: 6, skin: 'citadel', mini: true },
-  50: { type: 'tempestking', tier: 6, hpMul: 0.75 }, // review fix: with the full stage-3 hordes arriving
+  50: { type: 'tempestking', tier: 6, hpMul: 0.9 }, // review fix: with the full stage-3 hordes arriving (0.75); stage 6: the hardest fight again
 };
 // boss hp at the L15 scale (grows HP_GROWTH per level; a mini-boss has MINI_HP of it)
 const HP_BASE = { grawlstone: 220000, glacius: 285000, gumdrop: 220000, oculon: 170000, mothermurk: 250000, ironhorn: 200000, tempestking: 135000 };
@@ -66,10 +66,16 @@ export const WORLD_RUSH = [1.9, 1.6, 1.7, 1.7];
 // level's extra late toughness, count every horde but the hidden-gate screens
 export const LEVEL_TUNE = {
   22: { tough: 0.5 }, 23: { tough: 0.7 }, 29: { tough: 0.2 }, 30: { tough: 0.6 }, 33: { tough: 0.6 },
-  34: { tough: 0.4 }, 36: { tough: 0.9 }, 38: { tough: 0.5, count: 0.85 }, 39: { tough: 0.65 },
-  40: { tough: 0.45 }, 42: { tough: 0.5, count: 0.75 }, 43: { tough: 0.4 }, 46: { tough: 0.85 },
+  34: { tough: 0.4 }, 36: { tough: 0.9, hp: 0.5 }, 38: { tough: 0.5, count: 0.85 }, 39: { tough: 0.65 },
+  40: { tough: 0.45 }, 42: { tough: 0.5, count: 0.75 }, 43: { tough: 0.4, hp: 0 }, 46: { tough: 0.85, hp: 0.6 },
   48: { tough: 0.6 }, 49: { tough: 0.2, count: 0.85 }, 50: { tough: 0.2, count: 0.8 },
 };
+// Stage 6 review ("make it harder" after the stage 4-5 helpers: LINE formation, combo, dodge, raider types):
+// every horde past the opening (ramping in from p HP_P0 to HP_P1) is WORLD_HP x tougher, LEVEL_TUNE.hp scales
+// that extra per level (boss / mini levels: 0 unless set). Aim (quick autopilot check, scripts/balance/CHANGELOG.md "Stage 6"): casual with no
+// shop upgrades usually fails worlds 2-3, casual with the campaign's upgrades needs retries in worlds 4-5.
+export const WORLD_HP = [2.2, 2.2, 1.9, 1.9];
+const HP_P0 = 0.1, HP_P1 = 0.35;
 const RUSH_MAX = 600, POWDER_MIN = 150, EXPLOSIVE_MAX = 0.035;
 const LATE_EXP = 1.5, INTRO_SHARE = 0.15, SHIELD_CLEAR = 130, COUNT_P0 = 0.15, COUNT_P1 = 0.5, PACK_EXP = 0.6;
 /** Share of the world's extra toughness / horde size a normal level gets: 40% early in the world -> 100% at its end. */
@@ -242,13 +248,16 @@ function lateTough(def, q) {
   let late = 1 + ((boss ? BOSS_TOUGH : WORLD_TOUGH)[q.wi] - 1) * (boss ? 1 : ramp(q.i)) * (tune.tough ?? 1);
   if (q.intro) late = 1 + (late - 1) * INTRO_SHARE; // the short hazard-teaching level stays gentle
   const span = def.layout ?? def.length;
+  // boss / mini levels: the boss is the test (their hordes keep the stage-3 toughness unless LEVEL_TUNE.hp says)
+  const hp = q.intro ? 1 : 1 + (WORLD_HP[q.wi] - 1) * (tune.hp ?? (boss ? 0 : 1));
   for (const e of def.events) {
     if (e.type !== 'horde') continue;
     if (tune.count && !e.gateAt) e.count = Math.max(1, Math.round(e.count * tune.count));
     if (e.rush && !boss && !q.intro) e.count = Math.min(RUSH_MAX, Math.round(e.count * (1 + (WORLD_RUSH[q.wi] - 1) * ramp(q.i))));
     if (e.count >= POWDER_MIN) capExplosives(e.mix);
     const p = e.rush ? 1 : Math.max(0, Math.min(1, e.at / span));
-    e.tough = r2((e.tough ?? 1) * (1 + (late - 1) * Math.pow(p, LATE_EXP)));
+    const hpRamp = Math.max(0, Math.min(1, (p - HP_P0) / (HP_P1 - HP_P0)));
+    e.tough = r2((e.tough ?? 1) * (1 + (late - 1) * Math.pow(p, LATE_EXP)) * (1 + (hp - 1) * hpRamp));
   }
   retough(def);
   if (def.boss) return;
