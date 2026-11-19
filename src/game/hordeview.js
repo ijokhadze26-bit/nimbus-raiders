@@ -193,17 +193,17 @@ export class HordeView {
       }
     }
     for (const m of ms) {
-      m.mesh.count = m.n;
+      m.mesh.count = m.n; m.mesh.visible = m.n > 0; // empty instanced meshes stay out of the render list
       if (m.n) { markInstances(m.mesh.instanceMatrix, m.n); markInstances(m.fx, m.n); }
       if (m.n && m.anyElite) markInstances(m.el, m.n);
       else if (m.elDirty) { m.el.array.fill(0, 0, m.n); if (m.n) markInstances(m.el, m.n); }
       m.elDirty = m.anyElite; m.anyElite = false;
     }
     if (h) this.extras.sync(dt, list, time, h);
-    this.shields.count = ns;
+    this.shields.count = ns; this.shields.visible = ns > 0;
     if (ns) { markInstances(this.shields.instanceMatrix, ns); markInstances(this.shields.instanceColor, ns); }
-    this.sparks.count = nk; if (nk) markInstances(this.sparks.instanceMatrix, nk);
-    this.blobs.count = nb; if (nb) markInstances(this.blobs.instanceMatrix, nb);
+    this.sparks.count = nk; this.sparks.visible = nk > 0; if (nk) markInstances(this.sparks.instanceMatrix, nk);
+    this.blobs.count = nb; this.blobs.visible = nb > 0; if (nb) markInstances(this.blobs.instanceMatrix, nb);
     // blasts
     const bd = this.blastData;
     let nx = 0;
@@ -217,7 +217,7 @@ export class HordeView {
       XF[0] = b.x; XF[1] = 0.5; XF[2] = b.z; XF[3] = 0; XF[5] = s; XF[6] = s * 0.7; XF[7] = s;
       writeXfYaw(xArr, nx++);
     }
-    this.blastMesh.count = nx;
+    this.blastMesh.count = nx; this.blastMesh.visible = nx > 0;
     if (nx) markInstances(this.blastMesh.instanceMatrix, nx);
   }
 }

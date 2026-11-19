@@ -222,8 +222,7 @@ export class BossEffects {
       o.y = o.y0 * (1 - f) + Math.sin(f * Math.PI) * o.arc + o.size * 0.5 * f;
       if (f >= 1) o.active = false;
     }
-    const tick = (list) => { for (const o of list) if (o.active && (o.t += dt) >= o.life) o.active = false; };
-    tick(this.bolts); tick(this.rings); tick(this.glows); tick(this.puddles);
+    tickLife(this.bolts, dt); tickLife(this.rings, dt); tickLife(this.glows, dt); tickLife(this.puddles, dt);
     for (const o of this.crests) {
       if (!o.active) continue;
       o.t += dt;
@@ -239,8 +238,10 @@ export class BossEffects {
   sync() {
     const time = this.game.time;
     this.x.sync();
+    const low = this.game.engine.quality === 'low';
     for (const o of this.orbs) {
-      o.core.visible = o.halo.visible = o.tail.visible = o.active;
+      o.core.visible = o.halo.visible = o.active;
+      o.tail.visible = o.active && !low; // Low: no motion-trail sprite (one draw call less per orb in flight)
       if (!o.active) continue;
       const pulse = 1 + Math.sin(time * 30 + o.x0) * 0.12;
       o.core.position.set(o.x, o.y, o.z); o.core.scale.setScalar(o.size * 0.7);
@@ -333,4 +334,9 @@ export class BossEffects {
     if (this.beam) { scene.remove(this.beam.sheet); scene.remove(this.beam.line); scene.remove(this.beam.burn); }
     this.x.clear();
   }
+}
+
+/** Ages pooled effects; one past its life goes inactive (no per-frame closure). */
+function tickLife(list, dt) {
+  for (let i = 0; i < list.length; i++) { const o = list[i]; if (o.active && (o.t += dt) >= o.life) o.active = false; }
 }

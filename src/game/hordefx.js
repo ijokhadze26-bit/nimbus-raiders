@@ -77,9 +77,9 @@ export class HordeFx {
       const f = Math.min(1, p.t / 0.6);
       this.ring(p.x, p.z, p.r * (0.3 + 0.7 * f), p.kind ? C_SPLAT : C_HEAL, (1 - f) * (p.kind ? 1 : 0.5));
     }
-    this.rings.count = this.nr; if (this.nr) { markInstances(this.rings.instanceMatrix, this.nr); markInstances(this.rings.instanceColor, this.nr); markInstances(this.alpha, this.nr); }
-    this.goo.count = ng; if (ng) markInstances(this.goo.instanceMatrix, ng);
-    this.halos.count = nh; if (nh) { markInstances(this.halos.instanceMatrix, nh); markInstances(this.halos.instanceColor, nh); }
+    this.rings.count = this.nr; this.rings.visible = this.nr > 0; if (this.nr) { markInstances(this.rings.instanceMatrix, this.nr); markInstances(this.rings.instanceColor, this.nr); markInstances(this.alpha, this.nr); }
+    this.goo.count = ng; this.goo.visible = ng > 0; if (ng) markInstances(this.goo.instanceMatrix, ng);
+    this.halos.count = nh; this.halos.visible = nh > 0; if (nh) { markInstances(this.halos.instanceMatrix, nh); markInstances(this.halos.instanceColor, nh); }
   }
 }
 

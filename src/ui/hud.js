@@ -68,7 +68,7 @@ export class Hud {
     this.bubble.appendChild(this.bubbleInner);
     this.guardEl = el('div', 'guard-dots');
     this.bubble.appendChild(this.guardEl);
-    this.guardShown = '';
+    this.guardShown = -1; // guard * 1000 + guardMax (a number: no string built per frame)
     root.appendChild(this.bubble);
 
     this.bossBar = el('div', 'boss-bar hidden');
@@ -369,7 +369,7 @@ export class Hud {
     if (!visible) return;
     if (sq.count !== this.count) { this.count = sq.count; this.bubbleInner.textContent = String(sq.count); }
     const H = g.heroes;
-    const gk = H ? H.guard + '/' + H.guardMax : '';
+    const gk = H ? H.guard * 1000 + H.guardMax : -1;
     if (gk !== this.guardShown) {
       this.guardShown = gk;
       this.guardEl.innerHTML = H ? '<i class="on"></i>'.repeat(H.guard) + '<i></i>'.repeat(Math.max(0, H.guardMax - H.guard)) : '';

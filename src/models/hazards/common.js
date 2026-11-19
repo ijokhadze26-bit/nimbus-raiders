@@ -27,9 +27,15 @@ export function glowMaterial(opts = {}) {
   return new THREE.MeshBasicMaterial({ toneMapped: false, ...opts });
 }
 
-/** Additive soft material for flames / sheens / auras. */
+/**
+ * Additive soft material for flames / sheens / auras. Double-sided ones draw in one pass (three splits a
+ * transparent double-sided mesh into a back pass + a front pass: two draw calls; additive blending without
+ * depth writes gives the same picture in either order, so the second pass only cost a draw call).
+ */
 export function addMaterial(opts = {}) {
-  return new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, ...opts });
+  const m = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, ...opts });
+  if (m.side === THREE.DoubleSide && m.blending === THREE.AdditiveBlending && !m.depthWrite) m.forceSinglePass = true;
+  return m;
 }
 
 /** Decal on the road (sits above the tiles, below telegraphs). */
@@ -94,6 +100,7 @@ export class InstPool {
     this.mesh.castShadow = false;
     this.mesh.receiveShadow = false;
     this.mesh.count = 0;
+    this.mesh.visible = false;
     this.max = max;
     this.n = 0;
     scene.add(this.mesh);
@@ -102,6 +109,7 @@ export class InstPool {
   put(m) { if (this.n < this.max) this.mesh.setMatrixAt(this.n++, m); }
   end() {
     this.mesh.count = this.n;
+    this.mesh.visible = this.n > 0; // an empty pool still cost the renderer a program + uniform setup per frame
     if (this.n) this.mesh.instanceMatrix.needsUpdate = true;
   }
 }

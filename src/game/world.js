@@ -190,7 +190,7 @@ export class World {
   setGaps(gaps) { this.gaps = gaps || []; this.baseRow = null; this.syncGapViews(); }
   /** 3-lane stretches of the run (gates.reset): two dividers at +-DIV3 there. */
   setLanes3(list) { this.lanes3 = list || []; this.baseRow = null; }
-  in3(z) { const d = -z; for (const s of this.lanes3) if (d + TILE_LEN / 2 > s.at && d - TILE_LEN / 2 < s.at + s.length) return true; return false; }
+  in3(z) { const d = -z, L = this.lanes3; for (let i = 0; i < L.length; i++) { const s = L[i]; if (d + TILE_LEN / 2 > s.at && d - TILE_LEN / 2 < s.at + s.length) return true; } return false; }
 
   /** Builds dressing for new gaps, drops it for gaps that are gone. */
   syncGapViews() {
@@ -231,8 +231,9 @@ export class World {
   reset() { this.baseRow = null; this.time = 0; }
 
   isGap(lane, zCenter) {
-    const d = -zCenter;
-    for (const g of this.gaps) {
+    const d = -zCenter, gs = this.gaps; // indexed loop: called per road tile per frame
+    for (let i = 0; i < gs.length; i++) {
+      const g = gs[i];
       if ((g.lane === lane || g.lane === 'C') && d + TILE_LEN / 2 > g.from && d - TILE_LEN / 2 < g.to) return true;
     }
     return false;

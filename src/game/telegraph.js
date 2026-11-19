@@ -291,7 +291,10 @@ export class Telegraph {
         v.sheet.material.opacity = Math.min(1, 0.72 + 0.18 * p + 0.15 * pulse) * fade;
         v.tex.offset.y = -time * 1.2;
         v.roof.material.opacity = (after > 0 ? 0.45 : 0.1 + 0.16 * p + 0.06 * pulse) * fade * Math.min(1, h.t / 0.2);
-        if (after > 0) v.sheet.material.color.setRGB(1, 0.85, 0.8); else v.sheet.material.color.set(h.color || DANGER_COLOR);
+        if (h.cs !== (after > 0 ? 2 : 1)) { // colour only when it changes (Color.set(string) parses every call)
+          h.cs = after > 0 ? 2 : 1;
+          if (after > 0) v.sheet.material.color.setRGB(1, 0.85, 0.8); else v.sheet.material.color.set(h.color || DANGER_COLOR);
+        }
         const pop = Math.min(1, h.t / 0.2);
         for (let k = 0; k < v.parts.length; k++) v.parts[k].position.x = h.x;
         v.disc.scale.setScalar(h.r * pop);
@@ -322,8 +325,11 @@ export class Telegraph {
         v.topFill.position.y = OVERHEAD_Y + drop + 0.004;
         v.topFill.scale.setScalar(Math.max(0.01, h.r * 0.98 * ease));
         v.topFill.material.opacity = (after > 0 ? 0.55 : 0.12 + 0.22 * p) * fade;
-        if (after > 0) { v.fill.material.color.setRGB(1, 0.85, 0.8); v.topFill.material.color.setRGB(1, 0.85, 0.8); }
-        else { v.fill.material.color.set(h.color || '#ff2a3a'); v.topFill.material.color.set(h.color || '#ff2a3a'); }
+        if (h.cs !== (after > 0 ? 2 : 1)) { // colour only when it changes (Color.set(string) parses every call)
+          h.cs = after > 0 ? 2 : 1;
+          if (after > 0) { v.fill.material.color.setRGB(1, 0.85, 0.8); v.topFill.material.color.setRGB(1, 0.85, 0.8); }
+          else { v.fill.material.color.set(h.color || '#ff2a3a'); v.topFill.material.color.set(h.color || '#ff2a3a'); }
+        }
       } else {
         const w = h.x1 - h.x0, len = h.zNear - h.zFar;
         v.group.position.set(h.x, 0.045, h.z);

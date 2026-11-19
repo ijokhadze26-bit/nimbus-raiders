@@ -13,6 +13,7 @@ import { BaseBoss } from './base.js';
 import { volley, strikes, summon } from './attacks.js';
 import { emberRain, freezeLane, gumballRoll, rockSlam } from './worldattacks.js';
 import { buildTempestKing } from '../../models/bosses/tempestking.js';
+const COL_KEYS = ['bolt', 'face', 'gem', 'aura', 'tint']; // this.col keys (animate lerps them every frame)
 
 const P1 = { bolt: new THREE.Color('#fff27a'), face: new THREE.Color('#fff6b0'), gem: new THREE.Color('#59e8ff'), aura: new THREE.Color('#8a9cff'), tint: new THREE.Color(1, 1, 1) };
 const P2 = { bolt: new THREE.Color('#e070ff'), face: new THREE.Color('#ff6a3a'), gem: new THREE.Color('#ff3b4e'), aura: new THREE.Color('#c04dff'), tint: new THREE.Color(0.74, 0.7, 0.9) };
@@ -156,7 +157,7 @@ export class TempestKing extends BaseBoss {
     // colours: phase-2 violet lightning, red face, darker cloud; hit flash
     const k = Math.min(1, dt * 3);
     const P = PALETTES[Math.min(3, this.phase) - 1];
-    for (const key of Object.keys(this.col)) this.col[key].lerp(P[key], k);
+    for (let i = 0; i < COL_KEYS.length; i++) this.col[COL_KEYS[i]].lerp(P[COL_KEYS[i]], k);
     const fl = this.flash;
     m.boltMat.color.copy(this.col.bolt).lerp(WHITE, 0.25 + 0.2 * Math.sin(t * 40));
     for (const a of m.arms) { a.shell.material.color.copy(this.col.bolt); a.spark.material.color.copy(this.col.bolt); }
