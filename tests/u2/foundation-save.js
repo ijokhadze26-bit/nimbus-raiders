@@ -54,7 +54,7 @@ s = fresh();
 eq(s.data.arsenal.owned.includes('spectra'), false, 'spectra gone after reset');
 eq(JSON.parse(localStorage.getItem(OWNED_KEY)), { heroes: ['pip'], arsenal: ['thunderclap'] }, 'backup holds only defaults');
 same(s.data.settings, v1.settings, 'settings kept by reset');
-eq(JSON.parse(localStorage.getItem(PROGRESS_KEY)), { unlockedLevel: 1, stars: {}, elite: {} }, 'progress backup reset');
+eq(JSON.parse(localStorage.getItem(PROGRESS_KEY)), { unlockedLevel: 1, stars: {}, elite: {}, counts: {} }, 'progress backup reset');
 eq(s.data.coins, 0, 'coins reset');
 // ---- 4. unknown top-level keys survive a round trip ----
 localStorage.setItem(SAVE_KEY, JSON.stringify({ ...v1, futureX: { a: 1, b: [2, 3] } }));

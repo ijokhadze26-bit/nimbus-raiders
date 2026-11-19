@@ -9,7 +9,8 @@
 // (stars[15], unlockedLevel 15) moves on to 16, plus elite stars, mode bests, achievements, squad types and the
 // new settings (volumes, ability side, colorblind, haptics = the old vibration switch). Every v2 field is copied
 // exactly. Old-tab protection for progress: PROGRESS_KEY keeps unlockedLevel + stars + elite (an old build clamps
-// them to 15 levels and never touches this key); a load takes the higher of both.
+// them to 15 levels and never touches this key); a load takes the higher of both. Since stage 6 it also keeps the
+// achievement counters and today's Daily pin (an update 3 stage 1-4 tab drops both).
 import { UPGRADES } from '../data/shop.js';
 import { FREE_SKIN_IDS, HERO_BY_ID, WEAPON_SKIN_BY_ID } from '../data/skins.js';
 import { HERO_IDS, DEFAULT_HERO } from '../data/heroes.js';
@@ -76,6 +77,22 @@ function starMap(raw, into) {
   return into;
 }
 
+/** Achievement counters (tracker key -> number, game/achievements.js: every one only grows); merges the higher value. */
+function countMap(raw, into) {
+  if (!isObj(raw)) return into;
+  for (const [k, v] of Object.entries(raw)) {
+    if (!SAFE_ID.test(k) || (!(k in into) && Object.keys(into).length >= ID_LIST)) continue;
+    const n = int(v, 0, 1e12, 0); if (n > (into[k] || 0)) into[k] = n;
+  }
+  return into;
+}
+/** Today's pinned Daily level { date, levelId } or null. */
+function dailyPin(v) {
+  if (!isObj(v) || typeof v.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v.date)) return null;
+  const lv = key(v.levelId, 1, LEVELS);
+  return lv ? { date: v.date, levelId: lv } : null;
+}
+
 /** Merge untrusted stored JSON onto the defaults, clamping every field (also the migration hook). */
 export function sanitize(raw) {
   const d = defaultSave();
@@ -125,21 +142,14 @@ export function sanitize(raw) {
     for (const k of days) { const v = int(md.dailyBest[k], 0, 1e9, 0); if (v) d.modes.dailyBest[k] = v; }
   }
   // stage 5: today's Daily level, kept for the rest of that day (game/modes/daily.js pinDaily); absent by default
-  if (isObj(md.dailyPin) && typeof md.dailyPin.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(md.dailyPin.date)) {
-    const lv = key(md.dailyPin.levelId, 1, LEVELS);
-    if (lv) d.modes.dailyPin = { date: md.dailyPin.date, levelId: lv };
-  }
+  const pin = dailyPin(md.dailyPin);
+  if (pin) d.modes.dailyPin = pin;
   if (isObj(md.endlessBest)) {
     for (const [k, v] of Object.entries(md.endlessBest)) { const w = key(k, 1, WORLDS), m = int(v, 0, 1e9, 0); if (w && m) d.modes.endlessBest[w] = m; }
   }
   strIds(raw.achievements?.done, d.achievements.done);
   strIds(raw.achievements?.claimed, d.achievements.claimed);
-  if (isObj(raw.achievements?.counts)) {
-    for (const [k, v] of Object.entries(raw.achievements.counts)) {
-      if (Object.keys(d.achievements.counts).length >= ID_LIST || !SAFE_ID.test(k)) continue;
-      const n = int(v, 0, 1e12, 0); if (n) d.achievements.counts[k] = n;
-    }
-  }
+  countMap(raw.achievements?.counts, d.achievements.counts);
   // raider types are bought with coins and have no backup key: an id a newer build added is kept (safe ids only;
   // the game only reads the ids it knows, data/squadtypes.js typeShare), so an older cached tab never deletes it
   strIds(raw.squadTypes?.owned, d.squadTypes.owned, TYPE_MAX);
@@ -177,6 +187,11 @@ export function mergeProgress(d, backup) {
   if (lvl > d.unlockedLevel) d.unlockedLevel = lvl;
   starMap(backup.stars, d.stars);
   starMap(backup.elite, d.elite);
+  // stage 6 review: an update 3 stage 1-4 tab knows achievements as { done, claimed } and no Daily pin, so its
+  // write drops the counters and the pin; they come back from here (counters: the higher; pin: the later day)
+  countMap(backup.counts, d.achievements.counts);
+  const pin = dailyPin(backup.dailyPin);
+  if (pin && (!d.modes.dailyPin || pin.date > d.modes.dailyPin.date)) d.modes.dailyPin = pin;
   return d;
 }
 
@@ -227,7 +242,7 @@ export class Save {
     const owned = JSON.stringify({ heroes: this.data.heroes.owned, arsenal: this.data.arsenal.owned });
     this.memoryOwned = owned;
     const d = this.data;
-    const progress = JSON.stringify({ unlockedLevel: d.unlockedLevel, stars: d.stars, elite: d.elite });
+    const progress = JSON.stringify({ unlockedLevel: d.unlockedLevel, stars: d.stars, elite: d.elite, counts: d.achievements.counts, dailyPin: d.modes.dailyPin });
     this.memoryProgress = progress;
     if (!this.persistent) return;
     try {

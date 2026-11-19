@@ -40,7 +40,9 @@
   position: absolute; padding: 0; border: 0; background: none; color: #fff; cursor: pointer; pointer-events: auto;
   touch-action: none; -webkit-tap-highlight-color: transparent; user-select: none; font: 400 12px/1 'Lilita One', sans-serif;
 }
-.form-btn { --fc: #59c1ff; right: calc(var(--safe-r) + 18px); bottom: calc(var(--safe-b) + 98px); width: 56px; height: 72px; }
+.form-btn { --fc: #59c1ff; right: calc(var(--safe-r) + 18px); bottom: calc(var(--safe-b) + 112px); width: 56px; height: 72px; }
+/* stage 6 review: bottom +112 (was +98) so the LINE / WEDGE / CIRCLE pill clears the ability button's READY chip
+   (ability top edge ~ safe-b + 82, chip 20-24 px above it) */
 .form-btn[data-mode="wedge"] { --fc: #ff8a3d; }
 .form-btn[data-mode="circle"] { --fc: #7dffa8; }
 .form-btn .fm-face {

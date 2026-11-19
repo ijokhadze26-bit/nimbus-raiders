@@ -17,7 +17,8 @@ import '../worldmap.css';
 import { ELITE_BADGE, eliteStarsHtml } from '../elite.js';
 
 const STEP = 106;          // px between nodes inside a world
-const TOPGAP = 104;        // band top -> its boss node (room for the crown + Pip)
+const TOPGAP = 150;        // band top -> its boss node (room for the crown + Pip: the band clips, and a boss
+                           // node's Pip stands 86 px above it; stage 6 review: 104 cut Pip off on L10/20/.../50)
 const BOTGAP = 46;         // banner top -> the world's first node
 const BANNER = 176;        // the world title banner at the bottom (entrance) of each band
 const BAND_H = TOPGAP + STEP * (LEVELS_PER_WORLD - 1) + BOTGAP + BANNER;

@@ -23,6 +23,11 @@
   border: 3px solid #fff; box-shadow: 0 4px 0 #0b5a32, 0 0 24px rgba(61, 255, 138, 0.8);
   -webkit-text-stroke: 4px #0b5a32; paint-order: stroke fill; animation: safe-pulse 0.5s ease-in-out infinite alternate;
 }
+/* stage 6 review: the banner stays between the side button columns (formation / ability buttons: 74 px from each
+   edge) and wraps onto two lines on a phone instead of covering the formation button */
+.safe-call { width: max-content; max-width: calc(100% - 2 * (var(--safe-r, 0px) + 86px)); box-sizing: border-box; white-space: normal; text-align: center; line-height: 1.05; }
+.safe-call > span:not(.sc-dot) { flex: 1 1 auto; }
+.safe-call .sc-dot { flex: 0 0 auto; }
 .safe-call .sc-dot { width: 12px; height: 12px; border-radius: 50%; background: #eafff2; box-shadow: 0 0 10px #3dff8a; }
 @keyframes safe-pulse { from { transform: translateX(-50%) scale(1); } to { transform: translateX(-50%) scale(1.07); } }
 .boss-marks { position: absolute; inset: 0; pointer-events: none; }
