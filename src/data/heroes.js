@@ -43,7 +43,7 @@ export const HERO_DEFS = [
       text: 'A flaming rock smashes a 5 m circle ahead, then the ground burns.' },
     favourite: 'emberstorm', unlock: { level: 4, coins: 700 },
     strong: [{ id: 'grunt', why: 'Meteor Drop smashes packs' }, { id: 'bomber', why: '+25% fire damage' }, { id: 'blaster', why: 'hot flames pop Boomlings before they get close' }, { id: 'glacius', why: '+25% fire damage melts the frost giant' }],
-    weak: [{ id: 'shield', why: 'shields block flames' }, { id: 'sniper', why: 'flames cannot reach Spitlings far away' }, { id: 'oculon', why: 'dashes out of Meteor Drop' }],
+    weak: [{ id: 'shield', why: 'shields block flames' }, { id: 'sniper', why: 'flames cannot reach Spitlings far away' }, { id: 'oculon', why: 'dashes out of Meteor Drop' }, { id: 'tempestking', why: 'its favourite, Emberstorm, is weak against the storm lord' }],
     raider: { body: '#3a2420', helmet: '#d8321e', visor: '#ffb21f', pack: '#ff7a1f' }, raiderTell: 'crest', scale: 1,
     look: { vest: '#d8321e', suit: '#3a2420', knuckle: '#ff7a1f', hairA: '#ff7a1f', hairB: '#ffd34d', skin: '#c98a5e' },
     run: { freq: 12.5, bob: 0.09, lean: -0.24 },

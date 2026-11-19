@@ -188,6 +188,8 @@ export function hardenLevel(def) {
 // Stage 6 review: tougher hordes on the hand-made Forge levels (x `tough`, so the late hordes get most of it),
 // so the Volcanic Forge needs some shop upgrades like L16-20 (levelgen.js WORLD_HP)
 export const HAND_TOUGH = { 12: 2, 13: 2.2, 14: 1.4, 15: 1.6 };
+// Stars of the Forge levels after that (levelgen.js STARS rule: the lower of the old and the re-measured targets)
+export const HAND_STARS = { 11: [570, 575], 12: [795, 895], 13: [795, 895], 14: [645, 740], 15: [770, 895] };
 
 /** Hand-made Forge levels (11-15): their beats stay exactly as built; only the horde mixes gain the new types. */
 export function hardenHand(def) {
@@ -196,6 +198,7 @@ export function hardenHand(def) {
   const intro = levelKind(def.id) === 'intro';
   redTop(def, wi, intro); // stage 6 review: the Forge's red-gate share, like L16-20
   if (HAND_TOUGH[def.id]) { def.tough = r2(def.tough * HAND_TOUGH[def.id]); retough(def); }
+  if (HAND_STARS[def.id]) def.stars = HAND_STARS[def.id].slice();
   mixPass(def, wi, indexInWorld(def.id), intro);
   return def;
 }

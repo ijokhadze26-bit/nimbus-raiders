@@ -36,7 +36,7 @@ const BOSS_PLAN = {
   35: { type: 'gumdrop', tier: 6, skin: 'candy', mini: true },
   40: { type: 'mothermurk', tier: 6, skin: 'candy', hpMul: 0.75 }, // stage 3: the Candy Kingdom's smaller squads reach it
   45: { type: 'oculon', tier: 6, skin: 'citadel', mini: true },
-  50: { type: 'tempestking', tier: 6, hpMul: 0.9 }, // review fix: with the full stage-3 hordes arriving (0.75); stage 6: the hardest fight again
+  50: { type: 'tempestking', tier: 6, hpMul: 1.13 }, // the hardest level of the game (owner, after update 3): the Pip + Thunderclap bots win it less often than L43; a strong pick vs the storm lord (Spectra) still wins
 };
 // boss hp at the L15 scale (grows HP_GROWTH per level; a mini-boss has MINI_HP of it)
 const HP_BASE = { grawlstone: 220000, glacius: 285000, gumdrop: 220000, oculon: 170000, mothermurk: 250000, ironhorn: 200000, tempestking: 135000 };
@@ -85,13 +85,15 @@ const ramp = (i) => 0.4 + 0.6 * Math.min(1, i / 9);
 // Pip + Thunderclap): 2 stars = the lower of the casual and pro median finish squads (the strongest bot's typical
 // win earns 2 stars), 3 stars = the 75th percentile of all wins (at least 2 stars + 15%, never above the best
 // sampled win, at least 10% of the expected late squad), capped at 0.8 / 0.9 x the 999 formation cap.
-// starsFor() is the fallback.
+// starsFor() is the fallback. After update 3 (owner: "adjust the 3-star targets" once stage 6 made worlds 2-5 harder)
+// the same rule was re-run on L11-50 and each target became the lower of the old and the new value (never raised);
+// the hand-made L11-15 get theirs from harder.js HAND_STARS.
 export const STARS = {
-  16: [365, 420], 17: [265, 305], 18: [510, 590], 19: [480, 610], 20: [795, 895], 21: [795, 895], 22: [50, 200],
-  23: [345, 455], 24: [595, 645], 25: [625, 670], 26: [195, 470], 27: [630, 720], 28: [695, 800], 29: [610, 700],
-  30: [210, 755], 31: [795, 895], 32: [135, 225], 33: [45, 165], 34: [280, 365], 35: [795, 895], 36: [305, 350],
-  37: [305, 425], 38: [280, 370], 39: [280, 370], 40: [605, 815], 41: [480, 555], 42: [85, 100], 43: [110, 255],
-  44: [130, 265], 45: [700, 805], 46: [100, 200], 47: [100, 345], 48: [80, 175], 49: [425, 675], 50: [380, 510],
+  16: [255, 320], 17: [230, 305], 18: [480, 555], 19: [480, 590], 20: [795, 895], 21: [795, 895], 22: [50, 200],
+  23: [275, 425], 24: [460, 525], 25: [625, 670], 26: [110, 360], 27: [510, 550], 28: [520, 665], 29: [560, 665],
+  30: [210, 755], 31: [795, 895], 32: [30, 105], 33: [45, 165], 34: [185, 275], 35: [780, 895], 36: [260, 350],
+  37: [305, 425], 38: [280, 370], 39: [215, 325], 40: [605, 815], 41: [480, 555], 42: [85, 100], 43: [110, 255],
+  44: [100, 265], 45: [535, 640], 46: [100, 200], 47: [100, 205], 48: [80, 175], 49: [235, 645], 50: [45, 75],
 };
 
 const r1 = (v) => Math.round(v * 10) / 10;

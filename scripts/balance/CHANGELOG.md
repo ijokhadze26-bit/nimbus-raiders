@@ -544,3 +544,5 @@ Against the targets:
   equally strong (see "Not met / needs a decision" above).
 - L50 the hardest: not met. Boss hp x0.9 (was x0.75) makes it one of the harder levels, but L43 / L49 are harder,
   and `w3-bosses-play` (pro Cinder + Emberstorm must win L40 / L50 within 3) caps the boss levels.
+
+(Continued in CHANGELOG2.md.)

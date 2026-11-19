@@ -7,13 +7,14 @@
 // attempts no longer ends the campaign (it goes on with the upgrades bought so far). L16-30 must still be cleared
 // within 5 by both bots; in L31-50 the casual bot may stall on up to STALL_CASUAL levels, the pro bot on none
 // (stage 3 review: STALL_PRO back to 0) and needs at most PRO_LATE attempts per level, and every one of L31-50
-// must be cleared by at least one of the two bots (nothing impossible).
+// must be cleared by at least one of the two bots (nothing impossible). After update 3 the owner asked for L50 (the
+// final boss) to be the hardest level, even if a strong player sometimes needs more than 3 tries: PRO_FINAL there.
 const g = window.__game, d = g.debug;
 g.loop.stop();
 const { upgradeCost } = await import('/src/data/shop.js');
 const base = await (await fetch('/tests/u2/baseline/campaign-5d67da5.json')).json();
 const { LAST_LEVEL: LAST } = await import('/src/data/levels.js');
-const HARD = 31, STALL_CASUAL = 2, STALL_PRO = 0, PRO_LATE = 3;
+const HARD = 31, STALL_CASUAL = 2, STALL_PRO = 0, PRO_LATE = 3, PRO_FINAL = 5;
 d.setLoadout('pip', 'thunderclap');
 const res = {};
 for (const prof of ['pro', 'casual']) {
@@ -53,7 +54,8 @@ for (const prof of ['pro', 'casual']) {
   for (const l of log) {
     const cap = prof === 'pro' && l.id <= 15 ? 2 : 5;
     if (l.id < HARD && l.tries > cap) fails.push(`${prof} L${l.id}: ${l.tries} attempts > ${cap}`);
-    if (prof === 'pro' && l.id >= HARD && l.won && l.tries > PRO_LATE) fails.push(`pro L${l.id}: ${l.tries} attempts > ${PRO_LATE}`);
+    const late = l.id === LAST ? PRO_FINAL : PRO_LATE;
+    if (prof === 'pro' && l.id >= HARD && l.won && l.tries > late) fails.push(`pro L${l.id}: ${l.tries} attempts > ${late}`);
     const bl = b.find((x) => x.id === l.id);
     if (bl && l.tries > bl.tries + 1) fails.push(`${prof} L${l.id}: ${l.tries} attempts > baseline ${bl.tries} + 1`);
   }

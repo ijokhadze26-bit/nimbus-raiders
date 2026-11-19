@@ -7,6 +7,10 @@
 // Pass = every (level, profile, loadout) wins within 3 tries. Stage 3 balance (scripts/balance/CHANGELOG.md
 // "Update 3"): the Candy Kingdom / Storm Citadel bosses (L40, L45, L50) are meant to be genuinely hard, so there
 // the casual bot is reported only (casualHard) and only the pro bot must win within 3.
+// After update 3 the owner asked for L50 to be the hardest level: there the pro bot gets FINAL_TRIES (casual keeps
+// 3), Cinder + Emberstorm (both weak vs the Tempest King, shown in the Armory; it wins with full shop upgrades) is
+// reported only (finalWeak), and a strong pick vs the storm lord (Cinder + Spectra) must win instead (scripts/balance/
+// CHANGELOG2.md). `kept` stays like-for-like: the two LOADOUTS only.
 // Reports per try: arena squad > squad left / fight
 // seconds, safe spots (s) and rages (r); per level the mean share of the arena squad kept; per profile the share
 // of the squad each safe-spot blast took. window.__bpGuard overrides the Tempest King's storm shield (safeGuard).
@@ -57,22 +61,26 @@ for (let id = 1; id <= last; id++) {
 // B: each checked level x profile x loadout with the snapshot upgrades (fresh coins, nothing bought mid-check)
 const rows = [], fails = [], stat = [], casualHard = [];
 const CASUAL_HARD = 40;
+const FINAL = 50, FINAL_TRIES = 5, FINAL_WEAK = 'emberstorm', finalWeak = [];
 for (const id of CHECK) {
-  for (const [hero, weapon] of LOADOUTS) {
+  const lo = id === FINAL && !window.__bpLoadouts ? LOADOUTS.concat([['cinder', 'spectra']]) : LOADOUTS;
+  for (const [hero, weapon] of lo) {
     for (const prof of ['pro', 'casual']) {
       g.save.update((dd) => { Object.assign(dd.upgrades, snap[id]); });
       d.setLoadout(hero, weapon, { save: true });
       const tries = [];
       let won = false;
       curProf = prof;
-      for (let k = 0; k < 3 && (!won || window.__bpAll); k++) {
+      const n = id === FINAL && prof === 'pro' ? FINAL_TRIES : 3;
+      for (let k = 0; k < n && (!won || window.__bpAll); k++) {
         const r = play(prof, 7000 + id * 13 + k * 101 + (hero === 'pip' ? 0 : 50), id);
         tries.push(r.win ? `W${r.sq0}>${r.squad}/${r.sec}s s${r.safes}r${r.rages}` : `L${r.sq0}>${r.left != null ? 'b' + r.left + '%' : 'run'}/${r.sec}s s${r.safes}r${r.rages}`);
-        stat.push({ id, prof, hero, win: r.win, kept: r.sq0 ? r.squad / r.sq0 : 0, sec: r.sec });
+        stat.push({ id, prof, hero, weapon, win: r.win, kept: r.sq0 ? r.squad / r.sq0 : 0, sec: r.sec });
         won = won || r.win;
       }
       rows.push(`L${id} ${hero}+${weapon} ${prof}: ${tries.join(' ')}`);
-      if (!won && (prof === 'pro' || id < CASUAL_HARD)) fails.push(`L${id} ${hero}+${weapon} ${prof}: 3 losses`);
+      if (!won && id === FINAL && weapon === FINAL_WEAK) finalWeak.push(`L${id} ${hero}+${weapon} ${prof}`);
+      else if (!won && (prof === 'pro' || id < CASUAL_HARD)) fails.push(`L${id} ${hero}+${weapon} ${prof}: ${n} losses`);
       else if (!won) casualHard.push(`L${id} ${hero}+${weapon}`);
     }
   }
@@ -82,7 +90,7 @@ d.setAutopilot(false);
 tk.safeGuard = guard0;
 // share of the arena squad kept per level (mean over every try): L50 should be the hardest fight
 const kept = {};
-for (const id of CHECK) { const l = stat.filter((x) => x.id === id); kept[id] = Math.round(l.reduce((a, x) => a + x.kept, 0) / l.length * 100) + '%'; }
+for (const id of CHECK) { const l = stat.filter((x) => x.id === id && LOADOUTS.some(([h, w]) => h === x.hero && w === x.weapon)); kept[id] = Math.round(l.reduce((a, x) => a + x.kept, 0) / l.length * 100) + '%'; }
 const safe = {};
 for (const [p, l] of Object.entries(safeLoss)) safe[p] = { blasts: l.length, meanLoss: Math.round(l.reduce((a, x) => a + x, 0) / l.length * 100) + '%', maxLoss: Math.round(Math.max(...l) * 100) + '%' };
-return { pass: fails.length === 0, fails, casualHard, camp, kept, safe, guard: tk.safeGuard, ups: snap, rows };
+return { pass: fails.length === 0, fails, casualHard, finalWeak, camp, kept, safe, guard: tk.safeGuard, ups: snap, rows };

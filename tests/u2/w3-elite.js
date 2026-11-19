@@ -3,7 +3,9 @@
 //    opening hordes, never below normal, capped), toughness x1.4 .. x1.1, elite fraction +20% .. +6%, boss hp x1.5
 //    .. x1.1; reward x2, collected coins x1.5, stars x0.8; the campaign def is never touched.
 // 4. Winnable: the pro bot with the end-of-campaign upgrades (snapshots3 U[50]) wins L36 / L40 / L50 ELITE within
-//    3 tries (bot seeds 1, 101, 201), Pip + Thunderclap.
+//    3 tries (bot seeds 1, 101, 201), Pip + Thunderclap. L50 is the hardest level since the owner asked for it after
+//    update 3: its ELITE is won with a strong pick vs the Tempest King (Pip + Spectra; Thunderclap is weak vs him and
+//    needs full shop upgrades there: 5/5 wins with squad 15 / damage 20 / rate 20 / tier 3, 0/5 with U[50]).
 // 2. Game: startLevel(id, { elite }) runs the elite def (RETRY keeps it); endless / practice never are elite; an elite
 //    win pays round(collected x1.5 + reward x2 + 15/star), records save.elite[id] (best) and leaves save.stars alone;
 //    the progress backup keeps elite stars.
@@ -168,7 +170,7 @@ for (const id of [36, 40, 50]) {
   let tries = 0, won = false, last = null;
   while (!won && tries < 3) {
     d.setUpgrades(snap.U[50].upgrades);
-    d.setLoadout('pip', 'thunderclap');
+    d.setLoadout('pip', id === 50 ? 'spectra' : 'thunderclap');
     d.setAutopilot('pro', 1 + 100 * tries++, { crates: 'never', ability: true, loadout: 'keep' });
     g.startLevel(id, { elite: true });
     let s, k = 0;
