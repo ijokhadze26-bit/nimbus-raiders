@@ -11,6 +11,7 @@ const E = await import('/src/data/enemies.js');
 const B = await import('/src/data/bosses.js');
 const F = await import('/src/ui/infofmt.js');
 const { targetBlurb } = await import('/src/ui/enemyblurbs.js');
+const { ENEMY_INFO } = await import('/src/data/enemyinfo.js');
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const fails = [];
 const check = (ok, msg) => { if (!ok) fails.push(msg); };
@@ -62,6 +63,8 @@ for (const d of all) for (const x of [...d.strong, ...d.weak]) {
   check(targetBlurb(x.id).length > 10, `${d.id}: no description for ${x.id}`);
   check(!x.why || x.why.length <= 70, `${d.id}: why for ${x.id} is long (${x.why && x.why.length})`);
 }
+// one source of truth: the chip line for an enemy is the README's ENEMY_INFO blurb
+for (const t of E.ENEMY_TYPES) check(targetBlurb(t) === ENEMY_INFO[t].blurb, `${t}: chip line is not ENEMY_INFO.${t}.blurb`);
 info.bossLines = { mothermurk: targetBlurb('mothermurk'), ironhorn: targetBlurb('ironhorn') };
 check(targetBlurb('mothermurk').includes('Candy Queen') && targetBlurb('mothermurk').includes('level 40'), 'Mother Murk line does not name the Candy Queen fight: ' + targetBlurb('mothermurk'));
 check(targetBlurb('ironhorn').includes('Frosthorn'), 'Ironhorn line does not name Frosthorn: ' + targetBlurb('ironhorn'));
