@@ -10,7 +10,14 @@ import { FORMATION } from '../config.js';
 import { applyMods, freshMods, GIANT } from '../data/modifiers.js';
 
 export class RunMods {
-  init(game) { this.game = game; this.mods = freshMods(); }
+  init(game) {
+    this.game = game; this.mods = freshMods();
+    this.ext = [];      // online versus (src/online/game): fn(dt, rawDt) run at the end of every playing step
+    this.holdFn = null; // steering override (frozen steering): fn(target) -> x, covers the autopilot too
+  }
+
+  /** The final steering target of a step (game.step): the override when one is set, else x unchanged. */
+  hold(x) { return this.holdFn ? this.holdFn(x) : x; }
 
   /** Run start (run null = menus): applies `ids`, resets the squad cap and the ONE LIFE Guard. */
   begin(run, ids) {
@@ -31,8 +38,9 @@ export class RunMods {
 
   steer(x) { return this.mods.mirror ? -x : x; }
 
-  update() {
+  update(dt, rawDt) {
     const g = this.game, run = g.run, m = this.mods;
+    for (let i = 0; i < this.ext.length; i++) this.ext[i](dt, rawDt);
     if (!run || !m.ids.length) return;
     if (m.fogMul !== 1 && g.hazards) g.hazards.mods.fogMul *= m.fogMul;
     if (m.giant) {

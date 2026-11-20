@@ -12,7 +12,7 @@ import { endlessBestOf } from '../save/modes.js';
 import { unlockedHeroes, unlockedWeapons } from '../save/unlocks.js';
 import { dailyDone } from './modes/daily.js';
 
-const SKIP_MODES = new Set(['practice', 'test']);
+const SKIP_MODES = new Set(['practice', 'test', 'versus']); // online versus runs never count (src/online)
 const MAX_KEYS = new Set(['maxSquad', 'combo', 'mk5', 'endless', 'bossrush', 'rushBosses']); // kills come from run.kills (enemy:die is rate-limited)
 const CHECK_EVERY = 0.5;
 

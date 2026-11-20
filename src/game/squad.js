@@ -23,8 +23,8 @@ export const SHADOW_LAYER = 1;
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _p = new THREE.Vector3(), _s = new THREE.Vector3(), _e = new THREE.Euler();
 
 // unit slot offsets (precomputed)
-const SLOT_X = new Float32Array(FORMATION.maxRendered);
-const SLOT_Z = new Float32Array(FORMATION.maxRendered);
+export const SLOT_X = new Float32Array(FORMATION.maxRendered);
+export const SLOT_Z = new Float32Array(FORMATION.maxRendered);
 for (let i = 0; i < FORMATION.maxRendered; i++) {
   const r = C * Math.sqrt(i + 0.5), a = i * GA;
   SLOT_X[i] = Math.cos(a) * r;

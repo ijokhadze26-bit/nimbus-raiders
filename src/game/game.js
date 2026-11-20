@@ -177,7 +177,7 @@ export class Game {
 
   beginRun(def, mode, seed = 1, opts = {}) {
     this.engine.flushQuality(); // a deferred shadow switch recompiles here, under the screen transition
-    this.rng.seed(def.id * 7919 + (mode === 'endless' ? seed : 0));
+    this.rng.seed(def.id * 7919 + (mode === 'endless' || def.versus ? seed : 0));
     this.procRng.seed(def.id * 104729 + seed + 17);
     let hero = opts.hero || this.loadout.hero, weapon = opts.weapon || this.loadout.weapon;
     if (mode === 'level' && this.autopilot.enabled && this.autopilot.opts.loadout === 'auto') ({ hero, weapon } = autoLoadout(this, def));
@@ -187,7 +187,7 @@ export class Game {
     const world = worldFor(def, mode); this.run.world = world.key; this.run.worldId = world.id; // update 3 looks
     this.run.killsBy = { weapon: 0, ability: 0, helper: 0, other: 0 };
     this.modes.begin(mode);
-    if (mode === 'endless') this.endless.start(this.run, seed); else this.endless.stop();
+    if (mode === 'endless' || def.versus) this.endless.start(this.run, seed); else this.endless.stop();
     this.timeScale = 1; this.resultTimer = -1; this.lastResult = null;
     this.world.setTheme(def.theme);
     this.world.setGaps([]);
@@ -237,7 +237,7 @@ export class Game {
   }
 
   pause() {
-    if (this.state !== 'playing') return;
+    if (this.state !== 'playing' || this.versus?.live) return; // an online match cannot be paused
     this.input.cancel(); // a drag in progress must not keep steering while paused
     this.setState('paused');
     this.events.emit('game:pause', {});
@@ -337,7 +337,7 @@ export class Game {
   win() {
     const run = this.run;
     if (!run || !run.active) return;
-    if (run.mode === 'endless' && this.endless.active) { this.endless.bossDown(); return; } // the run goes on
+    if (this.endless.active) { this.endless.bossDown(); return; } // endless / online versus: the run goes on
     if (this.modes.onWin()) return; // Boss Rush: the next fight
     const squad = this.squad.count;
     run.stars = run.starsFor(squad);
@@ -370,7 +370,7 @@ export class Game {
     if (this.state === 'playing') {
       const run = this.run;
       this.input.update(dt);
-      const target = this.autopilot.enabled ? this.autopilot.update(dt) : this.runMods.steer(this.input.targetX);
+      const target = this.runMods.hold(this.autopilot.enabled ? this.autopilot.update(dt) : this.runMods.steer(this.input.targetX));
       this.formation.update(dt); this.dodge.update(dt);
       this.squad.update(dt, target, this.forwardSpeed(dt));
       run.update(dt, -this.squad.leader.z);
@@ -393,7 +393,7 @@ export class Game {
       this.telegraph.update(dt);
       this.bosses.update(dt);
       this.combo.update();
-      this.runMods.update(dt); this.squadTypes.update(dt);
+      this.runMods.update(dt, rawDt); this.squadTypes.update(dt);
       if (run.phase === 'run' && run.dist >= run.length - (run.boss ? 2 : 0)) {
         if (run.boss) { run.setPhase('boss'); this.bosses.spawn(run.boss); }
         else this.win();
@@ -424,7 +424,7 @@ export class Game {
     this.engine.needsFrame = false;
     const perf = this.perf && this.perf.on ? this.perf.cur : null; // debug.perfStart() harness only
     let t = perf ? performance.now() : 0;
-    if (this.state === 'playing' || MENU_STATES.has(this.state) || this.state === 'result') this.step(dt);
+    if (this.state === 'playing' || MENU_STATES.has(this.state) || this.state === 'result') (this.versus?.live ? this.versus.pump(dt, real) : this.step(dt));
     if (perf) { const t1 = performance.now(); perf.step = t1 - t; t = t1; }
     this.sync(dt);
     if (perf) { const t1 = performance.now(); perf.sync = t1 - t; t = t1; }
