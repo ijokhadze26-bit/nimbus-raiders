@@ -6,7 +6,19 @@
 // candidate can be tried without editing the file.
 // Targets (STAGE1): casual median 120-170 s, pro 200-260 s, nobody past 330 s (the storm wall guarantees it).
 //
-// Measured 2026-11-20 with the numbers now in vsdata.js: see the table at the bottom of this file.
+// Measured 2026-11-20 with the numbers now in vsdata.js (Pip + Thunderclap, 10 seeds each, survival in seconds):
+//   casual  116.5 129.9 157.7 164.8 165.3 168.5 169.1 173.5 189.2 237.6   median 166.9
+//   pro     169.9 187.5 205.4 205.7 213.7 228.9 230.9 250.7 271.0 272.0   median 221.3   longest 272.0
+// What the sweep showed (so the next person does not repeat it):
+// - With SPEC4's first guesses both bots lasted ~250-260 s: every squad sits at the 999 cap from about 1:30 and only
+//   the Sudden Death waves can wipe it. Stronger pressure waves, enemy hp or red gates move BOTH bots by the same
+//   amount (hordes are beaten by firepower, which is equal; the bots handle red gates alike).
+// - The bots differ in dodging, so the lever that separates them is the second boss: 500000 hp at tier 5 is a wall a
+//   full squad cannot shoot down before the boss has thinned it; the casual bot falls there after ~55 s, the pro bot
+//   hangs on with a handful of Raiders. Pace +50% in the first minute brings that boss to ~1:50.
+// - Arena waves from 30 u wipe every small squad at once (both bots fall in the same second at ~185 s): 60 u is kept.
+// - The spread per seed stays wide: a seed with an early x2 ladder reaches the wall with 999 Raiders, a poor seed
+//   falls at the first boss (the two casual runs under 130 s).
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';

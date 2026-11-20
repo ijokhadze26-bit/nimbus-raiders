@@ -40,8 +40,8 @@ const FRAG = `
 uniform float uRim;
 varying vec4 vTint; varying float vRim; varying float vY;
 void main() {
-  float rim = mix(1.0, 0.45 + 1.1 * vRim * vRim, uRim);
-  vec3 c = vTint.rgb * (0.78 + 0.4 * clamp(vY, 0.0, 1.0)) + vec3(0.25) * vRim * vRim * uRim;
+  float rim = mix(1.0, 0.72 + 0.9 * vRim * vRim, uRim);
+  vec3 c = vTint.rgb * (0.8 + 0.35 * clamp(vY, 0.0, 1.0)) + vec3(0.16) * vRim * vRim * uRim;
   gl_FragColor = vec4(c, min(1.0, vTint.a * rim));
   #include <colorspace_fragment>
 }`;
@@ -138,7 +138,9 @@ export class Ghost {
         let rc = rel, far = 1;
         p.pinned = 0;
         if (rel > G.ahead) { rc = G.ahead; p.pinned = 1; far = Math.max(G.farAlpha, 1 - (rel - G.ahead) / G.farFade * (1 - G.farAlpha)); }
-        const near = G.nearAlpha + (1 - G.nearAlpha) * smooth(G.near[0], G.near[1], Math.abs(rel));
+        // overlap with my own squad (same stretch of road AND same lane): the ghost goes fainter there
+        const over = (1 - smooth(G.near[0], G.near[1], Math.abs(rel))) * (1 - smooth(G.side[0], G.side[1], Math.abs(o.x - L.x)));
+        const near = 1 - (1 - (low ? G.nearAlphaLow : G.nearAlpha)) * over;
         const back = rel < 0 ? Math.max(0, 1 + rel / G.behind) : 1;
         if (rel <= -G.behind) p.pinned = -1;
         const boss = arena && Math.abs(rel) > 3 ? 0 : 1; // my arena: only a rival fighting the same boss is shown
@@ -152,9 +154,12 @@ export class Ghost {
           let sx = F.sx, sz = F.sz;
           if (sx * R > MAX_HALF_W && sx > 0.86) { const nx = Math.max(0.86, MAX_HALF_W / R); sz *= sx / nx; sx = nx; }
           const off = FORMATION.leaderGap + sz * R * 0.85;
-          const spread = m > 1 ? Math.sqrt((nr + 0.5) / (m - 0.5)) : 1;
+          // a big squad would scatter its few ghosts over the whole road: the group stays together (spreadMax) and
+          // its Raiders grow a little instead, so it still reads as ONE bigger squad
+          const wide = m > 1 ? Math.sqrt((nr + 0.5) / (m - 0.5)) : 1;
+          const spread = Math.min(G.spreadMax, wide);
           const gx = Math.max(-MEMBER_CLAMP, Math.min(MEMBER_CLAMP, o.x)), gz = -(myDist + rc);
-          const sc = G.scale * (0.55 + 0.45 * fall) * (p.pinned > 0 ? 0.85 : 1);
+          const sc = G.scale * (0.55 + 0.45 * fall) * (p.pinned > 0 ? 0.85 : 1) * (1 + G.grow * Math.min(1, (wide - 1) / 3));
           const r = p.color.r, gr = p.color.g, b = p.color.b;
           for (let i = 0; i < m; i++) {
             let x = gx, z = gz, s = sc * 1.12;
@@ -178,7 +183,7 @@ export class Ghost {
           if (!low && G.tag) {
             const tag = p.tag || (p.tag = this.tagFor(p, pi));
             tag.position.set(gx, 2.35 + (1 - fall) * 0.9, gz);
-            tag.material.opacity = Math.min(1, a * 2.2);
+            tag.material.opacity = Math.min(1, a * 2.2) * (1 - over); // no name inside my own squad
             tag.visible = true;
           } else if (p.tag) p.tag.visible = false;
         }

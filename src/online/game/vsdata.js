@@ -54,9 +54,11 @@ export const VS = {
   ghost: {
     perHigh: 26, perLow: 14,       // most Raiders drawn per rival
     perSqrt: 2.6,                  // drawn = round(perSqrt * sqrt(squad)), so a bigger squad reads bigger
-    alpha: 0.5,                    // body opacity at full strength
-    nearAlpha: 0.55,               // x this when the ghost overlaps my own squad
-    near: [0.8, 4.5],              // |metres apart| over which nearAlpha eases back to 1
+    alpha: 0.55,                   // body opacity at full strength
+    spreadMax: 1.7, grow: 0.25,    // a big squad: slots at most this much wider, Raiders up to this much bigger
+    nearAlpha: 0.5, nearAlphaLow: 0.36, // x this when the ghost overlaps my own squad (Low has no rim: flatter, so fainter)
+    near: [0.8, 4.5],              // |metres apart| along the road over which nearAlpha eases back to 1
+    side: [1.2, 3.2],              // ... and sideways (a ghost in the other lane is not an overlap)
     ahead: 34, farAlpha: 0.4, farFade: 30,  // further ahead than `ahead`: pinned there, fading to farAlpha over farFade u
     behind: 5,                     // rivals behind fade out by this many units (the bar at the top shows them)
     lift: 0.05, scale: 1.06,
@@ -68,7 +70,7 @@ export const VS = {
 };
 
 /** Seat colours (ghost tint; the versus bar can use the same ones). */
-export const SLOT_COLORS = ['#59e0ff', '#ff8fd0', '#ffe066', '#9dff8a'];
+export const SLOT_COLORS = ['#19bfff', '#ff58b4', '#ffc41f', '#55dd66'];
 
 /** Boss hp of arena n (1-based) in a versus match. */
 export function vsBossHp(n) {

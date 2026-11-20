@@ -42,7 +42,7 @@ export class Versus {
     ev.on('endless:boss', () => this.onZone());
     ev.on('boss:spawn', () => this.onBossSpawn());
     ev.on('game:state', (p) => this.onState(p.state));
-    ev.on('run:start', (p) => { if (this.live && p.mode !== 'versus') this.close(true); });
+    ev.on('run:start', (p) => { if (this.live && p.mode !== 'versus') this.stop({ toTitle: false }); }); // another run began: the match is left
   }
 
   // ---------------- lifecycle ----------------
