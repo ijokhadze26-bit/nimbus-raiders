@@ -149,8 +149,9 @@ export function createTestLink(opts = {}) {
     if (!r.silent) r.next = Math.max(r.next, Math.round(Math.max(0, clock() - r.lag) * 10) / 10);
     emit('peer', r.slot, { silent, countdown });
   };
-  /** Delivers a verdict by hand ({ result, place, places, reason }); a match gets exactly one. */
-  test.verdict = (v) => { if (test.done) return; test.done = true; test.verdicts.push(v); emit('verdict', v); };
+  /** Delivers a verdict by hand ({ result, place, places, reason }); a match gets exactly one, except that a
+   *  verdict marked `revised: true` may follow a provisional one (as src/online/match.js does). */
+  test.verdict = (v) => { if (test.done && !(v && v.revised)) return; test.done = true; test.verdicts.push(v); emit('verdict', v); };
   test.status = (s) => emit('status', s);
   test.event = (e) => emit('event', e);
   /** 'sim' clock only: freeze the match clock at a value (null = follow the game again). */

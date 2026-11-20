@@ -5,16 +5,22 @@
 // The network side hands in one LINK (STAGE1): this class pushes a sample 10 times a second, reports its own fall once
 // and listens for the rivals' state, their falls and the verdict. It never decides who won.
 //
-//   start(link, { hero, weapon })  begins the run; frozen at the start line until link.clock() >= 0
+//   start(link, { hero, weapon, heroSkin, weaponSkin })
+//                                  begins the run; frozen at the start line until link.clock() >= 0 (the skins are
+//                                  only remembered for the VS card: the squad wears what the save has equipped)
 //   live                           true from start() until the result screen (game.pause() is blocked meanwhile)
 //   pump(dt, real)                 game.frame's step while live: countdown freeze + catch-up steps (SPEC4 §5.3)
 //   t                              played clock: real seconds of simulation stepped while my squad was alive
 //   view()                         numbers for the HUD (same objects every call)
-//   result                         { result, place, places, t, d, reason, seed } once the verdict is in
+//   result                         { result, place, places, t, d, reason, seed, provisional, revised } once the verdict
+//                                  is in. A verdict marked provisional may be followed by ONE more (revised: true,
+//                                  src/online/match.js): `result` is then replaced and 'versus:revised' is emitted,
+//                                  also after the result screen is up (the verdict listener lives as long as the link)
+//   picks                          my own { hero, weapon, heroSkin, weaponSkin } of this match (for the VS card)
 //   stop()                         leaves the match (my fall is reported as 'quit' when I was alive)
 //   simulate(seconds, dt)          tests / calibration: pump without rendering
 // Game bus: versus:start { seed, peers }, versus:go, versus:sudden, versus:storm, versus:peerdown { slot, name, by },
-// versus:end { result, ... }; run:lose / run:win carry mode 'versus'. Nothing of a versus run reaches the save
+// versus:end { result, ... }, versus:revised { result, ... }; run:lose / run:win carry mode 'versus'. Nothing of a versus run reaches the save
 // (save/progress.js pays 'level' and 'endless' only; achievements skip 'versus').
 import { endlessDef } from '../../data/endless.js';
 import { FORMATIONS } from '../../game/formation.js';
@@ -29,7 +35,7 @@ export class Versus {
     this.game = game;
     this.live = false;
     this.link = null;
-    this.result = null;
+    this.result = null; this.picks = {}; this.offVerdict = null;
     this.t = 0; this.simT = 0;
     this.ramp = new Ramp(game);
     this.ghost = new Ghost(game);
@@ -57,7 +63,9 @@ export class Versus {
   start(link, picks = {}) {
     if (this.live) this.stop({ toTitle: false });
     const g = this.game;
+    if (this.offVerdict) { this.offVerdict(); this.offVerdict = null; } // (the last match's late verdict no longer counts)
     this.link = link; // (the link of a finished match is not left here: after a result it belongs to the UI)
+    this.picks = { hero: picks.hero || null, weapon: picks.weapon || null, heroSkin: picks.heroSkin || null, weaponSkin: picks.weaponSkin || null };
     this.seed = link.seed >>> 0;
     this.t = 0; this.simT = 0; this.stall = 0; this.sampleT = 0; this.ci = 0;
     this.counts.fill(0);
@@ -68,14 +76,14 @@ export class Versus {
     const v = this.v;
     v.t = 0; v.sudden = false; v.storm = false; v.go = false; v.net = 'on';
     v.me.n = 0; v.me.dist = 0; v.me.danger = 0; // (danger is only rewritten by the first sample after GO)
-    v.peers = (link.peers || []).map((p) => ({ slot: p.slot, name: p.name, hero: p.hero, weapon: p.weapon, bot: !!p.bot, n: 0, dist: 0, danger: 0, x: 0, form: 0, flags: 0, boss: 0, zone: 1, alive: true, silent: 0, countdown: null, place: null, T: null, d: null, by: null }));
+    v.peers = (link.peers || []).map((p) => ({ slot: p.slot, name: p.name, hero: p.hero, weapon: p.weapon, heroSkin: p.heroSkin || null, weaponSkin: p.weaponSkin || null, bot: !!p.bot, n: 0, dist: 0, danger: 0, x: 0, form: 0, flags: 0, boss: 0, zone: 1, alive: true, silent: 0, countdown: null, place: null, T: null, d: null, by: null }));
     this.offs = [
       link.on('state', (slot, s) => this.onPeerState(slot, s)),
       link.on('out', (slot, o) => this.onPeerOut(slot, o)),
       link.on('peer', (slot, o) => { const p = this.peer(slot); if (p) { p.silent = o.silent || 0; p.countdown = o.countdown ?? null; } }),
-      link.on('verdict', (o) => this.onVerdict(o)),
       link.on('status', (s) => { v.net = s; }),
     ];
+    this.offVerdict = link.on('verdict', (o) => this.onVerdict(o));
     this.live = true;
     g.beginRun({ ...endlessDef(1), name: 'ONLINE', versus: true }, 'versus', this.seed, { hero: picks.hero, weapon: picks.weapon, mods: ['noUpgrades'] });
     // bought Raider types (Shield Bearer / Medic / Heavy Gunner) are shop upgrades too: off for everyone
@@ -107,6 +115,8 @@ export class Versus {
     this.offs = [];
     this.ramp.end();
     this.ghost.clear();
+    // the link kept for the result screen still delivers a revised verdict; a link that is left delivers nothing more
+    if (leave || !this.link) { if (typeof this.offVerdict === 'function') this.offVerdict(); this.offVerdict = null; }
     if (leave && this.link) { const l = this.link; this.link = null; l.leave(); }
   }
 
@@ -271,16 +281,37 @@ export class Versus {
   }
 
   onVerdict(o) {
-    if (!this.live || this.verdict || !o) return;
+    if (!o) return;
+    if (this.verdict) { this.revise(o); return; }
+    if (!this.live) return;
     const g = this.game, run = g.run;
     this.verdict = o;
     if (run && run.mode === 'versus' && run.active) {
       if (o.result === 'win') this.win();
       else { this.reported = true; g.squad.setCount(0, 'versus'); } // beaten while standing (forfeit by connection): the run ends now
     }
-    for (const r of o.places || []) { const p = this.peer(r.slot); if (p) { p.place = (o.places.indexOf(r) + 1); if (r.T != null) p.T = r.T; if (r.d != null) p.d = r.d; } }
-    this.result = { result: o.result, place: o.place ?? null, places: o.places || [], t: Math.round((this.myT ?? this.t) * 10) / 10, d: this.myD ?? this.metres(), reason: o.reason || this.quitReason || null, seed: this.seed };
+    this.result = this.makeResult(o);
     g.events.emit('versus:end', this.result);
+  }
+
+  makeResult(o) {
+    for (const r of o.places || []) { const p = this.peer(r.slot); if (p) { p.place = (o.places.indexOf(r) + 1); if (r.T != null) p.T = r.T; if (r.d != null) p.d = r.d; if (r.by) p.by = r.by; } }
+    return { result: o.result, place: o.place ?? null, places: o.places || [], t: Math.round((this.myT ?? this.t) * 10) / 10, d: this.myD ?? this.metres(), reason: o.reason || this.quitReason || null, seed: this.seed, provisional: !!o.provisional, revised: !!o.revised };
+  }
+
+  /**
+   * The network side could not be sure of its first verdict (I fell offline, or the last rival went silent after my
+   * fall: `provisional`) and now the fall records have settled: this later verdict is the one that counts. My run is
+   * over either way (both cases start with my own fall), so only the result changes; the result screen follows
+   * 'versus:revised'. Anything else that arrives after a verdict is ignored: a match has one result.
+   */
+  revise(o) {
+    if (!o.revised || !this.verdict.provisional || !this.link || !this.result) return;
+    this.verdict = o;
+    this.result = this.makeResult(o);
+    const g = this.game;
+    if (g.lastResult && g.lastResult.mode === 'versus') g.lastResult.win = o.result === 'win';
+    g.events.emit('versus:revised', this.result);
   }
 
   /** Last squad standing: the run ends as a win (no payout, nothing saved). */
