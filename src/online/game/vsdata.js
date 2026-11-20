@@ -71,7 +71,9 @@ export const VS = {
     // base = smallest arrival offset of the last 10 messages, D = jitter + bundle interval (at most everyMax) + pad
     delayPad: 0.08, delayMin: 0.35, delayMax: 2.5, everyMax: 1, rateMin: 0.95, rateMax: 1.05, rateStarve: 0.5,
     snap: 3, reseat: 1,            // playhead this far behind / ahead of its goal: re-seated instead of eased
-    stall: 1, latency: 0.15,       // a base over `stall` s is the rival's clock deficit (pump.maxGap) + about `latency`
+    stall: 1, latency: 0.15,       // a stall puts the rival's clock `stall` s or more behind at once (pump.maxGap)
+    late: 2,                       // a FIRST arrival offset over this is a rival that started late (link delay taken as `latency`)
+    relSpeed: 24, laneSpeed: 16,   // u/s: how fast a visible ghost may move against my own squad / across the road (never a jump)
     extrapolate: 0.4, starveAlpha: 0.15, starveFade: 0.6,
     settle: 10,                    // u/s: a run-on past a rival that stopped eases back at this speed
     tag: true,                     // High only: the rival's name floats over the ghost leader

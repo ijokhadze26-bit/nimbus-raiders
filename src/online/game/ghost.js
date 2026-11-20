@@ -161,7 +161,10 @@ export class Ghost {
       const o = fall > 0 ? p.track.play(p.alive ? clock : p.track.lastClock ?? clock) : null;
       let a = 0;
       if (o && o.ok && o.n >= 0.5) {
-        const rel = o.dist - this.myAt(o.at, clock, myDist); // ahead (+) or behind (-) me at the moment shown
+        let rel = o.dist - this.myAt(o.at, clock, myDist); // ahead (+) or behind (-) me at the moment shown
+        // a ghost on screen slides to a new place, it never jumps there (a late message or a rival back from a stall
+        // re-seats the playhead by a second or more at once); one that was hidden simply appears where it belongs
+        if (p.shown > 0 && p.alive) { const lim = G.relSpeed * Math.min(dt, 0.1); rel = Math.max(p.rel - lim, Math.min(p.rel + lim, rel)); }
         let rc = rel, far = 1;
         p.pinned = 0;
         if (rel > G.ahead) { rc = G.ahead; p.pinned = 1; far = Math.max(G.farAlpha, 1 - (rel - G.ahead) / G.farFade * (1 - G.farAlpha)); }

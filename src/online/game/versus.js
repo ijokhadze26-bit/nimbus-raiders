@@ -296,7 +296,9 @@ export class Versus {
 
   makeResult(o) {
     for (const r of o.places || []) { const p = this.peer(r.slot); if (p) { p.place = (o.places.indexOf(r) + 1); if (r.T != null) p.T = r.T; if (r.d != null) p.d = r.d; if (r.by) p.by = r.by; } }
-    return { result: o.result, place: o.place ?? null, places: o.places || [], t: Math.round((this.myT ?? this.t) * 10) / 10, d: this.myD ?? this.metres(), reason: o.reason || this.quitReason || null, seed: this.seed, provisional: !!o.provisional, revised: !!o.revised };
+    // my own fall reads as its record holds it (whole tenths, capped by the server's stamp), so both screens show the same numbers
+    const rec = this.link ? (o.places || []).find((r) => r.slot === this.link.slot && r.T != null) : null;
+    return { result: o.result, place: o.place ?? null, places: o.places || [], t: rec ? rec.T : Math.round((this.myT ?? this.t) * 10) / 10, d: rec && rec.d != null ? rec.d : this.myD ?? this.metres(), reason: o.reason || this.quitReason || null, seed: this.seed, provisional: !!o.provisional, revised: !!o.revised };
   }
 
   /**

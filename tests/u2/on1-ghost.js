@@ -165,7 +165,7 @@ try {
       for (let clock = 0.5; clock < 24 + S; clock += 1 / 60) {
         while (mi < mail.length && mail[mi].at <= clock) tr.feed(mail[mi++].s, clock);
         const o = tr.play(clock);
-        if (clock > 10.12 + S + 2) { frames++; if (o.starve > 1e-6) late++; minAlpha = Math.min(minAlpha, o.alpha); atErr = Math.max(atErr, Math.abs((o.at - tr.ph) - (S + 0.12 - VS.ghost.latency))); }
+        if (clock > 10.12 + S + 2) { frames++; if (o.starve > 1e-6) late++; minAlpha = Math.min(minAlpha, o.alpha); atErr = Math.max(atErr, Math.abs((o.at - tr.ph) - S)); } // (the deficit is the stall itself: the 0.12 s were the link's delay before it)
       }
       stall[S] = { late, frames, minAlpha: Math.round(minAlpha * 100) / 100, D: Math.round(tr.goalD * 100) / 100, base: Math.round(tr.base * 100) / 100, atErr: Math.round(atErr * 100) / 100 };
       ok(frames > 600 && late === 0 && minAlpha === 1, `rival ${S} s behind the clock: still starved 2 s after it came back (${JSON.stringify(stall[S])})`);

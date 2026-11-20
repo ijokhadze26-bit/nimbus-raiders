@@ -13,7 +13,10 @@
 // Out of data: distance runs on for `extrapolate` s at the last speed (not in an arena: the rival stands there), the
 // lane holds, then the ghost fades.
 // out.at is the match clock of what is shown (playhead + the rival's clock deficit), so ghost.js can compare the
-// rival with where I was at that same moment.
+// rival with where I was at that same moment. The arrival offset is the link's delay PLUS that deficit, and only
+// their history tells them apart: the delay is there from the first message and only wobbles (`lat`: the smallest
+// settled base seen), a stall adds a second or more at once and stays (whatever the settled base has above `lat`).
+// A first base over `late` s is a rival that started late: the usual `latency` is assumed for the link then.
 import { VS } from './vsdata.js';
 
 const MAX_X = 96, MAX_KEYS = 32;
@@ -27,6 +30,8 @@ export class Track {
     this.offs = [];               // arrival offsets (clock - sample time) of the last 10 messages
     this.gaps = [];               // sample time between the last 10 bundles
     this.base = 0;                // smallest of offs
+    this.firm = null;             // ... once settled: a base raised by ONE late message (offs just emptied) waits for 4
+    this.lat = 0;                 // the link's delay: the smallest settled base (see the top of this file)
     this.goalD = VS.ghost.delayMin;
     this.ph = null;               // playhead (rival played time)
     this.lastClock = null;
@@ -53,6 +58,9 @@ export class Track {
     for (const o of this.offs) { if (o > worst) worst = o; if (o < base) base = o; }
     for (const v of this.gaps) if (v < every) every = v; // the smallest gap: a lost bundle must not double the delay
     this.base = base;
+    if (this.firm == null || base <= this.firm || this.offs.length >= 4) this.firm = base;
+    if (this.fed < 3) this.lat = this.firm > G.late ? G.latency : this.firm;
+    else if (this.firm < this.lat) this.lat = this.firm;
     this.goalD = Math.max(G.delayMin, Math.min(G.delayMax, worst - base + Math.min(every, G.everyMax) + G.delayPad));
     const xs = s.xs && s.xs.length ? s.xs : [s.x || 0];
     const lastX = this.xt.length ? this.xt[this.xt.length - 1] : -1;
@@ -102,15 +110,18 @@ export class Track {
     else if (speed < 1 || a.boss) this.sd = Math.max(dist, this.sd - G.settle * dtc);
     o.dist = this.sd;
     o.form = a.form; o.boss = a.boss; o.zone = a.zone;
-    // the rival's clock deficit: a played clock is never more than `stall` s behind the match clock without a stall,
-    // so a bigger base is deficit (+ a typical latency), a smaller one is taken as latency alone
-    o.at = ph + (this.base > G.stall ? this.base - G.latency : 0);
+    // the rival's clock deficit: what the settled base has above the link's delay (a stall loses a second or more at
+    // once, pump.maxGap; anything smaller is the delay wobbling)
+    const behind = (this.firm ?? 0) - this.lat;
+    o.at = ph + (behind >= G.stall * 0.7 ? behind : 0);
     // lane
     const xt = this.xt, xv = this.xv;
     let i = xt.length - 1;
     while (i > 0 && xt[i] > ph) i--;
     const x = i < xt.length - 1 && ph > xt[i] ? xv[i] + (xv[i + 1] - xv[i]) * Math.min(1, (ph - xt[i]) / (xt[i + 1] - xt[i])) : xv[i];
-    this.sx = this.sx == null ? x : this.sx + (x - this.sx) * (1 - Math.exp(-12 * dtc)); // eased: data after a gap never pops
+    // eased, and never faster than a squad can cross the road: data after a gap never pops
+    const cap = G.laneSpeed * dtc;
+    this.sx = this.sx == null ? x : this.sx + Math.max(-cap, Math.min(cap, (x - this.sx) * (1 - Math.exp(-12 * dtc))));
     o.x = this.sx;
     // squad count eases toward the keyframe in force
     this.n += (a.n - this.n) * (1 - Math.exp(-7 * dtc));
