@@ -62,9 +62,13 @@ export const VS = {
     ahead: 34, farAlpha: 0.4, farFade: 30,  // further ahead than `ahead`: pinned there, fading to farAlpha over farFade u
     behind: 5,                     // rivals behind fade out by this many units (the bar at the top shows them)
     lift: 0.05, scale: 1.06,
-    // jitter buffer (SPEC4 §5.4): playhead = match clock - D, D = worst arrival offset of the last 10 messages + pad
-    delayPad: 0.08, delayMin: 0.35, delayMax: 2.5, rateMin: 0.95, rateMax: 1.05, snap: 3,
+    // jitter buffer (SPEC4 §5.4, track.js): playhead = match clock - base - D in the rival's own played time;
+    // base = smallest arrival offset of the last 10 messages, D = jitter + bundle interval (at most everyMax) + pad
+    delayPad: 0.08, delayMin: 0.35, delayMax: 2.5, everyMax: 1, rateMin: 0.95, rateMax: 1.05, rateStarve: 0.5,
+    snap: 3, reseat: 1,            // playhead this far behind / ahead of its goal: re-seated instead of eased
+    stall: 1, latency: 0.15,       // a base over `stall` s is the rival's clock deficit (pump.maxGap) + about `latency`
     extrapolate: 0.4, starveAlpha: 0.15, starveFade: 0.6,
+    settle: 10,                    // u/s: a run-on past a rival that stopped eases back at this speed
     tag: true,                     // High only: the rival's name floats over the ghost leader
   },
 };

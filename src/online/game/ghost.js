@@ -3,9 +3,11 @@
 //   brighter rim, no lights, no shadow, no depth write). Hidden when there is nothing to draw, so a single-player
 //   frame never pays for it.
 // - Each rival has a Track (track.js): its samples are played back a little late and smoothly, never jumping.
-// - Same road for everyone, so a rival simply stands at its own distance: z = -(its distance). A rival far ahead is
-//   pinned at the edge of the view and faded; a rival behind fades out (the bar at the top shows it); a ghost that
-//   overlaps my own squad goes fainter so my Raiders stay readable.
+// - Same road for everyone, so a rival stands where it is on the road. Its samples are shown a moment late (the
+//   jitter buffer), so it is compared with where I was AT THAT SAME MOMENT (my own distance is kept by match clock):
+//   a rival running level with me is drawn level with me, not the 3-5 u behind that I have run since. A rival far
+//   ahead is pinned at the edge of the view and faded; a rival behind fades out (the bar at the top shows it); a
+//   ghost that overlaps my own squad goes fainter so my Raiders stay readable.
 // - A bigger rival squad draws more Raiders (about 2.6 x sqrt(count), capped) spread over the squad's real footprint
 //   in its real formation.
 // - High adds the extras: a little bob, the rim light and the rival's name floating over its leader. Low draws the
@@ -24,6 +26,7 @@ const MAX_PEERS = 3;
 const C = FORMATION.spacing * 0.525; // phyllotaxis scale (squad.js / formation.js)
 const MAX_HALF_W = MEMBER_CLAMP - 0.3;
 const FALL_TIME = 0.7;
+const HIST = 768, HIST_STEP = 1 / 30; // my own distance, one entry per 1/30 s of match clock: about 25 s
 
 const VERT = `
 attribute vec4 aTint;
@@ -51,6 +54,7 @@ export class Ghost {
     this.game = game;
     this.peers = [];   // { slot, name, color, track, alive, fallT, tag, shown, rel, pinned }
     this.time = 0;
+    this.hist = new Float64Array(HIST * 2); this.hi = 0; this.hn = 0; // ring of (match clock, my distance)
     const cap = MAX_PEERS * VS.ghost.perHigh;
     const geo = buildRaiderLowGeometry();
     this.tint = new THREE.InstancedBufferAttribute(new Float32Array(cap * 4), 4);
@@ -77,6 +81,7 @@ export class Ghost {
   /** Match start: one ghost per rival. peers = link.peers ([{ slot, name, ... }]). */
   begin(peers) {
     this.clear();
+    this.hi = 0; this.hn = 0;
     for (const p of (peers || []).slice(0, MAX_PEERS)) {
       this.peers.push({ slot: p.slot, name: String(p.name || 'Rival'), color: new THREE.Color(SLOT_COLORS[p.slot % SLOT_COLORS.length]), track: new Track(), alive: true, fallT: 0, tag: null, shown: 0, rel: 0, pinned: 0 });
     }
@@ -98,6 +103,27 @@ export class Ghost {
 
   /** Where a rival's ghost is drawn (HUD arrows / tests): { shown 0..1, rel metres ahead (+) or behind (-), pinned -1|0|1 }. */
   info(slot) { const p = this.peer(slot); return p ? { shown: p.shown, rel: p.rel, pinned: p.pinned, drawn: p.drawn | 0 } : null; }
+
+  /** Remembers my distance at match clock `clock` (once per rendered frame, thinned to one entry per 1/30 s). */
+  mark(clock, dist) {
+    const h = this.hist;
+    if (this.hn && clock < h[((this.hi + HIST - 1) % HIST) * 2] + HIST_STEP) return;
+    h[this.hi * 2] = clock; h[this.hi * 2 + 1] = dist;
+    this.hi = (this.hi + 1) % HIST;
+    if (this.hn < HIST) this.hn++;
+  }
+
+  /** My distance at match clock t (now = `clock` / `dist`; older than the ring = the oldest entry). */
+  myAt(t, clock, dist) {
+    const h = this.hist;
+    let t1 = clock, d1 = dist;
+    for (let k = 1; k <= this.hn; k++) {
+      const i = ((this.hi - k + HIST) % HIST) * 2, t0 = h[i], d0 = h[i + 1];
+      if (t0 <= t) return t1 > t0 ? d0 + (d1 - d0) * Math.min(1, (t - t0) / (t1 - t0)) : d0;
+      t1 = t0; d1 = d0;
+    }
+    return d1;
+  }
 
   tagFor(p, i) {
     let t = this.tags[i];
@@ -124,7 +150,8 @@ export class Ghost {
     this.time += dt;
     this.mat.uniforms.uRim.value = low ? 0 : 1;
     const run = g.run, L = g.squad.leader, myDist = -L.z;
-    const arena = !!run && run.phase === 'boss';
+    this.mark(clock, myDist);
+    const arena = !!run && run.phase === 'boss', zone = g.endless.zone;
     const arr = mesh.instanceMatrix.array, tint = this.tint.array;
     let n = 0;
     for (let pi = 0; pi < this.peers.length; pi++) {
@@ -134,7 +161,7 @@ export class Ghost {
       const o = fall > 0 ? p.track.play(p.alive ? clock : p.track.lastClock ?? clock) : null;
       let a = 0;
       if (o && o.ok && o.n >= 0.5) {
-        const rel = o.dist - myDist;
+        const rel = o.dist - this.myAt(o.at, clock, myDist); // ahead (+) or behind (-) me at the moment shown
         let rc = rel, far = 1;
         p.pinned = 0;
         if (rel > G.ahead) { rc = G.ahead; p.pinned = 1; far = Math.max(G.farAlpha, 1 - (rel - G.ahead) / G.farFade * (1 - G.farAlpha)); }
@@ -143,7 +170,8 @@ export class Ghost {
         const near = 1 - (1 - (low ? G.nearAlphaLow : G.nearAlpha)) * over;
         const back = rel < 0 ? Math.max(0, 1 + rel / G.behind) : 1;
         if (rel <= -G.behind) p.pinned = -1;
-        const boss = arena && Math.abs(rel) > 3 ? 0 : 1; // my arena: only a rival fighting the same boss is shown
+        // my arena: only a rival fighting the same boss is shown (its own report says so, or it stands where I stand)
+        const boss = arena && !(o.boss && o.zone === zone) && Math.abs(rel) > 3 ? 0 : 1;
         a = G.alpha * o.alpha * far * near * back * boss * fall;
         p.rel = rel;
         if (a > 0.02) {
