@@ -130,8 +130,14 @@ test('sizes: a room or match record cannot be stuffed with bare values or thousa
   for (const [what, path, v] of [['picks as a string', 'p', big], ['states as a string', 'l', big], ['a pick row for seat 7', 'p/7', { n: 'x' }],
     ['a state for seat 7', 'l/7', state], ['a heartbeat for seat 7', 'hb/7', { a: TS, t: 0 }]]) ok(!(await can(X.set(`rooms/BBBA/${path}`, v))), what);
   ok(!(await can(X.set('matches/junk', { code: 'BBBA', k: 'friend', ts: TS, u: { 0: 'uidX' }, us: { uidX: 0 }, tr: big }))), 'a match record with a bare trophy value');
-  ok(await can(X.set('matches/spare', { code: 'BBBA', k: 'friend', ts: TS, u: { 0: 'uidX' }, us: { uidX: 0 } })), 'a spare record can still be made...');
-  ok(await can(X.remove('matches/spare')), '...and its author can now delete it (the room never went live with it)');
+  let made = 0;
+  for (let i = 0; i < 20; i++) if (await can(X.set(`matches/spam${i}`, { code: 'BBBA', k: 'friend', ts: TS, u: { 0: 'uidX' }, us: { uidX: 0 } }))) made++;
+  eq(made, 0, 'one account alone in a lobby cannot pile up match records');
+  // with a second player seated a spare record can exist, and either of them may tidy it away
+  const Y = await w.client('uidY');
+  await Y.set('rooms/BBBA/sl/1', 'uidY');
+  ok(await can(X.set('matches/spare', { code: 'BBBA', k: 'friend', ts: TS, u: { 0: 'uidX', 1: 'uidY' }, us: { uidX: 0, uidY: 1 } })));
+  ok(await can(Y.remove('matches/spare')), 'the room never went live with it');
 });
 
 test('queue: only the owner marks a ticket as "took a bot"; a quick room can claim just the ticket it was made for', async () => {

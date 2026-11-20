@@ -244,7 +244,8 @@ const PLAYS = and(`${ROOM2}.child('st').val() === 'live'`, `${ROOM2}.child('mid'
 // The room's current match is over: at most one of its players has no fall record.
 const LIVE_M = `root.child('matches/' + ${ROOM1}.child('mid').val())`;
 const RUNS = (i) => `${LIVE_M}.child('u/${i}').exists() && !${LIVE_M}.child('out/${i}').exists()`;
-const OVER = and(...[[0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3]].map(([i, j]) => `!(${RUNS(i)} && ${RUNS(j)})`));
+const PAIRS = [[0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3]];
+const OVER = and(...PAIRS.map(([i, j]) => `!(${RUNS(i)} && ${RUNS(j)})`));
 const NEXT_M = `root.child('matches/' + ${NROOM}.child('mid').val())`;
 
 // One hosted room per account: host/$uid names the one room I may create. It can only move on once I
@@ -414,6 +415,8 @@ const matches = {
       // every player is in `us` (nobody can be left unable to record a fall); it also means no uid sits twice
       ...[0, 1, 2, 3].map((i) => `!newData.child('u/${i}').exists() || (newData.child('u/${i}').isString() && newData.child('us/' + newData.child('u/${i}').val()).val() === ${i})`),
       "newData.child('k').val() !== 'quick' || (newData.child('tr/0').isNumber() && newData.child('tr/1').isNumber())",
+      // a match needs two players (so one account alone in a lobby cannot pile up records)
+      or(...PAIRS.map(([i, j]) => `newData.child('u/${i}').exists() && newData.child('u/${j}').exists()`)),
     ))),
     code: { '.validate': 'newData.isString() && newData.val().length === 4' },
     k: { '.validate': 'newData.isString()' }, ts: { '.validate': 'newData.isNumber()' },

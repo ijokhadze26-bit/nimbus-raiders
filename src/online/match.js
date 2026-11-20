@@ -283,8 +283,9 @@ export function createMatch({ transport: tp, room, cfg = {}, timer = realClock }
         const chipS = NET.silentS + (p.heard > p.stateAt ? NET.hbSlackS : 0);
         if (silent >= chipS && now >= t0 + 1000) {
           const cd = Math.max(0, Math.ceil(NET.silentS + NET.countdownS - silent));
-          if (cd !== p.cd) { p.cd = cd; emit('peer', p.slot, { silent, countdown: cd }); }
-          // only a player still standing may close a seat (the rules); once I fell they are taken to outlast me
+          // only a player still standing may close a seat (the rules): once I fell there is no "win in N" to show,
+          // and at the end of the countdown the silent rival is taken to have outlasted me
+          if (cd !== p.cd) { p.cd = cd; emit('peer', p.slot, { silent, countdown: my.fell ? null : cd }); }
           if (cd === 0) { if (my.fell) p.gone = true; else closeSeat(p, 'dc', now); }
         } else if (p.cd !== null) {
           p.cd = null;
