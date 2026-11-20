@@ -117,7 +117,7 @@ localStorage.setItem(SAVE_KEY, JSON.stringify(v2));
 let sv = fresh();
 for (const k of ['coins', 'stars', 'upgrades', 'skins', 'daily', 'endlessBest', 'stats', 'heroes', 'arsenal', 'seen']) eq(sv.data[k], v2[k], 'v2 field ' + k);
 eq(Object.fromEntries(Object.keys(v2.settings).map((k) => [k, sv.data.settings[k]])), v2.settings, 'v2 settings');
-eq([sv.data.version, sv.data.unlockedLevel], [3, 16], 'v2 that beat L15 -> v3, unlockedLevel 16');
+eq([sv.data.version, sv.data.unlockedLevel], [4, 16], 'v2 that beat L15 -> v4 (update 5), unlockedLevel 16');
 eq([sv.data.settings.musicVol, sv.data.settings.sfxVol, sv.data.settings.abilitySide, sv.data.settings.colorblind, sv.data.settings.haptics], [0.8, 0.9, 'right', false, false], 'v3 settings (haptics = old vibration)');
 eq([sv.data.elite, sv.data.modes, sv.data.achievements, sv.data.squadTypes], [{}, { bossRushBest: 0, dailyBest: {}, chaosBest: 0, endlessBest: {} }, { done: [], claimed: [], counts: {} }, { owned: [], mix: {} }], 'v3 defaults');
 sv.setSetting('haptics', true); eq(sv.data.settings.vibration, true, 'haptics drives the old vibration switch');

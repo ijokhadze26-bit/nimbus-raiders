@@ -24,6 +24,12 @@ function readParams() {
     level: num('level'),
     autopilot: q.get('autopilot') === '1',
     quality: ['high', 'low', 'auto'].includes(q.get('quality')) ? q.get('quality') : null,
+    // update 5 (online): a friend's share link (?room=ABCD, &watch=1) and the local test networks
+    room: /^[A-HJ-NP-Z]{4}$/i.test(q.get('room') || '') ? q.get('room').toUpperCase() : null,
+    watch: q.get('watch') === '1',
+    net: ['local', 'bridge'].includes(q.get('net')) ? q.get('net') : null, // two tabs of one browser / the test harness
+    pid: /^[A-Za-z0-9_-]{1,24}$/.test(q.get('pid') || '') ? q.get('pid') : null, // this tab's own player id on a local network
+    nettest: /^[a-z0-9.,; ]{1,60}$/i.test(q.get('nettest') || '') ? q.get('nettest') : null, // slow-network shim: lat400,jit200,loss5
   };
 }
 
@@ -67,7 +73,18 @@ async function boot() {
   game.loop = loop;
 
   if (params.autopilot) game.debug.setAutopilot(true);
-  if (!(params.level && game.startLevel(params.level))) game.toTitle();
+  const run = !!(params.level && game.startLevel(params.level));
+  if (!run) game.toTitle();
+  if (!run && params.room) {
+    // a friend's link: straight to that room's lobby. The room leaves the address so a reload does not join it again.
+    ui.openOnline({ room: params.room, watch: params.watch });
+    try {
+      const q = new URLSearchParams(location.search);
+      q.delete('room'); q.delete('watch');
+      const rest = q.toString();
+      history.replaceState(null, '', location.pathname + (rest ? `?${rest}` : ''));
+    } catch { /* a sandboxed page without history access: the link simply stays */ }
+  }
 
   installMobile(game, engine); // viewport, gesture guards, pause on hide, WebGL context loss
   loop.start();

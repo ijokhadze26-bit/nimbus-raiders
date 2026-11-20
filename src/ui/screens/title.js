@@ -2,6 +2,8 @@
 // music + sound toggles, daily reward badge and the coin total. Update 2: an ARMORY / HEROES tile row (same
 // .tbtn tiles) sits between the logo and the attract squad, with a NEW dot while an unlocked item is unseen.
 // Update 3 stage 5: a trophy button (ACHIEVEMENTS page) beside the sound toggles, badge = unclaimed rewards.
+// Update 5: a wide ONLINE button under PLAY. Its label follows ui.online (ui/onlinegate.js): ONLINE, ONLINE · LOADING,
+// ONLINE · UNAVAILABLE (tap = try again), ONLINE · COMING SOON. It never blocks anything else on this screen.
 import { screenEl, coinPill } from '../ui.js';
 import { icon } from '../icons.js';
 import { createLogo, replayLogo } from '../logo.js';
@@ -39,6 +41,7 @@ export function createTitle(ui) {
       <button type="button" class="btn btn-gold btn-xl btn-play" data-act="play">
         <span class="play-ico">${icon('play')}</span><span class="col"><span class="big">PLAY</span><span class="sub wl lvl">WORLD 1 · LEVEL 1</span></span>
       </button>
+      <button type="button" class="btn btn-red btn-online" data-act="online">${icon('globe')}<span class="on-lbl">ONLINE</span></button>
       <div class="title-row">
         <button type="button" class="tbtn btn-purple" data-act="modes">${icon('star')}<span>MODES</span></button>
         <button type="button" class="tbtn btn-green" data-act="shop">${icon('cart')}<span>SHOP</span></button>
@@ -53,6 +56,15 @@ export function createTitle(ui) {
   const dots = { armory: el.querySelector('[data-act="armory"] .tdot'), heroes: el.querySelector('[data-act="heroes"] .tdot') };
   const sfxBtn = el.querySelector('[data-act="sfx"]');
   const achDot = el.querySelector('.ach-dot');
+  const onBtn = el.querySelector('.btn-online'), onLbl = onBtn.querySelector('.on-lbl');
+  function refreshOnline() {
+    const st = ui.online ? ui.online.state : 'idle';
+    onLbl.textContent = ui.online ? ui.online.label() : 'ONLINE';
+    onBtn.dataset.state = st;
+    onBtn.classList.toggle('btn-red', st === 'idle' || st === 'loading');
+    onBtn.classList.toggle('btn-grey', st === 'unavailable' || st === 'soon');
+  }
+  ui.game.events.on('online:gate', refreshOnline);
   const refreshAch = () => { const n = ui.game.achievements?.unclaimed() || 0; achDot.hidden = !n; achDot.textContent = n > 99 ? '99+' : String(n); };
 
   function syncToggles() {
@@ -84,6 +96,7 @@ export function createTitle(ui) {
       dots.heroes.hidden = !HERO_IDS.some((id) => isNew(d, 'hero', id) && id !== 'pip');
       syncToggles();
       refreshAch();
+      refreshOnline();
       ui.refreshCoins(true);
       replayLogo(logo);
     },
@@ -96,6 +109,7 @@ export function createTitle(ui) {
       else if (act === 'armory') ui.nav('armory', { from: 'title' });
       else if (act === 'heroes') ui.nav('heroes', { from: 'title' });
       else if (act === 'daily') ui.openModal('daily');
+      else if (act === 'online') ui.openOnline();
       else if (act === 'music' || act === 'sfx') toggle(act);
     },
     refreshAch,

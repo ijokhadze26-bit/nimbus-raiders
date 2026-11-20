@@ -11,6 +11,8 @@
 // exactly. Old-tab protection for progress: PROGRESS_KEY keeps unlockedLevel + stars + elite (an old build clamps
 // them to 15 levels and never touches this key); a load takes the higher of both. Since stage 6 it also keeps the
 // achievement counters and today's Daily pin (an update 3 stage 1-4 tab drops both).
+// Version 4 (update 5, online play): the `online` block (player name, cached profile, last matches) and its backup
+// key ONLINE_KEY: see save/onlinesave.js. Every v1-v3 field is copied exactly as before.
 import { UPGRADES } from '../data/shop.js';
 import { FREE_SKIN_IDS, HERO_BY_ID, WEAPON_SKIN_BY_ID } from '../data/skins.js';
 import { HERO_IDS, DEFAULT_HERO } from '../data/heroes.js';
@@ -19,11 +21,13 @@ import { isHeroUnlocked, isWeaponUnlocked } from './unlocks.js';
 import { TOTAL_LEVELS, WORLD_COUNT } from '../data/worlds.js';
 import { PLAYER_MOD_IDS } from '../data/modifiers.js';
 import { SQUAD_TYPE_IDS, mixLevel } from '../data/squadtypes.js';
+import { ONLINE_KEY, defaultOnline, cleanOnline, mergeOnline, onlineBackup } from './onlinesave.js';
 
 export const SAVE_KEY = 'nimbusRaiders.save.v1';
 export const OWNED_KEY = 'nimbusRaiders.owned.v2';
 export const PROGRESS_KEY = 'nimbusRaiders.progress.v3';
-export const SAVE_VERSION = 3;
+export { ONLINE_KEY };
+export const SAVE_VERSION = 4;
 const EXTRA_MAX = 16, EXTRA_BYTES = 4096;
 const LEVELS = TOTAL_LEVELS;
 /** The last level of update 2: beating it used to leave unlockedLevel there. */
@@ -52,6 +56,7 @@ export function defaultSave() {
     achievements: { done: [], claimed: [], counts: {} },              // achievement ids; counts: tracker key -> number
     squadTypes: { owned: [], mix: {} },                               // raider type ids; mix: id -> share 0..100
     modifiers: [],                                                    // stage 5: loadout modifiers left on (remembered)
+    online: defaultOnline(),                                          // v4: name, cached profile, last matches (onlinesave.js)
   };
 }
 
@@ -161,6 +166,7 @@ export function sanitize(raw) {
     }
   }
   ids(raw.modifiers, PLAYER_MOD_IDS, d.modifiers);
+  d.online = cleanOnline(raw.online); // v4
   // keep unknown top-level JSON keys (a newer build's fields survive this one)
   let extra = 0;
   for (const [k, v] of Object.entries(raw)) {
@@ -213,8 +219,9 @@ export class Save {
     this.memory = null;          // fallback copy when localStorage throws (private mode, blocked)
     this.memoryOwned = null;
     this.memoryProgress = null;
+    this.memoryOnline = null;
     this.persistent = true;
-    this.data = mergeProgress(mergeOwned(sanitize(this.readRaw()), this.readOwned()), this.readProgress());
+    this.data = mergeOnline(mergeProgress(mergeOwned(sanitize(this.readRaw()), this.readOwned()), this.readProgress()), this.readKey(ONLINE_KEY, this.memoryOnline));
     const flush = () => this.flush();
     window.addEventListener('pagehide', flush);
     document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); });
@@ -244,9 +251,12 @@ export class Save {
     const d = this.data;
     const progress = JSON.stringify({ unlockedLevel: d.unlockedLevel, stars: d.stars, elite: d.elite, counts: d.achievements.counts, dailyPin: d.modes.dailyPin });
     this.memoryProgress = progress;
+    const online = JSON.stringify(onlineBackup(d));
+    this.memoryOnline = online;
     if (!this.persistent) return;
     try {
       window.localStorage.setItem(this.key, text); window.localStorage.setItem(OWNED_KEY, owned); window.localStorage.setItem(PROGRESS_KEY, progress);
+      window.localStorage.setItem(ONLINE_KEY, online);
     } catch { this.persistent = false; }
   }
 
@@ -274,7 +284,8 @@ export class Save {
     // the backups must go first, or the next load would merge bought items / progress back in
     this.memoryOwned = null;
     this.memoryProgress = null;
-    try { window.localStorage.removeItem(OWNED_KEY); window.localStorage.removeItem(PROGRESS_KEY); } catch { /* storage blocked */ }
+    this.memoryOnline = null; // (the online account itself lives on the server and stays)
+    try { window.localStorage.removeItem(OWNED_KEY); window.localStorage.removeItem(PROGRESS_KEY); window.localStorage.removeItem(ONLINE_KEY); } catch { /* storage blocked */ }
     this.data = defaultSave();
     this.data.settings = keepSettings;
     this.changed();

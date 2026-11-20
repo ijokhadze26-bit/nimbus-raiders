@@ -25,7 +25,7 @@ localStorage.removeItem(OWNED_KEY); localStorage.removeItem(PROGRESS_KEY);
 localStorage.setItem(SAVE_KEY, JSON.stringify(v1));
 let s = fresh();
 for (const k of Object.keys(v1)) if (k !== 'version') same(s.data[k], v1[k], 'v1 field ' + k);
-eq(s.data.version, 3, 'version');
+eq(s.data.version, 4, 'version');
 eq([s.data.settings.musicVol, s.data.settings.sfxVol, s.data.settings.abilitySide, s.data.settings.colorblind, s.data.settings.haptics], [0.8, 0.9, 'right', false, false], 'v3 settings defaults (haptics = old vibration)');
 eq(U.unlockedWeapons(s.data).slice().sort(), ['emberstorm', 'gearworks', 'glacier', 'sugarrush', 'thunderclap'], 'unlocked weapons');
 eq(U.unlockedHeroes(s.data).slice().sort(), ['bolt', 'bonbon', 'cinder', 'pip', 'rime'], 'unlocked heroes');
@@ -34,7 +34,7 @@ for (const id of v1.skins.owned) if (!s.owns(id)) fails.push('lost owned skin ' 
 eq([s.data.heroes.selected, s.data.arsenal.selected], ['pip', 'thunderclap'], 'v2 defaults selected');
 s.flush();
 const written = JSON.parse(localStorage.getItem(SAVE_KEY));
-eq(written.version, 3, 'written version');
+eq(written.version, 4, 'written version');
 for (const k of Object.keys(v1)) if (k !== 'version') same(written[k], v1[k], 'written v1 field ' + k);
 // ---- 2. buy Spectra, then an old tab writes a v1-shaped object over the main key ----
 s.addCoins(3000);

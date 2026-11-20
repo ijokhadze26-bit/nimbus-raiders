@@ -24,6 +24,7 @@ import { createAchievements } from './screens/achievements.js';
 import { mountAchToast } from './achtoast.js';
 import { haptic } from '../core/haptics.js';
 import { MENU_STATE_LIST } from '../game/states.js';
+import { createOnlineGate } from './onlinegate.js';
 
 const MENU_STATES = MENU_STATE_LIST;
 const LEAVE_MS = 240;
@@ -44,6 +45,7 @@ export class UI {
       armory: createArmory, heroes: createHeroes, loadout: createLoadout, compare: createCompare, modes: createModes };
     for (const [k, f] of Object.entries(make)) this.screens[k] = f(this);
     this.screens.achievements = createAchievements(this); // update 3 stage 5
+    this.online = createOnlineGate(this); // update 5: the lazy door to src/online (its screens arrive through addScreen)
     this.current = null;     // page screen name
     this.modals = [];        // stack of modal screen names (pause, settings over pause, daily, confirm)
     this.dailyChecked = false;
@@ -61,6 +63,13 @@ export class UI {
     this.applySettings(true);
     this.onState(game.state);
   }
+
+  // ---------------- online (update 5) ----------------
+  /** Registers a screen built outside this file (the online chunk): same contract as the built-in ones. */
+  addScreen(name, screen) { this.screens[name] = screen; return screen; }
+
+  /** ONLINE button / a ?room= link: loads the online chunk, connects, opens the ONLINE page (ui/onlinegate.js). */
+  openOnline(opts) { return this.online.open(opts); }
 
   // ---------------- navigation ----------------
   /**
@@ -81,6 +90,7 @@ export class UI {
   onState(state) {
     if (this.navigating && state !== this.navigating && MENU_STATES.includes(state)) return;
     if (MENU_STATES.includes(state)) {
+      if (!this.screens[state]) { this.game.setState('title'); return; } // a page whose chunk is not loaded (online)
       this.closeModals();
       const opts = this.navOpts;
       this.navOpts = null;
@@ -93,7 +103,8 @@ export class UI {
       this.openModal('pause');
     } else if (state === 'result') {
       this.closeModals();
-      this.go('result');
+      // an online match ends on its own result screen (registered by the online chunk)
+      this.go(this.game.run?.mode === 'versus' && this.screens.vsresult ? 'vsresult' : 'result');
     }
   }
 

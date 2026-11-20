@@ -51,6 +51,17 @@
   position: absolute; left: 0; right: 0; bottom: calc(var(--safe-b) + 4.5cqh); display: flex; flex-direction: column; align-items: center; gap: 22px;
 }
 .btn-play { gap: 14px; }
+/* update 5: the wide ONLINE button between PLAY and the tile row. PLAY must stay where it was (the attract squad
+   stands right above it), so the room comes from below: tighter gaps, 70 px tiles and a smaller bottom margin. */
+.title-menu { gap: 8px; bottom: calc(var(--safe-b) + max(8px, 1.1cqh)); }
+.title-menu .title-row .tbtn { height: 70px; padding: 4px 4px 7px; gap: 2px; }
+.title-menu .title-row .tbtn .ico { font-size: 29px; }
+.btn-online { width: min(310px, 80cqw); min-height: 42px; margin-top: 4px; padding: 2px 14px 4px; border-radius: 18px; font-size: clamp(16px, 5.2cqw, 21px); gap: 8px; }
+.btn-online::before { border-radius: 14px; }
+.btn-online.btn-grey { --b1: #cfd8ea; --b2: #93a1be; --b3: #36435f; } /* UNAVAILABLE / COMING SOON: still readable, still tappable */
+.btn-online .ico { font-size: 1.15em; }
+.btn-online[data-state="loading"] .ico { animation: on-spin 1.1s linear infinite; }
+@keyframes on-spin { to { rotate: 360deg; } }
 .title-row { display: flex; gap: 12px; }
 .row-gap.right { align-items: center; }
 .daily-badge {

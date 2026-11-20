@@ -10,6 +10,8 @@
   --safe-l: env(safe-area-inset-left, 0px); --safe-r: env(safe-area-inset-right, 0px);
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+/* text boxes (online name / room code) are the one place where selecting and the on-screen keyboard are wanted */
+input[type="text"] { user-select: text; -webkit-user-select: text; -webkit-touch-callout: default; touch-action: manipulation; }
 [hidden] { display: none !important; }
 html, body {
   margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none;

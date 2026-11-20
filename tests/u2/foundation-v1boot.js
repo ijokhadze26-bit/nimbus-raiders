@@ -111,7 +111,7 @@ async function checkAll(G, label, expect) {
 
 try {
   let G = await boot(true);
-  eq(G.save.data.version, 3, 'migrated version');
+  eq(G.save.data.version, 4, 'migrated version');
   await checkAll(G, 'boot', { coins: v1.coins, upgrades: v1.upgrades });
   // buy Damage in the Shop UI (6 -> 7)
   G.ui.nav('shop', { tab: 'upgrades' }); await wait(300);

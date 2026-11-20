@@ -1,7 +1,9 @@
 // Mobile browser robustness: viewport height on iOS Safari (no 100dvh before 15.4, URL bar resizes),
 // no rubber-band / pinch / double-tap zoom / long-press menus outside the scrollable menu lists, pause on
 // page hide / freeze, and a WebGL context-loss overlay (pause, wait for the browser to restore, else reload).
-const SCROLLERS = '.map-scroll, .shop-body, .info-scroll, .chip-row';
+const SCROLLERS = '.map-scroll, .shop-body, .info-scroll, .chip-row, .on-scroll';
+/** Text boxes (online name / room code) keep the browser's own selecting and long-press behaviour. */
+const inField = (t) => !!(t && t.closest && t.closest('input, textarea'));
 
 export function installMobile(game, engine) {
   const root = document.documentElement;
@@ -25,8 +27,8 @@ export function installMobile(game, engine) {
     if (e.touches.length > 1 || !inScroller(e.target)) e.preventDefault();
   }, { passive: false });
   for (const ev of ['gesturestart', 'gesturechange', 'dblclick']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
-  document.addEventListener('selectstart', (e) => e.preventDefault());
-  document.addEventListener('contextmenu', (e) => e.preventDefault());
+  document.addEventListener('selectstart', (e) => { if (!inField(e.target)) e.preventDefault(); });
+  document.addEventListener('contextmenu', (e) => { if (!inField(e.target)) e.preventDefault(); });
 
   // Page lifecycle: pause the run whenever the page stops being visible (tab switch, app switcher, lock).
   const hide = () => game.pause();

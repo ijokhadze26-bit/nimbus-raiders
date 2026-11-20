@@ -6,6 +6,8 @@ import { MOVE, TARGET_CLAMP } from '../config.js';
 
 const UI_SELECTOR = 'button, a, input, select, [data-ui]';
 export const SWIPE = { dist: 60, time: 380, ratio: 1.4 };
+/** True when the key event comes from a text box. */
+const typing = (e) => { const t = e.target, tag = t && t.tagName; return tag === 'INPUT' || tag === 'TEXTAREA'; };
 
 export class Input {
   constructor(surface) {
@@ -93,6 +95,7 @@ export class Input {
   }
 
   key(e, isDown) {
+    if (typing(e)) return; // a text box has the keyboard (online name / room code): a, d, w and the arrows belong to it
     if (isDown) this.fireGesture();
     const k = e.key;
     if (k === 'ArrowLeft' || k === 'a' || k === 'A') this.keys.left = isDown;

@@ -40,6 +40,7 @@ const ICONS = {
   coinbonus: S('<ellipse cx="9" cy="17.6" rx="6.6" ry="2.8" fill="#d98a00"/><ellipse cx="9" cy="16" rx="6.6" ry="2.8" fill="#ffc531"/><ellipse cx="9" cy="13" rx="6.6" ry="2.8" fill="#d98a00"/><ellipse cx="9" cy="11.4" rx="6.6" ry="2.8" fill="#ffc531"/><path d="M18.6 3.6v7M15.1 7.1h7" stroke="#2fbf5a" stroke-width="2.8" stroke-linecap="round"/>'),
   map: S('<path d="M3 6.2 8.6 4l6.8 2.4L21 4.2v13.6L15.4 20l-6.8-2.4L3 19.8z" fill="currentColor" opacity=".35"/><path d="M8.6 4v13.6M15.4 6.4V20" stroke="currentColor" stroke-width="2"/><path d="M3 6.2 8.6 4l6.8 2.4L21 4.2v13.6L15.4 20l-6.8-2.4L3 19.8z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>'),
   heart: S('<path d="M12 20.6S3 15 3 8.8A4.6 4.6 0 0 1 12 6.9a4.6 4.6 0 0 1 9 1.9C21 15 12 20.6 12 20.6z" fill="currentColor"/>'),
+  globe: S(`<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M3.4 12h17.2M12 3c3.4 3.4 3.4 14.6 0 18M12 3c-3.4 3.4-3.4 14.6 0 18" fill="none" stroke="currentColor" stroke-width="2.2" ${R}/>`),
   flag: S('<path d="M5 21V3.4" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M6 4h12.4l-2.6 4 2.6 4H6z" fill="currentColor"/>'),
 };
 
