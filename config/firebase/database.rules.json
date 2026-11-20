@@ -1,0 +1,328 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "cfg": {
+      ".read": true
+    },
+    "ban": {
+      "$uid": {
+        ".read": "(auth != null) && (auth.uid === $uid)"
+      }
+    },
+    "meter": {
+      ".read": "auth != null",
+      "$k": {
+        ".write": "(auth != null) && (newData.exists())",
+        ".validate": "($k.matches(/^d[0-9]{8}$/)) && (newData.isNumber()) && (newData.val() === (data.exists() ? data.val() : 0) + 1)"
+      }
+    },
+    "rk": {
+      ".read": "(auth != null) && (query.orderByValue === true) && (query.limitToFirst <= 500)",
+      ".indexOn": ".value",
+      "$uid": {
+        ".write": "(auth != null) && (auth.uid === $uid)",
+        ".validate": "newData.val() === root.child('users/' + $uid + '/tr').val()"
+      }
+    },
+    "queue": {
+      ".read": "(auth != null) && (query.orderByChild === 'ts') && (query.limitToFirst <= 10)",
+      ".indexOn": "ts",
+      "$uid": {
+        ".read": "(auth != null) && (auth.uid === $uid)",
+        ".write": "(auth != null) && ((((auth.uid === $uid) && (!root.child('ban/' + $uid).exists())) || ((!newData.exists()) && (data.child('ts').isNumber()) && (data.child('ts').val() < now - 60000))))",
+        ".validate": "newData.hasChildren(['tr', 'ts'])",
+        "ts": {
+          ".validate": "data.exists() ? newData.val() === data.val() : newData.val() === now"
+        },
+        "tr": {
+          ".validate": "newData.val() === root.child('users/' + $uid + '/tr').val()"
+        },
+        "m": {
+          ".write": "(auth != null) && (auth.uid !== $uid) && (!data.exists()) && (data.parent().child('ts').isNumber()) && (root.child('queue/' + auth.uid + '/ts').isNumber()) && (root.child('queue/' + auth.uid + '/ts').val() > data.parent().child('ts').val()) && (!root.child('queue/' + auth.uid + '/m').exists())",
+          ".validate": "(((newData.child('bot').val() === true) && (!newData.child('code').exists()) && (newData.child('by').val() === $uid)) || ((auth.uid !== $uid) && (newData.child('by').val() === auth.uid) && (!newData.child('bot').exists()) && (newData.child('code').isString()) && (root.child('rooms/' + newData.child('code').val()).child('h').val() === auth.uid) && (root.child('rooms/' + newData.child('code').val()).child('k').val() === 'quick')))",
+          "by": {
+            ".validate": "newData.isString()"
+          },
+          "code": {
+            ".validate": "newData.isString()"
+          },
+          "bot": {
+            ".validate": "newData.val() === true"
+          },
+          "$o": {
+            ".validate": false
+          }
+        },
+        "$o": {
+          ".validate": false
+        }
+      }
+    },
+    "users": {
+      ".read": "(auth != null) && (query.orderByChild === 'tr' || query.orderByChild === 'bt' || query.orderByChild === 'ws') && (query.limitToLast <= 100)",
+      ".indexOn": [
+        "tr",
+        "bt",
+        "ws"
+      ],
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "(auth != null) && (auth.uid === $uid) && (newData.exists()) && (!root.child('ban/' + $uid).exists())",
+        ".validate": "(newData.hasChildren(['n', 'tr', 'pk', 'w', 'l', 'st', 'bs', 'bt', 'ws', 'cd', 'cc'])) && ((((!data.exists()) && (newData.child('tr').val() === 0 && newData.child('pk').val() === 0 && newData.child('w').val() === 0 && newData.child('l').val() === 0 && newData.child('st').val() === 0 && newData.child('bs').val() === 0 && newData.child('bt').val() === 0 && newData.child('ws').val() === 0 && newData.child('cd').val() === 0 && newData.child('cc').val() === 0) && (!newData.child('sk').exists())) || ((data.exists()) && (newData.child('tr').val() === data.child('tr').val() && newData.child('pk').val() === data.child('pk').val() && newData.child('w').val() === data.child('w').val() && newData.child('l').val() === data.child('l').val() && newData.child('st').val() === data.child('st').val() && newData.child('bs').val() === data.child('bs').val() && newData.child('bt').val() === data.child('bt').val() && newData.child('ws').val() === data.child('ws').val() && newData.child('cd').val() === data.child('cd').val() && newData.child('cc').val() === data.child('cc').val()) && (newData.child('sk/a').val() === data.child('sk/a').val())) || ((data.exists()) && (newData.child('sk/a').val() === now) && (newData.child('sk/s').isNumber()) && (newData.child('tr').val() === data.child('tr').val() - newData.child('sk/s').val()) && (newData.child('l').val() === data.child('l').val() + 1) && (newData.child('st').val() === 0) && (newData.child('sk/st').val() === data.child('st').val()) && (newData.child('pk').val() === data.child('pk').val() && newData.child('w').val() === data.child('w').val() && newData.child('bs').val() === data.child('bs').val() && newData.child('bt').val() === data.child('bt').val() && newData.child('ws').val() === data.child('ws').val() && newData.child('cd').val() === data.child('cd').val() && newData.child('cc').val() === data.child('cc').val()) && ((((newData.child('sk/b').val() === true) && (newData.child('sk/s').val() === (data.child('tr').val() >= 1200 ? 6 : (data.child('tr').val() >= 700 ? 12 : (data.child('tr').val() >= 300 ? 20 : (data.child('tr').val() >= 10 ? 10 : data.child('tr').val()))))) && (!newData.child('sk/m').exists())) || ((newData.child('sk/b').val() === false) && (newData.child('sk/s').val() === (data.child('tr').val() >= 300 ? 20 : (data.child('tr').val() >= 10 ? 10 : data.child('tr').val()))) && (newData.child('sk/m').isString()) && (root.child('matches/' + newData.child('sk/m').val()).child('k').val() === 'quick') && (now - root.child('matches/' + newData.child('sk/m').val()).child('ts').val() < 15000) && (root.child('rooms/' + root.child('matches/' + newData.child('sk/m').val()).child('code').val() + '/mid').val() === newData.child('sk/m').val()) && (newData.child('sk/ms').val() === 0 || newData.child('sk/ms').val() === 1) && (root.child('matches/' + newData.child('sk/m').val()).child('us/' + $uid).val() === newData.child('sk/ms').val()) && (newData.child('sk/os').val() === 1 - newData.child('sk/ms').val()) && (newData.child('sk/o').val() === root.child('matches/' + newData.child('sk/m').val()).child('tr/' + (newData.child('sk/os').val() === 0 ? '0' : '1')).val()))))) || ((data.child('sk').exists() && !newData.child('sk').exists()) && (now - data.child('sk/a').val() >= 20000) && (newData.child('w').val() === data.child('w').val() + 1) && (newData.child('l').val() === data.child('l').val() - 1) && (newData.child('st').val() === data.child('sk/st').val() + 1) && (newData.child('bs').val() === (data.child('bs').val() > newData.child('st').val() ? data.child('bs').val() : newData.child('st').val())) && (newData.child('pk').val() === (data.child('pk').val() > newData.child('tr').val() ? data.child('pk').val() : newData.child('tr').val())) && ((newData.child('tr').val() - data.child('tr').val() - data.child('sk/s').val()) >= 0) && (newData.child('ws').val() === (data.child('ws').val() >= (((now - 345600000) - (now - 345600000) % 604800000) / 6048) ? data.child('ws').val() : (((now - 345600000) - (now - 345600000) % 604800000) / 6048)) + (newData.child('tr').val() - data.child('tr').val() - data.child('sk/s').val())) && (newData.child('cd').val() === ((now - now % 86400000) / 86400000)) && (newData.child('cc').val() === (data.child('cd').val() === ((now - now % 86400000) / 86400000) ? data.child('cc').val() + 1 : 1)) && (newData.child('cc').val() <= 40) && ((((data.child('sk/b').val() === true) && (now - data.child('sk/a').val() <= 900000) && ((newData.child('tr').val() - data.child('tr').val() - data.child('sk/s').val()) <= ((data.child('tr').val() + data.child('sk/s').val()) >= 1200 ? 6 : ((data.child('tr').val() + data.child('sk/s').val()) >= 700 ? 12 : ((data.child('tr').val() + data.child('sk/s').val()) >= 300 ? 20 : 28)))) && (((newData.child('bt').val() === data.child('bt').val()) || ((newData.child('bt').val() > data.child('bt').val()) && (newData.child('bt').val() <= 3300) && (newData.child('bt').val() * 100 <= now - data.child('sk/a').val() + 2000))))) || ((data.child('sk/b').val() === false) && ((data.child('sk/ms').val() === 0 || data.child('sk/ms').val() === 1) && data.child('sk/os').val() === 1 - data.child('sk/ms').val()) && (now - data.child('sk/a').val() <= 86400000) && (root.child('matches/' + data.child('sk/m').val()).child('out/' + (data.child('sk/ms').val() === 0 ? '1' : '0')).exists()) && (((!root.child('matches/' + data.child('sk/m').val()).child('out/' + (data.child('sk/ms').val() === 0 ? '0' : '1')).exists()) || (root.child('matches/' + data.child('sk/m').val()).child('out/' + (data.child('sk/ms').val() === 0 ? '0' : '1') + '/t').val() > root.child('matches/' + data.child('sk/m').val()).child('out/' + (data.child('sk/ms').val() === 0 ? '1' : '0') + '/t').val() + 10) || ((root.child('matches/' + data.child('sk/m').val()).child('out/' + (data.child('sk/ms').val() === 0 ? '0' : '1') + '/t').val() >= root.child('matches/' + data.child('sk/m').val()).child('out/' + (data.child('sk/ms').val() === 0 ? '1' : '0') + '/t').val() - 10) && (root.child('matches/' + data.child('sk/m').val()).child('out/' + (data.child('sk/ms').val() === 0 ? '0' : '1') + '/d').val() > root.child('matches/' + data.child('sk/m').val()).child('out/' + (data.child('sk/ms').val() === 0 ? '1' : '0') + '/d').val())))) && ((newData.child('tr').val() - data.child('tr').val() - data.child('sk/s').val()) <= 40) && ((((newData.child('tr').val() - data.child('tr').val() - data.child('sk/s').val()) <= 29 + (data.child('sk/o').val() - (data.child('tr').val() + data.child('sk/s').val())) / 25) || ((newData.child('tr').val() - data.child('tr').val() - data.child('sk/s').val()) <= 2))) && (((newData.child('bt').val() === data.child('bt').val()) || ((newData.child('bt').val() > data.child('bt').val()) && (((newData.child('bt').val() <= root.child('matches/' + data.child('sk/m').val()).child('out/' + (data.child('sk/ms').val() === 0 ? '1' : '0') + '/t').val() + 10) || ((root.child('matches/' + data.child('sk/m').val()).child('out/' + (data.child('sk/ms').val() === 0 ? '0' : '1')).exists()) && (newData.child('bt').val() <= root.child('matches/' + data.child('sk/m').val()).child('out/' + (data.child('sk/ms').val() === 0 ? '0' : '1') + '/t').val()))))))))))) || ((data.child('sk').exists() && !newData.child('sk').exists()) && (data.child('sk/b').val() === false) && ((data.child('sk/ms').val() === 0 || data.child('sk/ms').val() === 1) && data.child('sk/os').val() === 1 - data.child('sk/ms').val()) && (newData.child('tr').val() === data.child('tr').val() + data.child('sk/s').val()) && (newData.child('l').val() === data.child('l').val() - 1) && (newData.child('st').val() === data.child('sk/st').val()) && (newData.child('pk').val() === data.child('pk').val() && newData.child('w').val() === data.child('w').val() && newData.child('bs').val() === data.child('bs').val() && newData.child('bt').val() === data.child('bt').val() && newData.child('ws').val() === data.child('ws').val() && newData.child('cd').val() === data.child('cd').val() && newData.child('cc').val() === data.child('cc').val()) && (root.child('matches/' + data.child('sk/m').val()).child('out/' + (data.child('sk/ms').val() === 0 ? '0' : '1')).exists()) && (root.child('matches/' + data.child('sk/m').val()).child('out/' + (data.child('sk/ms').val() === 0 ? '1' : '0')).exists()) && (root.child('matches/' + data.child('sk/m').val()).child('out/' + (data.child('sk/ms').val() === 0 ? '0' : '1') + '/t').val() >= root.child('matches/' + data.child('sk/m').val()).child('out/' + (data.child('sk/ms').val() === 0 ? '1' : '0') + '/t').val() - 10) && (root.child('matches/' + data.child('sk/m').val()).child('out/' + (data.child('sk/ms').val() === 0 ? '0' : '1') + '/t').val() <= root.child('matches/' + data.child('sk/m').val()).child('out/' + (data.child('sk/ms').val() === 0 ? '1' : '0') + '/t').val() + 10) && (root.child('matches/' + data.child('sk/m').val()).child('out/' + (data.child('sk/ms').val() === 0 ? '0' : '1') + '/d').val() === root.child('matches/' + data.child('sk/m').val()).child('out/' + (data.child('sk/ms').val() === 0 ? '1' : '0') + '/d').val())) || ((data.child('sk').exists() && !newData.child('sk').exists()) && (newData.child('tr').val() === data.child('tr').val() && newData.child('pk').val() === data.child('pk').val() && newData.child('w').val() === data.child('w').val() && newData.child('l').val() === data.child('l').val() && newData.child('st').val() === data.child('st').val() && newData.child('bs').val() === data.child('bs').val() && newData.child('ws').val() === data.child('ws').val() && newData.child('cd').val() === data.child('cd').val() && newData.child('cc').val() === data.child('cc').val()) && (((newData.child('bt').val() === data.child('bt').val()) || ((newData.child('bt').val() > data.child('bt').val()) && (data.child('sk/b').val() === false) && ((data.child('sk/ms').val() === 0 || data.child('sk/ms').val() === 1) && data.child('sk/os').val() === 1 - data.child('sk/ms').val()) && (root.child('matches/' + data.child('sk/m').val()).child('out/' + (data.child('sk/ms').val() === 0 ? '0' : '1')).exists()) && (newData.child('bt').val() <= root.child('matches/' + data.child('sk/m').val()).child('out/' + (data.child('sk/ms').val() === 0 ? '0' : '1') + '/t').val())) || ((newData.child('bt').val() > data.child('bt').val()) && (data.child('sk/b').val() === true) && (newData.child('bt').val() <= 3300) && (now - data.child('sk/a').val() <= 900000) && (newData.child('bt').val() * 100 <= now - data.child('sk/a').val() + 2000)))))))",
+        "n": {
+          ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9 _-]{3,12}$/)"
+        },
+        "tr": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0"
+        },
+        "pk": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0"
+        },
+        "w": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0"
+        },
+        "l": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0"
+        },
+        "st": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0"
+        },
+        "bs": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0"
+        },
+        "bt": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0"
+        },
+        "ws": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0"
+        },
+        "cd": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0"
+        },
+        "cc": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0"
+        },
+        "sk": {
+          ".validate": "(newData.hasChildren(['a', 's', 'st', 'b'])) && (newData.child('b').val() === true || newData.hasChildren(['m', 'ms', 'os', 'o']))",
+          "a": {
+            ".validate": "newData.val() === now || newData.val() === data.val()"
+          },
+          "s": {
+            ".validate": "(newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0) && (!data.exists() || data.val() === newData.val() || (newData.parent().child('a').val() === now && data.parent().child('a').val() !== now))"
+          },
+          "st": {
+            ".validate": "(newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0) && (!data.exists() || data.val() === newData.val() || (newData.parent().child('a').val() === now && data.parent().child('a').val() !== now))"
+          },
+          "b": {
+            ".validate": "(newData.isBoolean()) && (!data.exists() || data.val() === newData.val() || (newData.parent().child('a').val() === now && data.parent().child('a').val() !== now))"
+          },
+          "m": {
+            ".validate": "(newData.isString() && newData.val().length <= 40) && (!data.exists() || data.val() === newData.val() || (newData.parent().child('a').val() === now && data.parent().child('a').val() !== now))"
+          },
+          "ms": {
+            ".validate": "(newData.val() === 0 || newData.val() === 1) && (!data.exists() || data.val() === newData.val() || (newData.parent().child('a').val() === now && data.parent().child('a').val() !== now))"
+          },
+          "os": {
+            ".validate": "(newData.val() === 0 || newData.val() === 1) && (!data.exists() || data.val() === newData.val() || (newData.parent().child('a').val() === now && data.parent().child('a').val() !== now))"
+          },
+          "o": {
+            ".validate": "(newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0) && (!data.exists() || data.val() === newData.val() || (newData.parent().child('a').val() === now && data.parent().child('a').val() !== now))"
+          },
+          "$o": {
+            ".validate": false
+          }
+        },
+        "$o": {
+          ".validate": false
+        }
+      }
+    },
+    "rooms": {
+      "$code": {
+        ".read": "auth != null",
+        ".write": "(auth != null) && ($code.matches(/^[A-HJ-NP-Z]{4}$/)) && ((!data.exists() || (data.child('ts').isNumber() && data.child('ts').val() < now - 7200000)) ? (newData.child('h').val() === auth.uid && !root.child('ban/' + auth.uid).exists()) : (data.child('h').val() === auth.uid && !newData.exists()))",
+        ".validate": "(newData.hasChildren(['h', 'k', 'max', 'ts', 'st'])) && (newData.child('k').val() === 'friend' || newData.child('k').val() === 'quick') && (newData.child('max').val() === 2 || (newData.child('max').val() === 4 && newData.child('k').val() === 'friend'))",
+        "h": {
+          ".validate": "newData.isString()"
+        },
+        "k": {
+          ".validate": "newData.isString()"
+        },
+        "max": {
+          ".validate": "newData.isNumber()"
+        },
+        "ts": {
+          ".write": "(auth != null) && (((data.parent().child('sl/0').val() === auth.uid) || (data.parent().child('sl/1').val() === auth.uid) || (data.parent().child('sl/2').val() === auth.uid) || (data.parent().child('sl/3').val() === auth.uid)))",
+          ".validate": "newData.val() === now"
+        },
+        "mts": {
+          ".write": "(auth != null) && (((data.parent().child('sl/0').val() === auth.uid) || (data.parent().child('sl/1').val() === auth.uid) || (data.parent().child('sl/2').val() === auth.uid) || (data.parent().child('sl/3').val() === auth.uid)))",
+          ".validate": "newData.val() === now"
+        },
+        "rn": {
+          ".write": "(auth != null) && (((data.parent().child('sl/0').val() === auth.uid) || (data.parent().child('sl/1').val() === auth.uid) || (data.parent().child('sl/2').val() === auth.uid) || (data.parent().child('sl/3').val() === auth.uid)))",
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0"
+        },
+        "st": {
+          ".write": "(auth != null) && (((data.parent().child('sl/0').val() === auth.uid) || (data.parent().child('sl/1').val() === auth.uid) || (data.parent().child('sl/2').val() === auth.uid) || (data.parent().child('sl/3').val() === auth.uid)))",
+          ".validate": "newData.val() === 'lobby' || newData.val() === 'live'"
+        },
+        "mid": {
+          ".write": "(auth != null) && (((data.parent().child('sl/0').val() === auth.uid) || (data.parent().child('sl/1').val() === auth.uid) || (data.parent().child('sl/2').val() === auth.uid) || (data.parent().child('sl/3').val() === auth.uid)))",
+          ".validate": "(newData.isString()) && (root.child('matches/' + newData.val() + '/code').val() === $code) && (newData.parent().child('mts').val() === now) && (newData.parent().child('st').val() === 'live')"
+        },
+        "sl": {
+          "$i": {
+            ".write": "(auth != null) && ((((!data.exists()) && (newData.val() === auth.uid) && (data.parent().parent().child('st').val() === 'lobby') && (!((data.parent().parent().child('sl/0').val() === auth.uid) || (data.parent().parent().child('sl/1').val() === auth.uid) || (data.parent().parent().child('sl/2').val() === auth.uid) || (data.parent().parent().child('sl/3').val() === auth.uid))) && (((data.parent().parent().child('k').val() === 'friend') || (data.parent().parent().child('h').val() === auth.uid) || ((root.child('queue/' + auth.uid + '/m/code').val() === $code) && (root.child('queue/' + auth.uid + '/m/by').val() === data.parent().parent().child('h').val()))))) || ((data.val() === auth.uid) && (!newData.exists())) || ((!newData.exists()) && (data.parent().parent().child('h').val() === auth.uid) && (data.parent().parent().child('st').val() === 'lobby'))))",
+            ".validate": "(newData.isString()) && ($i.matches(/^[0-3]$/)) && ($i === '0' || $i === '1' || newData.parent().parent().child('max').val() === 4)"
+          }
+        },
+        "p": {
+          "$i": {
+            ".write": "(auth != null) && (data.parent().parent().child('sl/' + $i).val() === auth.uid)",
+            ".validate": "newData.hasChildren(['n'])",
+            "n": {
+              ".validate": "newData.isString() && newData.val().length <= 20"
+            },
+            "he": {
+              ".validate": "newData.isString() && newData.val().length <= 20"
+            },
+            "we": {
+              ".validate": "newData.isString() && newData.val().length <= 20"
+            },
+            "hs": {
+              ".validate": "newData.isString() && newData.val().length <= 20"
+            },
+            "ws": {
+              ".validate": "newData.isString() && newData.val().length <= 20"
+            },
+            "tr": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0"
+            },
+            "rdy": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0"
+            },
+            "rm": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() % 1 === 0"
+            },
+            "$o": {
+              ".validate": false
+            }
+          }
+        },
+        "l": {
+          "$i": {
+            ".write": "(auth != null) && (data.parent().parent().child('sl/' + $i).val() === auth.uid)",
+            ".validate": "newData.isString() && newData.val().length <= 64"
+          }
+        },
+        "hb": {
+          "$i": {
+            ".write": "(auth != null) && (data.parent().parent().child('sl/' + $i).val() === auth.uid)",
+            ".validate": "newData.child('a').val() === now && newData.child('t').isNumber()",
+            "a": {
+              ".validate": "newData.isNumber()"
+            },
+            "t": {
+              ".validate": "newData.isNumber()"
+            },
+            "$o": {
+              ".validate": false
+            }
+          }
+        },
+        "sp": {
+          "$uid": {
+            ".write": "(auth != null) && (auth.uid === $uid)",
+            ".validate": "newData.val() === true"
+          }
+        },
+        "ev": {
+          "$mid": {
+            "$id": {
+              ".write": "(auth != null) && (!data.exists()) && (newData.exists()) && (data.parent().parent().parent().child('mid').val() === $mid) && (((newData.child('f').val() === 0 && data.parent().parent().parent().child('sl/0').val() === auth.uid) || (newData.child('f').val() === 1 && data.parent().parent().parent().child('sl/1').val() === auth.uid) || (newData.child('f').val() === 2 && data.parent().parent().parent().child('sl/2').val() === auth.uid) || (newData.child('f').val() === 3 && data.parent().parent().parent().child('sl/3').val() === auth.uid)))",
+              ".validate": "newData.hasChildren(['k', 'a', 'f', 'to'])",
+              "k": {
+                ".validate": "newData.isString() && newData.val().length === 1"
+              },
+              "a": {
+                ".validate": "newData.isNumber()"
+              },
+              "f": {
+                ".validate": "newData.isNumber()"
+              },
+              "to": {
+                ".validate": "newData.isNumber()"
+              },
+              "q": {
+                ".validate": "newData.isNumber()"
+              },
+              "$o": {
+                ".validate": false
+              }
+            }
+          }
+        },
+        "$o": {
+          ".validate": false
+        }
+      }
+    },
+    "matches": {
+      "$mid": {
+        ".read": "auth != null",
+        ".write": "(auth != null) && (((!data.exists() && newData.exists()) || (data.exists() && !newData.exists() && data.child('ts').isNumber() && data.child('ts').val() < now - 604800000)))",
+        ".validate": "(newData.hasChildren(['code', 'k', 'ts', 'u', 'us'])) && (((data.exists()) || ((newData.child('ts').val() === now) && (!newData.child('out').exists()) && (newData.child('code').isString()) && (root.child('rooms/' + newData.child('code').val()).child('st').val() === 'lobby') && (newData.child('k').val() === root.child('rooms/' + newData.child('code').val()).child('k').val()) && (newData.child('us/' + auth.uid).exists()) && (newData.child('u/0').val() === root.child('rooms/' + newData.child('code').val()).child('sl/0').val()) && (newData.child('u/1').val() === root.child('rooms/' + newData.child('code').val()).child('sl/1').val()) && (newData.child('u/2').val() === root.child('rooms/' + newData.child('code').val()).child('sl/2').val()) && (newData.child('u/3').val() === root.child('rooms/' + newData.child('code').val()).child('sl/3').val()))))",
+        "code": {
+          ".validate": "newData.isString()"
+        },
+        "k": {
+          ".validate": "newData.isString()"
+        },
+        "ts": {
+          ".validate": "newData.isNumber()"
+        },
+        "u": {
+          "$i": {
+            ".validate": "newData.isString() && $i.matches(/^[0-3]$/)"
+          }
+        },
+        "us": {
+          "$uid": {
+            ".validate": "((newData.val() === 0 && newData.parent().parent().child('u/0').val() === $uid) || (newData.val() === 1 && newData.parent().parent().child('u/1').val() === $uid) || (newData.val() === 2 && newData.parent().parent().child('u/2').val() === $uid) || (newData.val() === 3 && newData.parent().parent().child('u/3').val() === $uid))"
+          }
+        },
+        "tr": {
+          "$i": {
+            ".validate": "(newData.parent().parent().child('u/' + $i).isString()) && (newData.val() === root.child('users/' + newData.parent().parent().child('u/' + $i).val() + '/tr').val())"
+          }
+        },
+        "out": {
+          "$slot": {
+            ".write": "(auth != null) && (!data.exists()) && (newData.exists()) && (data.parent().parent().child('us/' + auth.uid).exists()) && (data.parent().parent().child('ts').isNumber()) && ((((data.parent().parent().child('u/' + $slot).val() === auth.uid) && (newData.child('by').val() === 'dead' || newData.child('by').val() === 'quit')) || ((newData.child('by').val() === 'dc') && (data.parent().parent().child('u/' + $slot).exists()) && (root.child('rooms/' + data.parent().parent().child('code').val()).child('mid').val() === $mid) && (root.child('rooms/' + data.parent().parent().child('code').val()).child('mts').isNumber()) && (root.child('rooms/' + data.parent().parent().child('code').val()).child('mts').val() - data.parent().parent().child('ts').val() < 3000) && (now - data.parent().parent().child('ts').val() > 13000) && (((!root.child('rooms/' + data.parent().parent().child('code').val()).child('hb/' + $slot).exists()) || (root.child('rooms/' + data.parent().parent().child('code').val()).child('hb/' + $slot).child('a').val() < now - 9000) || (root.child('rooms/' + data.parent().parent().child('code').val()).child('hb/' + $slot).child('t').val() * 100 < now - data.parent().parent().child('ts').val() - 19000)))) || ((newData.child('by').val() === 'cap') && (data.parent().parent().child('u/' + $slot).exists()) && (now - data.parent().parent().child('ts').val() > 344000))))",
+            ".validate": "(newData.hasChildren(['t', 'd', 'ts', 'by'])) && (newData.child('ts').val() === now) && (newData.child('t').isNumber() && newData.child('d').isNumber()) && (newData.child('t').val() >= 0 && newData.child('t').val() <= 3300 && newData.child('t').val() % 1 === 0) && (data.parent().parent().child('ts').isNumber()) && (newData.child('t').val() * 100 <= now - data.parent().parent().child('ts').val() - 4000 + 1500) && (newData.child('d').val() >= 0 && newData.child('d').val() <= 40 + newData.child('t').val() * 1.8)",
+            "t": {
+              ".validate": "newData.isNumber()"
+            },
+            "d": {
+              ".validate": "newData.isNumber()"
+            },
+            "ts": {
+              ".validate": "newData.isNumber()"
+            },
+            "by": {
+              ".validate": "newData.val() === 'dead' || newData.val() === 'quit' || newData.val() === 'dc' || newData.val() === 'cap'"
+            },
+            "$o": {
+              ".validate": false
+            }
+          }
+        },
+        "$o": {
+          ".validate": false
+        }
+      }
+    }
+  }
+}

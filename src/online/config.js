@@ -1,0 +1,46 @@
+// Online configuration. Everything here is PUBLIC by design: this setup has no secret key at all.
+// The owner pastes the `firebaseConfig` block from the Firebase console (SPEC4 section 2, step 8).
+// While `apiKey` is empty the game has no online service: createTransport('fire') reports
+// 'unconfigured' and the ONLINE button reads COMING SOON.
+
+export const BUILD = 1; // compared with cfg/minBuild; raise it when an old client must stop playing online
+
+export const firebaseConfig = {
+  apiKey: '',
+  authDomain: '',
+  databaseURL: '',
+  projectId: '',
+  appId: '',
+};
+
+/** True when the public config has been pasted in. */
+export function configured(c = firebaseConfig) {
+  return !!(c && typeof c.apiKey === 'string' && c.apiKey && c.databaseURL);
+}
+
+// /cfg fallbacks (SPEC4 4.1): used when the database has no value for a knob.
+export const DEFAULTS = Object.freeze({ on: true, minBuild: 1, flush2: 250, flush4: 500, dayCap: 500 });
+
+// Protocol numbers shared by room.js / match.js / verdict.js and the rules (keep the rules in step).
+export const NET = Object.freeze({
+  connectMs: 8000,   // connect() gives up after this
+  idleMs: 20000,     // goOffline this long after idle()
+  goMs: 4000,        // t0 = match record ts + goMs
+  sampleMs: 100,     // GAME pushes one sample per 100 ms
+  maxSamples: 20,    // x samples kept while a flush is blocked, then halved
+  hbMs: 3000,        // heartbeat period
+  silentS: 3,        // a rival is "silent" after this many seconds with no message
+  countdownS: 10,    // ...and forfeited this many seconds later
+  stallMs: 19000,    // rules: hb.t * 100 < now - ts - stallMs  (played clock 15 s behind the match clock)
+  capMs: 344000,     // rules: anyone may close a slot this long after the match record (t0 + 340 s)
+  tie10: 10,         // tie window in tenths of a second
+  maxT10: 3300,      // nothing past 330 s
+  outRetryMs: 700,   // retry period for my own fall record
+  giveUpMs: 8000,    // fallen + offline this long: show a provisional lose
+  tickMs: 50,        // match.js timer period
+  seatTries: 5,      // room code collision retries
+  maxWatchers: 4,
+});
+
+export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no I, no O
+export const CODE_RE = /^[A-HJ-NP-Z]{4}$/;
