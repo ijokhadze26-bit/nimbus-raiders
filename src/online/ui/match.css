@@ -18,7 +18,7 @@
 .hud.vs-many.vs-ph .hud-level { flex-wrap: wrap; row-gap: 5px; overflow: visible; }
 @keyframes vs-phase { from { filter: brightness(1); } to { filter: brightness(1.35); } }
 
-.vs-rivals { display: none; flex: none; flex-direction: column; justify-content: center; gap: 3px; width: clamp(106px, 30cqw, 136px); pointer-events: none; }
+.vs-rivals { display: none; flex: none; flex-direction: column; justify-content: center; gap: 3px; width: clamp(110px, 31cqw, 136px); pointer-events: none; }
 .hud.vs .vs-rivals { display: flex; }
 .vs-rivals.n2, .vs-rivals.n3 { width: clamp(132px, 38cqw, 156px); gap: 2px; }
 .vs-r {
@@ -41,11 +41,14 @@
 /* two or three rivals: one slim line each (name, squad, gap) */
 .n2 .vs-r, .n3 .vs-r { align-items: center; gap: 5px; padding: 1px 7px 2px; border-width: 2px; border-radius: 10px; box-shadow: 0 2px 0 rgba(10, 28, 80, 0.45); }
 .n2 .vs-n, .n3 .vs-n { flex: 1 1 auto; font-size: 11.5px; gap: 4px; }
+.n2 .vs-v, .n3 .vs-v { flex: none; } /* the numbers never shrink: a long name gives way */
 .n2 .vs-dot, .n3 .vs-dot { width: 9px; height: 9px; border-width: 1.5px; }
 .n2 .vs-cnt, .n3 .vs-cnt { font-size: 14px; line-height: 1.25; font-weight: normal; }
 .n2 .vs-d, .n3 .vs-d { font-size: 10px; min-width: 2.2em; text-align: right; }
 .n3 .vs-r { padding: 0 6px 1px; }
 .n3 .vs-cnt { font-size: 12.5px; line-height: 1.15; }
+/* small phones: the squad icon makes room for "999 ▲120m" */
+@container (max-width: 375px) { .n1 .vs-v .ico { display: none; } }
 /* a rival close to losing, a fallen one, one that went silent */
 .vs-r.danger { border-color: #ffd0d6; background: linear-gradient(180deg, #ff5a6a, #c8102e); animation: vs-danger 0.42s ease-in-out infinite alternate; }
 .vs-r.danger .vs-d { color: #fff3b0; }
