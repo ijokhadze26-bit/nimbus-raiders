@@ -282,6 +282,19 @@ test('a seat that cannot be taken back shows as lost', async () => {
   b.tp.net.offline(false);
   await w.clock.advance(2000);
   eq([rb.state.me, rb.state.lost, ra.state.seats[1].uid], [null, true, 'uidC']);
+  // the same when the others started while I was away: I am not in that match
+  const w2 = world();
+  const x = await pair(w2, { net: {} });
+  const c2 = await w2.player('uidC', 'Charlie');
+  w2.hub.admin.set(`rooms/${x.ra.code}/max`, 4);
+  x.b.tp.net.offline(true);
+  await w2.clock.advance(6000);
+  const r3 = await w2.settle(joinRoom({ transport: c2.tp, code: x.ra.code, profile: c2.profile, clock: w2.clock }));
+  await w2.settle(Promise.all([x.ra.ready(true), r3.ready(true)]));
+  await w2.clock.advance(500);
+  x.b.tp.net.offline(false);
+  await w2.clock.advance(2000);
+  eq([x.ra.state.st, x.rb.state.me, x.rb.state.lost, x.rb.state.players.map((p) => p.uid)], ['live', null, true, ['uidA', 'uidC']]);
 });
 
 test('a player who sits down while the host is starting is not half in the match', async () => {

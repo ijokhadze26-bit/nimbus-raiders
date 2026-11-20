@@ -8,7 +8,8 @@
 //   const room = await createRoom({ transport, profile: session.profile, picks });   // or joinRoom({ ..., code })
 //   room.on('change', draw);  room.pick(...);  room.ready(true);
 //   room.on('start', () => game.versus.start(createMatch({ transport, room, cfg: session.cfg }), picks));
-//   ... link 'verdict' -> result screen;  room.rematch({ ready: true })  or  link.leave(); room.leave();
+//   ... link 'verdict' -> result screen (one marked provisional may be followed by the real one: show the later);
+//   room.rematch({ ready: true })  or  link.leave(); room.leave();   room.state.lost -> "you lost your seat"
 //   transport.idle() when the online screens close.
 // Stage 1 uses: connect(), gate(), ensureProfile() / rename(). Stake / claim / close are stage 4:
 // the RULES for them are already in config/firebase/rules.src.mjs (the owner pastes rules once),

@@ -125,7 +125,7 @@ function makeRoom(tp, code, uid, { clock = realClock, autoStart = true } = {}) {
     if (!held || lost || reseating || holdSeat || closed || raw.st === null || tp.status() !== 'on') return;
     const inMatch = raw.st === 'live';
     if (inMatch && !derived) return;                                         // not known yet: step() runs again
-    if (inMatch && !derived.players.some((pl) => pl.uid === uid && pl.slot === held.slot)) { lost = true; return; }
+    if (inMatch && !derived.players.some((pl) => pl.uid === uid && pl.slot === held.slot)) { lost = true; dirty(); return; } // it began without me
     reseating = true;
     const want = held;
     const order = [want.slot];
