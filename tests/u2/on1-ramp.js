@@ -7,6 +7,9 @@
 // 2. Countdown: while link.clock() < 0 the run stands at the start line (no step), versus:go fires at 0.
 // 3. Catch-up (SPEC4 §5.3): frames clamped to 1/30 s at 20 fps still play in real time (extra steps, at most 3 a
 //    frame); a 5 s freeze is NOT replayed (the played clock stays behind); more than 15 s of stalls = out ('quit').
+// 4. In a boss arena the squad stands still, so the ramp's waves must come to it: every wave spawned there charges at
+//    once (a horde normally wakes up only when the squad comes within 52 u). Nothing waits out of reach, the enemy
+//    list does not pile up, and a handful parked in an arena in Sudden Death is taken by the horde.
 const g = window.__game, d = g.debug;
 g.loop.stop();
 const fails = [], info = {};
@@ -90,6 +93,39 @@ try {
   versus.pump(1 / 30, 11);
   ok(!g.run.active && link.test.falls.length === 1 && link.test.falls[0].by === 'quit', `stalled out: active ${g.run.active}, falls ${JSON.stringify(link.test.falls)}`);
   g.step = step0;
+  versus.stop();
+
+  // ---- 4. waves in a boss arena ----
+  start();
+  const horde = g.horde, sq = g.squad;
+  // (test only) the boss cannot hurt the squad here, so every Raider lost in the arena is the horde's doing
+  const rm = sq.remove, km = sq.killMember;
+  sq.remove = (n, reason) => (reason === 'boss' ? 0 : rm.call(sq, n, reason));
+  sq.killMember = (i, reason) => (reason === 'boss' ? undefined : km.call(sq, i, reason));
+  let arenaAt = null, idle = 0, checks = 0, peakList = 0, lostSudden = 0;
+  const off = g.events.on('squad:change', (p) => { if (p.delta < 0 && versus.ramp.sudden && (p.reason === 'horde' || p.reason === 'bomb')) lostSudden -= p.delta; });
+  try {
+    while (g.run.active && g.state === 'playing' && versus.t < VS.sudden.at + 40) {
+      // a modest squad that never beats the boss: it sits in the first arena from about 1:00; in Sudden Death it is
+      // down to a handful (what the boss leaves of a squad in a real match)
+      g.heroes.guard = 0;
+      if (!versus.ramp.sudden) { if (sq.count !== 40) sq.setCount(40, 'start'); } else if (sq.count > 6) sq.setCount(6, 'start');
+      if (g.boss && g.boss.alive) g.boss.hp = g.boss.maxHp;
+      versus.pump(1 / 60, 1 / 60);
+      if (g.run.phase !== 'boss') continue;
+      if (arenaAt == null) arenaAt = versus.t;
+      checks++;
+      peakList = Math.max(peakList, horde.list.length);
+      // idle = alive, not charging and older than the longest pause between two ramp waves (a wave spawned just
+      // before the arena, 60 u up the road, is roused by the next one at the latest)
+      for (const e of horde.list) if (e.state === 0 && !e.charging && !e.wave && e.t > 15) idle++;
+    }
+  } finally { sq.remove = rm; sq.killMember = km; off(); }
+  info.arena = { arenaAt: arenaAt && Math.round(arenaAt), t: Math.round(versus.t * 10) / 10, phase: g.run.phase, waves: versus.ramp.stats.waves, sudden: versus.ramp.stats.suddenWaves, lostSudden, idle, checks, peakList };
+  ok(arenaAt != null && arenaAt < 90 && versus.t >= VS.sudden.at && versus.ramp.stats.suddenWaves >= 1 && checks > 6000, `arena test did not sit in the arena into Sudden Death: ${JSON.stringify(info.arena)}`);
+  ok(idle === 0, `enemies waiting out of reach in the arena: ${idle} (enemy x step) over ${checks} steps`);
+  ok(peakList < 300, `enemies pile up in the arena (${peakList} at once; the pool holds 900)`);
+  ok(lostSudden >= 1 && !g.run.active && versus.t < VS.sudden.at + 40, `a handful parked in an arena in Sudden Death is not taken by the horde: ${JSON.stringify(info.arena)}`);
 } catch (e) {
   fails.push('threw: ' + (e.stack || e.message).slice(0, 600));
 } finally {

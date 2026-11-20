@@ -4,9 +4,8 @@
 // header of that script for the measured survival times.
 export const VS = {
   // Boss hp per arena, then x bossGrowth each. The first boss is a warm-up; the SECOND is the wall most matches end
-  // at: the autopilots reach it after about 1:50 with a full squad and nobody shoots 500000 hp down before its attacks
-  // have thinned the squad. Dodging decides who lasts (calibration: the casual bot falls there after ~55 s, the pro
-  // bot hangs on with a handful of Raiders until Sudden Death).
+  // at: the autopilots reach it after about 1:50 with a full squad and few shoot 500000 hp down before its attacks
+  // have thinned the squad. Once a squad is down to a handful, the next wave that reaches it ends the match.
   bossHp: [30000, 500000, 700000, 900000], bossGrowth: 1.35,
   // boss tier per arena (cadence, warning time, broods; the last value repeats): single-player endless uses 1, 2, 3 ...
   bossTier: [1, 5, 6, 7],
@@ -19,16 +18,20 @@ export const VS = {
   hpRamp: { per: 150 },
   // pressure waves (extra hordes on top of the road's own): from `from` s, one every max(everyMin, every0 - t / everyDiv) s,
   // count = round(count0 + t / countDiv) (x bossMul in an arena), spawned `ahead` u in front of the squad (aheadBoss in
-  // an arena: the squad stands still there, so a wave from 60 u is under fire for ~11 s and only hurts a weak squad;
-  // from 30 u it wipes any small squad at once and the two bots fall in the same second)
-  waves: { from: 45, every0: 18, everyDiv: 15, everyMin: 8, count0: 10, countDiv: 3, ahead: 60, aheadBoss: 60, bossMul: 0.5 },
+  // an arena). In an arena the squad stands still, so ramp.js makes every wave charge from where it appears: from 60 u
+  // it is under fire for ~11 s. bossMul is small because a squad the boss has thinned to a handful dies to the first
+  // wave that arrives: at 0.5 (SPEC4's "half count") both bots fall in the same seconds (medians 171 / 176 s).
+  waves: { from: 45, every0: 18, everyDiv: 15, everyMin: 8, count0: 10, countDiv: 3, ahead: 60, aheadBoss: 60, bossMul: 0.15 },
   // more red gates, by DISTANCE (identical for every player): a gate row past `from` u turns its better side red with
   // chance min(max, base + per700 * at / 700); one draw per row from Rng(seed * 97 + 3)
   red: { from: 300, base: 0.08, per700: 0.12, max: 0.45 },
 
   // Sudden Death from `at` s: wave k every max(everyMin, every0 - everyStep * k) s with
-  // count = min(countMax, round(count0 * growth^k)), hp x hpGrowth^k, elite share min(eliteMax, eliteStep * k)
-  sudden: { at: 180, dark: 0.35, aheadBoss: 60, every0: 6, everyStep: 0.3, everyMin: 2.5, count0: 40, growth: 1.2, countMax: 400, hpGrowth: 1.12, eliteStep: 0.05, eliteMax: 0.5 },
+  // count = min(countMax, round(count0 * growth^k)) (x bossMul in an arena), hp x hpGrowth^k, elite share
+  // min(eliteMax, eliteStep * k). In an arena the waves start small and grow all the same (2, 2, 3, 3, 4, 5, 6, 7, 9
+  // ... 20 every 2.5 s): they finish a handful at once and wear a bigger squad down; at full count nobody in an arena
+  // outlives the first one, however well they dodge the boss.
+  sudden: { at: 180, dark: 0.35, aheadBoss: 60, bossMul: 0.05, every0: 6, everyStep: 0.3, everyMin: 2.5, count0: 40, growth: 1.2, countMax: 400, hpGrowth: 1.12, eliteStep: 0.05, eliteMax: 0.5 },
   // Storm wall from `at` s: every `every` s the squad loses ceil(count * frac) + flat Raiders; at hardEnd everyone is out
   storm: { at: 270, every: 1, frac: 0.12, flat: 2, dark: 0.55, fogMul: 0.6, hardEnd: 322 },
 

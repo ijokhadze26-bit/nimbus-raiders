@@ -6,19 +6,31 @@
 // candidate can be tried without editing the file.
 // Targets (STAGE1): casual median 120-170 s, pro 200-260 s, nobody past 330 s (the storm wall guarantees it).
 //
-// Measured 2026-11-20 with the numbers now in vsdata.js (Pip + Thunderclap, 10 seeds each, survival in seconds):
-//   casual  116.5 129.9 157.7 164.8 165.3 168.5 169.1 173.5 189.2 237.6   median 166.9
-//   pro     169.9 187.5 205.4 205.7 213.7 228.9 230.9 250.7 271.0 272.0   median 221.3   longest 272.0
-// What the sweep showed (so the next person does not repeat it):
-// - With SPEC4's first guesses both bots lasted ~250-260 s: every squad sits at the 999 cap from about 1:30 and only
-//   the Sudden Death waves can wipe it. Stronger pressure waves, enemy hp or red gates move BOTH bots by the same
-//   amount (hordes are beaten by firepower, which is equal; the bots handle red gates alike).
-// - The bots differ in dodging, so the lever that separates them is the second boss: 500000 hp at tier 5 is a wall a
-//   full squad cannot shoot down before the boss has thinned it; the casual bot falls there after ~55 s, the pro bot
-//   hangs on with a handful of Raiders. Pace +50% in the first minute brings that boss to ~1:50.
-// - Arena waves from 30 u wipe every small squad at once (both bots fall in the same second at ~185 s): 60 u is kept.
-// - The spread per seed stays wide: a seed with an early x2 ladder reaches the wall with 999 Raiders, a poor seed
-//   falls at the first boss (the two casual runs under 130 s).
+// Measured 2026-11-20 with the numbers now in vsdata.js (survival in seconds, medians; `--seeds 40`, `--seed0 41`):
+//   Pip + Thunderclap, seeds 1-40     casual 170.2 (82-254)   pro 199.4 (168-262)   longest 262.0
+//   Pip + Thunderclap, seeds 41-60    casual 175.9            pro 183.9             (not tuned on)
+//   Cinder + Emberstorm, seeds 1-10   casual 175.9            pro 200.3
+//   Vex + Voidsiphon, seeds 1-10      casual 191.2            pro 201.8
+// So the casual bot sits on the top edge of its band and the pro bot on the bottom edge of its own, and not on every
+// seed set. Why, and what the sweeps showed (so the next person does not repeat them):
+// - Every squad is at the 999 cap from about 1:30 (gates no longer tell the bots apart), reaches the second boss at
+//   about 1:55 and is thinned by it to a handful by 2:40-3:00 whichever bot steers. The two bots then differ in one
+//   thing only: the pro bot dodges the boss perfectly with a handful of Raiders, the casual bot does not.
+// - The first calibration (casual 167 / pro 221) rested on a bug: waves spawned in an arena never charged, so that
+//   handful lived on until the storm. With the waves charging (ramp.js), a handful dies to the first wave that reaches
+//   it, and both bots fall in the same seconds: SPEC4's arena counts (waves.bossMul 0.5, full Sudden Death waves)
+//   give casual 171 / pro 176; 0.25 / 0.25 gives 187 / 191.
+// - waves.bossMul 0.15 + sudden.bossMul 0.05 is the best found: the casual bot falls to the boss or the pressure
+//   waves before 3:00, about half of the pro runs get into Sudden Death and last until its growing waves or the third
+//   boss (207-262 s). The answer to these two numbers is NOT smooth: 0.12 / 0.2 / 0.25 for waves.bossMul gave casual
+//   174 / 203 / 190, and moving waves.from by 3-5 s moved the pro median by 30-40 s (deaths follow the wave arrivals,
+//   8 s apart). A 20-seed median moves by about +-8 s between seed sets; use 40 seeds to compare two candidates.
+// - Weaker arena waves (waves.bossMul 0.05-0.08) lift BOTH bots (casual 178-195, pro 204-218): a trickle of enemies
+//   keeps the combo up and more squads shoot the second boss down. A tougher second boss (600000-700000 hp, tier 6)
+//   does not bring the casual bot back (188-199); a weaker one (300000-350000) lets both pass alike (the bots pass
+//   it 15 / 18 of 20 at 300000, 8 / 9 of 20 at 350000) and everybody then falls at the third boss at about 3:50.
+// - To separate skill for real, the lever has to be something the bots do differently before the squad cap or at the
+//   boss with a FULL squad; none of the numbers in VS is that lever.
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';

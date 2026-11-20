@@ -2,7 +2,8 @@
 // every match ends. Driven by Versus.step with the PLAYED clock t (real seconds of simulation), numbers in vsdata.js.
 // - pace: forward speed up (hazards.mods.speedMul, rebuilt every step; run.speed is never touched);
 // - tougher enemies: run.hpRamp (read by horde.spawnWave);
-// - pressure waves: extra hordes spawned straight into the field (not road events);
+// - pressure waves: extra hordes spawned straight into the field (not road events); in a boss arena, where the
+//   squad stands still, they charge from where they appear (wave());
 // - more red gates: by DISTANCE and the match seed, so every player meets the same rows (redden());
 // - Sudden Death (180 s): growing waves that never stop, also in a boss arena, and a darker sky;
 // - Storm wall (270 s): the squad shrinks every second until it is gone.
@@ -88,9 +89,13 @@ export class Ramp {
 
   wave(count, hpMul = 1, elite = 0) {
     const g = this.game, run = g.run, d = run.dist;
-    // an arena has no forward speed: a wave from the road distance would be shot down long before it arrives
-    const ahead = run.phase !== 'boss' ? VS.waves.ahead : this.sudden ? VS.sudden.aheadBoss : VS.waves.aheadBoss;
+    const arena = run.phase === 'boss';
+    const ahead = !arena ? VS.waves.ahead : this.sudden ? VS.sudden.aheadBoss : VS.waves.aheadBoss;
     g.horde.spawnWave({ at: d + ahead, count, mix: this.mix(d), lane: 'both', hpMul: endlessTough(d) * hpMul, elite }, false);
+    // A horde only wakes up when the squad comes within 52 u (horde.js AGGRO), and in an arena the squad never comes:
+    // there every wave charges from the moment it appears, and so does anything still waiting further up the road
+    // (a wave spawned just before the arena). Otherwise they pile up out of reach until the enemy pool is full.
+    if (arena) { const list = g.horde.list; for (let i = 0; i < list.length; i++) if (!list[i].wave) list[i].charging = true; }
   }
 
   /** One playing step while the squad is alive. Returns 'sudden' / 'storm' on the step that phase begins. */
@@ -114,7 +119,8 @@ export class Ramp {
       if (t >= this.suddenAt) {
         const k = this.suddenK++;
         this.suddenAt = t + Math.max(S.everyMin, S.every0 - S.everyStep * k);
-        this.wave(Math.min(S.countMax, Math.round(S.count0 * Math.pow(S.growth, k))), Math.pow(S.hpGrowth, k), Math.min(S.eliteMax, S.eliteStep * k));
+        const n = Math.min(S.countMax, Math.round(S.count0 * Math.pow(S.growth, k)));
+        this.wave(run.phase === 'boss' ? Math.max(1, Math.round(n * S.bossMul)) : n, Math.pow(S.hpGrowth, k), Math.min(S.eliteMax, S.eliteStep * k));
         this.stats.suddenWaves++;
       }
     }
