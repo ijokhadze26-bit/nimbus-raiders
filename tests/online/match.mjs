@@ -1,59 +1,9 @@
 // node tests/online/match.mjs — whole matches between clients on the in-process hub, virtual clock.
 // A tiny stand-in for the game drives each link: one sample every 0.1 s after GO, a fall when told.
-import { test, ok, eq, near, run, world } from './kit.mjs';
-import { createRoom, joinRoom } from '../../src/online/room.js';
+import { test, ok, eq, near, run, world, drive, arena } from './kit.mjs';
+import { joinRoom } from '../../src/online/room.js';
 import { createMatch } from '../../src/online/match.js';
 import { decodeState } from '../../src/online/codec.js';
-
-const NAMES = ['Alpha', 'Bravo', 'Charlie', 'Delta'];
-
-/** A stand-in game: pushes samples on its played clock, records everything the link tells it. */
-function drive(w, link, { speed = 12, lane = (t) => Math.sin(t) * 3 } = {}) {
-  const g = { link, t: 0, alive: true, states: [], outs: [], peer: [], events: [], status: [], verdict: null, verdictAt: null, final: null, speed };
-  link.on('state', (slot, s) => g.states.push({ slot, s, at: link.clock() }));
-  link.on('out', (slot, o) => g.outs.push({ slot, ...o }));
-  link.on('peer', (slot, p) => g.peer.push({ slot, ...p }));
-  link.on('event', (e) => g.events.push(e));
-  link.on('status', (s) => g.status.push(s));
-  link.on('final', (f) => { g.final = f.places; });
-  link.on('verdict', (v) => { g.verdict = v; g.verdictAt = link.clock(); g.alive = false; });
-  g.dist = () => g.speed * g.t;
-  g.stop = w.clock.every(100, () => {
-    if (!g.alive || link.clock() < 0) return;
-    g.t = Math.floor(link.clock() * 10 + 1e-6) / 10; // an honest played clock: never ahead of real time
-    link.push({ t: g.t, dist: g.dist(), n: 40, form: 1, flags: 0, boss: 0, zone: 0, charge: 7, danger: 2, x: lane(g.t) });
-  });
-  /** Wipe out now (or with a given distance). */
-  g.fall = (d = g.dist(), by = 'dead') => { if (!g.alive) return; g.alive = false; link.fall({ t: g.t, d, by }); };
-  /** Fall when the played clock reaches `at` seconds. */
-  g.fallAt = (at, d) => { const off = w.clock.every(20, () => { if (g.t >= at - 1e-9) { off(); g.fall(d); } }); };
-  return g;
-}
-
-/** N players in one room, everyone ready, links made at 'start'. nets[i] = { lat, jit, loss } per player. */
-async function arena(w, n = 2, { nets = [], cfg, noLink = [] } = {}) {
-  const ps = [];
-  for (let i = 0; i < n; i++) ps.push(await w.player(`uid${'ABCD'[i]}`, NAMES[i], nets[i]));
-  const rooms = [await w.settle(createRoom({ transport: ps[0].tp, profile: ps[0].profile, max: n > 2 ? 4 : 2, clock: w.clock }), 8000)];
-  for (const p of ps.slice(1)) rooms.push(await w.settle(joinRoom({ transport: p.tp, code: rooms[0].code, profile: p.profile, clock: w.clock }), 8000));
-  const games = [];
-  const begin = (i) => rooms[i].on('start', () => {
-    if (noLink.includes(i)) return;
-    const link = createMatch({ transport: ps[i].tp, room: rooms[i], cfg: cfg || ps[i].session.cfg, timer: w.clock });
-    games[i] = drive(w, link);
-  });
-  rooms.forEach((_, i) => begin(i));
-  await w.settle(Promise.all(rooms.map((r) => r.ready(true))), 8000);
-  const wanted = n - noLink.length;
-  for (let i = 0; i < 300 && games.filter(Boolean).length < wanted; i++) await w.clock.advance(50);
-  const t0 = rooms[0].state.t0;
-  ok(t0 && games.filter(Boolean).length === wanted, 'the match started');
-  return { ps, rooms, games, t0, code: rooms[0].code, mid: rooms[0].state.mid,
-    /** the slow-network switch of player i (needs a nets[i] entry) */
-    net: (i) => ps[i].tp.net,
-    /** advance to `sec` seconds on the match clock */
-    to: (sec) => w.clock.advance(Math.max(0, t0 + sec * 1000 - w.clock.now())) };
-}
 
 test('the link is what STAGE1.md says it is', async () => {
   const w = world();

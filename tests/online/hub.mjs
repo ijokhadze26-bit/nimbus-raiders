@@ -143,7 +143,7 @@ test('hub: transactions are compare-and-set', async () => {
   ok(counts.every((r) => r.committed));
 });
 
-test('hub: onDisconnect fires on a clean close, after dropMs when the network dies, and can be cancelled', async () => {
+test('hub: onDisconnect fires on a clean close, after dropMs when the network dies, on any reconnect, and can be cancelled', async () => {
   const w = world({ withRules: false, dropMs: 5000 });
   const a = await w.client('A');
   const b = shape(await w.client('B'), { clock: w.clock });
@@ -167,6 +167,19 @@ test('hub: onDisconnect fires on a clean close, after dropMs when the network di
   c.close();
   await w.clock.advance(1);
   eq(w.hub.admin.get('seats'), { b: 'gone', c2: 'C' }, 'the cancelled one stays');
+  // a short blip: the client is back on a new connection, and the service drops what hung on the old one
+  const d = shape(await w.client('D'), { clock: w.clock });
+  await w.settle(d.set('seats/d', 'D'));
+  d.onDisconnect('seats/d', null);
+  await w.clock.advance(1);
+  d.net.offline(true);
+  await w.clock.advance(800);
+  eq(w.hub.admin.get('seats/d'), 'D', 'still there while the gap lasts');
+  d.net.offline(false);
+  await w.clock.advance(1);
+  eq(w.hub.admin.get('seats/d'), null, 'gone on the reconnect, although the gap was far shorter than dropMs');
+  await w.clock.advance(6000);
+  eq(w.hub.stats.denied, 0);
 });
 
 test('hub: a client that was away gets one catch-up event, not a replay', async () => {
@@ -262,6 +275,7 @@ test('echo mode imitates the real SDK: my listeners fire at once, a timestamp is
   eq(seen[seen.length - 1], ['Echo Two', 0]);
   // a server timestamp: a local guess first, then the server's own value
   const stamps = [];
+  await a.set('host/uidA', 'ABCD');
   await a.set('rooms/ABCD', { h: 'uidA', k: 'friend', max: 2, ts: a.TS, st: 'lobby', rn: 0, sl: { 0: 'uidA' } });
   a.on('rooms/ABCD/ts', 'value', (v) => stamps.push(v));
   await w.clock.advance(5);

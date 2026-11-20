@@ -28,6 +28,15 @@ test('the SDK loads and the adapter has the whole interface', async () => {
   eq(tp.status(), 'off');
   eq(tp.uid, null);
   ok(Math.abs(tp.now() - Date.now()) < 50, 'no offset known yet');
+  // the device clock is corrected by 15 s: now() must not move with it (deadlines and the match clock hang on it)
+  const real = Date.now;
+  const t1 = tp.now();
+  Date.now = () => real() - 15000;
+  const t2 = tp.now();
+  Date.now = () => real() + 15000;
+  const t3 = tp.now();
+  Date.now = real;
+  ok(Math.abs(t2 - t1) < 50 && Math.abs(t3 - t1) < 50, `now() jumped with the device clock: ${t2 - t1} / ${t3 - t1}`);
 });
 
 test('writes queue while offline, listeners hear them at once as plain objects', async () => {

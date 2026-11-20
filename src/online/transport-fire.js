@@ -54,7 +54,11 @@ export function createFireTransport(config, { name = 'nimbus-online', clock = re
   const db = getDatabase(app);
   const status = statusBox('off');
   let uid = null;
-  let offset = 0;
+  // now() runs on a clock that never jumps (performance.now), pinned to server time each time the SDK
+  // measures the offset. A device clock that is corrected in the middle of a match (auto time sync, a
+  // changed setting) would otherwise move every deadline and the match clock with it.
+  const mono = typeof performance !== 'undefined' && typeof performance.now === 'function' ? () => performance.now() : () => Date.now();
+  let base = Date.now() - mono(); // server time = base + mono()
   let pend = 0;
   let wanted = false, linked = false, everOn = false;
   let connecting = null, idleCancel = null, infoOffs = null;
@@ -69,7 +73,7 @@ export function createFireTransport(config, { name = 'nimbus-online', clock = re
     if (infoOffs) return;
     infoOffs = [
       onValue(ref(db, '.info/connected'), (s) => { linked = s.val() === true; refresh(); }),
-      onValue(ref(db, '.info/serverTimeOffset'), (s) => { offset = Number(s.val()) || 0; }),
+      onValue(ref(db, '.info/serverTimeOffset'), (s) => { base = Date.now() + (Number(s.val()) || 0) - mono(); }),
       onAuthStateChanged(auth, (u) => { uid = u ? u.uid : null; refresh(); }),
     ];
   }
@@ -140,7 +144,7 @@ export function createFireTransport(config, { name = 'nimbus-online', clock = re
       return connecting;
     },
 
-    now: () => Date.now() + offset,
+    now: () => base + mono(),
     status: () => status.get(),
     onStatus: (cb) => status.on(cb),
 

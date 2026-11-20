@@ -8,6 +8,9 @@
 // Bus messages: { who: 1 } "is a hub here?"  { hub: 1 } "yes"
 //               { c: id, up: msg } client -> hub      { c: id, down: msg } hub -> client
 
+/** Post, unless the channel has been closed meanwhile (a tab going away): then nobody is listening. */
+const send = (channel, m) => { try { channel.postMessage(m); } catch (e) { /* closed */ } };
+
 const listen = (channel, fn) => {
   const h = (e) => { const d = e && e.data; if (d && typeof d === 'object') fn(d); };
   channel.addEventListener('message', h);
@@ -16,7 +19,7 @@ const listen = (channel, fn) => {
 
 /** Client side: a port ({ post, onmessage }) that reaches the hub tab through the channel. */
 export function channelPort(channel, id) {
-  const port = { onmessage: null, post: (m) => channel.postMessage({ c: id, up: m }) };
+  const port = { onmessage: null, post: (m) => send(channel, { c: id, up: m }) };
   port.close = listen(channel, (d) => { if (d.c === id && d.down && port.onmessage) port.onmessage(d.down); });
   return port;
 }
@@ -25,11 +28,11 @@ export function channelPort(channel, id) {
 export function serveChannel(hub, channel) {
   const ports = new Map();
   return listen(channel, (d) => {
-    if (d.who) { channel.postMessage({ hub: 1 }); return; }
+    if (d.who) { send(channel, { hub: 1 }); return; }
     if (typeof d.c !== 'string' || !d.up) return;
     let p = ports.get(d.c);
     if (!p) {
-      p = { onmessage: null, post: (m) => channel.postMessage({ c: d.c, down: m }) };
+      p = { onmessage: null, post: (m) => send(channel, { c: d.c, down: m }) };
       ports.set(d.c, p);
       hub.attach(p);
     }

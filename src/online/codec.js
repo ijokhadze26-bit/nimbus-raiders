@@ -2,7 +2,7 @@
 //
 //   char 0      version: '1' = x samples 0.1 s apart; '2' = 0.2 s, '3' = 0.4 s ... (the sender halved its
 //               backlog while it could not send; superset of the spec's fixed '1')
-//   1-2  seq    0..1295, wraps          3-5  t      played clock of the newest sample, 0.1 s
+//   1-2  seq    0..1295, wraps          3-5  t      played clock of the newest sample, whole tenths (rounded down)
 //   6-8  dist   0.5 u                   9-10 n      squad 0..999
 //   11   form   0 line 1 wedge 2 circle 12   flags  bit0 boss phase, bit1 shielded, bit2 sabotaged,
 //                                                    bit3 frozen, bit4 big sabotage ready
@@ -18,6 +18,9 @@ const int = (v, max) => {
   const n = Math.round(Number(v) || 0);
   return n < 0 ? 0 : n > max ? max : n;
 };
+/** Played seconds -> whole tenths, always rounded DOWN: the one rule used for every time that is ranked
+ *  or compared (the state string, a fall record, the live clock), so no two screens differ by a rounding. */
+export const tenths = (t) => Math.max(0, Math.floor((Number(t) || 0) * 10 + 1e-6));
 const b36 = (n, w) => n.toString(36).padStart(w, '0');
 const xCode = (x) => int(((Number(x) || 0) + X_LIMIT) / (2 * X_LIMIT) * 1295, 1295);
 const xVal = (c) => c / 1295 * (2 * X_LIMIT) - X_LIMIT;
@@ -32,7 +35,7 @@ export function encodeState(seq, s, xs, halvings = 0) {
   const list = xs && xs.length ? xs : [s.x];
   let out = b36(1 + int(halvings, 8), 1)
     + b36(((Math.round(seq) % SEQ_MOD) + SEQ_MOD) % SEQ_MOD, 2)
-    + b36(int(s.t * 10, 46655), 3)
+    + b36(Math.min(tenths(s.t), 46655), 3)
     + b36(int(s.dist * 2, 46655), 3)
     + b36(int(s.n, 999), 2)
     + b36(int(s.form, 2), 1)

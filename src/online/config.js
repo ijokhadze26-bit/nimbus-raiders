@@ -30,6 +30,7 @@ export const NET = Object.freeze({
   maxSamples: 20,    // x samples kept while a flush is blocked, then halved
   hbMs: 3000,        // heartbeat period
   silentS: 3,        // a rival is "silent" after this many seconds with no message
+  hbSlackS: 1.5,     // ...plus this when all they send is heartbeats (before GO, a frozen tab): one may be late
   countdownS: 10,    // ...and forfeited this many seconds later
   stallMs: 19000,    // rules: hb.t * 100 < now - ts - stallMs  (played clock 15 s behind the match clock)
   capMs: 344000,     // rules: anyone may close a slot this long after the match record (t0 + 340 s)
@@ -39,6 +40,8 @@ export const NET = Object.freeze({
   giveUpMs: 8000,    // fallen + offline this long: show a provisional lose
   tickMs: 50,        // match.js timer period
   seatTries: 5,      // room code collision retries
+  touchMs: 1800000,  // an open lobby refreshes the room's ts this often (a room untouched for 2 hours may be cleared)
+  leaveMs: 2000,     // room.leave() waits this long at most for its last write (offline it never lands)
   maxWatchers: 4,
 });
 

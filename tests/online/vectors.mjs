@@ -92,15 +92,29 @@ export async function runVectors({ A, B, C, wait, rand = Math.random }) {
   // ------------------------------------------------------------------ friend room
   const code = makeCode(rand);
   const R = `rooms/${code}`;
-  const roomVal = (h, k = 'friend', max = 2) => ({ h, k, max, ts: TS, st: 'lobby', rn: 0, sl: { 0: h }, p: { 0: seat('Probe A2') } });
+  const roomVal = (h, k = 'friend', max = 2, over = {}) => ({ h, k, max, ts: TS, st: 'lobby', rn: 0, sl: { 0: h }, p: { 0: seat('Probe A2') }, ...over });
+  await deny('a room without reserving its code first', 'A', (t) => t.set(R, roomVal(U.A)));
+  await deny('reserve a room code for another player', 'A', (t) => t.set(`host/${U.B}`, code));
+  await deny('reserve something that is not a room code', 'A', (t) => t.set(`host/${U.A}`, 'abcd'));
+  await allow('reserve a room code', 'A', (t) => t.set(`host/${U.A}`, code));
+  await deny('forget my reservation', 'A', (t) => t.remove(`host/${U.A}`));
   await deny('a room with a lower-case code', 'A', (t) => t.set(`rooms/${code.toLowerCase()}`, roomVal(U.A)));
   await deny('a room code with the letter O', 'A', (t) => t.set('rooms/ABOC', roomVal(U.A)));
   await deny('a room hosted by somebody else', 'A', (t) => t.set(R, roomVal(U.B)));
   await deny('4 seats in a quick room', 'A', (t) => t.set(R, roomVal(U.A, 'quick', 4)));
   await deny('a room of an unknown kind', 'A', (t) => t.set(R, roomVal(U.A, 'party', 2)));
+  await deny('a new room with a rival already seated', 'A', (t) => t.set(R, roomVal(U.A, 'friend', 2, { sl: { 0: U.A, 1: U.B } })));
+  await deny('a new room with me in both seats', 'A', (t) => t.set(R, roomVal(U.A, 'friend', 2, { sl: { 0: U.A, 1: U.A } })));
+  await deny('a new room with no seats, only a bare value', 'A', (t) => t.set(R, roomVal(U.A, 'friend', 2, { sl: 'nobody' })));
+  await deny('a new room that is already live', 'A', (t) => t.set(R, roomVal(U.A, 'friend', 2, { st: 'live', mid: 'm', mts: TS })));
+  await deny('a new room stuffed with states', 'A', (t) => t.set(R, roomVal(U.A, 'friend', 2, { l: 'x'.repeat(5000) })));
+  await deny('a new room stuffed with pick rows', 'A', (t) => t.set(R, roomVal(U.A, 'friend', 2, { p: { 0: seat('Probe A2'), k1: seat('x'), k2: seat('y') } })));
+  await deny('a new room stuffed with events and watchers', 'A', (t) => t.set(R, roomVal(U.A, 'friend', 2, { ev: { any: { e: { k: 's', a: 1, f: 0, to: 1 } } }, sp: { nobody: true } })));
   await allow('create a room', 'A', (t) => t.set(R, roomVal(U.A)));
   await deny("overwrite another player's room", 'B', (t) => t.set(R, roomVal(U.B)));
+  await deny('overwrite my own room', 'A', (t) => t.set(R, roomVal(U.A)));
   await deny("delete another player's room", 'B', (t) => t.remove(R));
+  await deny("make myself host of another player's room", 'B', (t) => t.set(`${R}/h`, U.B));
   await allow('read a room', 'B', (t) => t.get(`${R}/sl`));
   await deny('seat 2 of a 2-seat room', 'B', (t) => t.set(`${R}/sl/2`, U.B));
   await deny('seat somebody else', 'B', (t) => t.set(`${R}/sl/1`, U.C));
@@ -121,29 +135,44 @@ export async function runVectors({ A, B, C, wait, rand = Math.random }) {
   await deny('a heartbeat with a made-up time', 'B', (t) => t.set(`${R}/hb/1`, { a: 12345, t: 0 }));
   await deny("a rival's heartbeat", 'B', (t) => t.set(`${R}/hb/0`, { a: TS, t: 0 }));
   await deny('a watcher flips the room to live', 'C', (t) => t.set(`${R}/st`, 'live'));
+  await deny('flip the room to live with no match', 'B', (t) => t.set(`${R}/st`, 'live'));
+  await deny('skip a round number', 'B', (t) => t.set(`${R}/rn`, 5));
   await deny('an unknown room field', 'A', (t) => t.set(`${R}/zz`, 1));
 
   // ------------------------------------------------------------------ match record
   const mid = A.newId();
   const M = `matches/${mid}`;
   const matchVal = (over = {}) => ({ code, k: 'friend', ts: TS, u: { 0: U.A, 1: U.B }, us: { [U.A]: 0, [U.B]: 1 }, tr: { 0: 0, 1: 0 }, ...over });
-  const live = (m) => ({ [`${R}/st`]: 'live', [`${R}/mid`]: m, [`${R}/mts`]: TS, [`${R}/ts`]: TS });
-  await deny('room goes live with no match record', 'A', (t) => t.update(live('nothing')));
+  const live = (room, m) => ({ [`${room}/st`]: 'live', [`${room}/mid`]: m, [`${room}/mts`]: TS, [`${room}/ts`]: TS });
+  const lobby = (room, rn) => ({ [`${room}/st`]: 'lobby', [`${room}/rn`]: rn });
+  await deny('room goes live with no match record', 'A', (t) => t.update(live(R, 'nothing')));
   await deny('a match record from outside the room', 'C', (t) => t.set(M, matchVal()));
   await deny('a match record with the wrong players', 'A', (t) => t.set(M, matchVal({ u: { 0: U.A, 1: U.C }, us: { [U.A]: 0, [U.C]: 1 } })));
   await deny('a match record with swapped seats', 'A', (t) => t.set(M, matchVal({ us: { [U.A]: 1, [U.B]: 0 } })));
+  await deny('a match record that leaves the rival out', 'A', (t) => t.set(M, matchVal({ us: { [U.A]: 0 } })));
   await deny('a match record with a made-up time', 'A', (t) => t.set(M, matchVal({ ts: 1234567 })));
   await deny('a match record with made-up trophies', 'A', (t) => t.set(M, matchVal({ tr: { 0: 500, 1: 0 } })));
+  await deny('a match record with a bare value for trophies', 'A', (t) => t.set(M, matchVal({ tr: 'x'.repeat(5000) })));
   await deny('a match record that already holds a result', 'A', (t) => t.set(M, matchVal({ out: { 1: { t: 0, d: 0, ts: TS, by: 'dead' } } })));
   await deny('a match record of another kind than the room', 'A', (t) => t.set(M, matchVal({ k: 'quick' })));
+  const spare = A.newId();
+  await allow('a match record that will not be used', 'A', (t) => t.set(`matches/${spare}`, matchVal()));
+  await deny('tidy away a match record from outside', 'C', (t) => t.remove(`matches/${spare}`));
+  await allow('tidy away a match record the room never used', 'B', (t) => t.remove(`matches/${spare}`));
   await allow('create the match record', 'A', (t) => t.set(M, matchVal()));
   const matchAt = A.now();
   await deny('set the match id without going live', 'A', (t) => t.set(`${R}/mid`, mid));
-  await allow('room goes live', 'A', (t) => t.update(live(mid)));
+  await allow('room goes live', 'A', (t) => t.update(live(R, mid)));
   await deny('edit the match record', 'A', (t) => t.set(`${M}/ts`, TS));
   await deny('replace the match record', 'A', (t) => t.set(M, matchVal()));
   await deny('delete a fresh match record', 'A', (t) => t.remove(M));
   await allow('read the match record', 'C', (t) => t.get(M));
+  await deny('flip a live room back to the lobby mid-match', 'B', (t) => t.update(lobby(R, 1)));
+  await deny('flip a live room back with a bare write', 'A', (t) => t.set(`${R}/st`, 'lobby'));
+  await deny('rewrite the go-live time mid-match', 'B', (t) => t.set(`${R}/mts`, TS));
+  await deny("remove the room's match id mid-match", 'B', (t) => t.remove(`${R}/mid`));
+  await deny("empty a rival's seat mid-match", 'A', (t) => t.remove(`${R}/sl/1`));
+  await deny('delete a room while its match is on', 'A', (t) => t.remove(R));
 
   // ------------------------------------------------------------------ events
   const ev = (f, over = {}) => ({ k: 'e', a: 1, f, to: 1, q: 1, ...over });
@@ -154,51 +183,63 @@ export async function runVectors({ A, B, C, wait, rand = Math.random }) {
   await deny('rewrite an event', 'A', (t) => t.set(`${R}/ev/${mid}/e1`, ev(0, { a: 2 })));
   await deny('an event with free text', 'A', (t) => t.set(`${R}/ev/${mid}/e5`, ev(0, { msg: 'hello' })));
 
-  // ------------------------------------------------------------------ falls
+  // ------------------------------------------------------------------ falls (B falls in the friend match)
   const out = (t, d, by = 'dead', ts = TS) => ({ t, d, ts, by });
-  await deny('a fall before the countdown could have ended', 'A', (t) => t.set(`${M}/out/0`, out(5, 10)));
+  await deny('a fall before the countdown could have ended', 'B', (t) => t.set(`${M}/out/1`, out(5, 10)));
   await until(matchAt + 3200);
   await deny("forge the rival's fall", 'B', (t) => t.set(`${M}/out/0`, out(0, 0)));
   await deny('forfeit the rival too early', 'B', (t) => t.set(`${M}/out/0`, out(0, 0, 'dc')));
   await deny('cap the match too early', 'B', (t) => t.set(`${M}/out/0`, out(0, 0, 'cap')));
-  await deny('a fall from outside the match', 'C', (t) => t.set(`${M}/out/0`, out(0, 0)));
-  await deny('a played time longer than real time', 'A', (t) => t.set(`${M}/out/0`, out(3000, 100)));
-  await deny('an impossible distance', 'A', (t) => t.set(`${M}/out/0`, out(5, 5000)));
-  await deny('a fall with a made-up server time', 'A', (t) => t.set(`${M}/out/0`, out(5, 10, 'dead', 1234)));
-  await deny('call my own fall a disconnect', 'A', (t) => t.set(`${M}/out/0`, out(5, 10, 'dc')));
-  await deny('a fall of an unknown kind', 'A', (t) => t.set(`${M}/out/0`, out(5, 10, 'won')));
-  await deny('a fall for a seat nobody has', 'A', (t) => t.set(`${M}/out/3`, out(5, 10)));
-  await allow('my own fall', 'A', (t) => t.set(`${M}/out/0`, out(5, 10)));
-  await deny('rewrite my fall', 'A', (t) => t.set(`${M}/out/0`, out(6, 10)));
-  await deny("delete the rival's fall", 'B', (t) => t.remove(`${M}/out/0`));
+  await deny('a fall from outside the match', 'C', (t) => t.set(`${M}/out/1`, out(0, 0)));
+  await deny('a played time longer than real time', 'B', (t) => t.set(`${M}/out/1`, out(3000, 100)));
+  await deny('an impossible distance', 'B', (t) => t.set(`${M}/out/1`, out(5, 5000)));
+  await deny('a fall with a made-up server time', 'B', (t) => t.set(`${M}/out/1`, out(5, 10, 'dead', 1234)));
+  await deny('call my own fall a disconnect', 'B', (t) => t.set(`${M}/out/1`, out(5, 10, 'dc')));
+  await deny('a fall of an unknown kind', 'B', (t) => t.set(`${M}/out/1`, out(5, 10, 'won')));
+  await deny('a fall for a seat nobody has', 'B', (t) => t.set(`${M}/out/3`, out(5, 10)));
+  await allow('my own fall', 'B', (t) => t.set(`${M}/out/1`, out(5, 10)));
+  await deny('rewrite my fall', 'B', (t) => t.set(`${M}/out/1`, out(6, 10)));
+  await deny("delete the rival's fall", 'A', (t) => t.remove(`${M}/out/1`));
 
   // ------------------------------------------------------------------ queue, quick room, human stake
   await allow('join the queue', 'B', (t) => t.set(`queue/${U.B}`, { tr: 0, ts: TS }));
   await deny('a ticket with made-up trophies', 'C', (t) => t.set(`queue/${U.C}`, { tr: 900, ts: TS }));
   await deny("write another player's ticket", 'A', (t) => t.set(`queue/${U.C}`, { tr: 0, ts: TS }));
   await wait(30);
-  await allow('second player joins the queue', 'A', (t) => t.set(`queue/${U.A}`, { tr: 0, ts: TS }));
-  await allow('read the 10 oldest tickets', 'A', (t) => t.get('queue', { orderBy: 'child', child: 'ts', limitToFirst: 10 }));
-  await deny('read the whole queue', 'A', (t) => t.get('queue'));
+  await allow('second player joins the queue', 'C', (t) => t.set(`queue/${U.C}`, { tr: 0, ts: TS }));
   let qcode = makeCode(rand);
   while (qcode === code) qcode = makeCode(rand);
   const Q = `rooms/${qcode}`;
-  await allow('create a quick room', 'A', (t) => t.set(Q, roomVal(U.A, 'quick', 2)));
-  await deny('take a quick-room seat without being matched', 'B', (t) => t.set(`${Q}/sl/1`, U.B));
+  await deny('reserve a second room while I sit in my first', 'A', (t) => t.set(`host/${U.A}`, qcode));
+  await allow('leave my seat (the match goes on)', 'A', (t) => t.remove(`${R}/sl/0`));
+  await allow('state from a player whose seat is gone', 'A', (t) => t.set(`${R}/l/0`, state));
+  await allow('reserve the next room code', 'A', (t) => t.set(`host/${U.A}`, qcode));
+  await allow('create a quick room for the oldest ticket', 'A', (t) => t.set(Q, roomVal(U.A, 'quick', 2, { q: U.B })));
+  await deny('claim a ticket without one of my own', 'A', (t) => t.set(`queue/${U.B}/m`, { by: U.A, code: qcode }));
+  await wait(30);
+  await allow('third player joins the queue', 'A', (t) => t.set(`queue/${U.A}`, { tr: 0, ts: TS }));
+  await allow('read the 10 oldest tickets', 'A', (t) => t.get('queue', { orderBy: 'child', child: 'ts', limitToFirst: 10 }));
+  await deny('read the whole queue', 'A', (t) => t.get('queue'));
   await deny('claim a ticket with a friend room', 'A', (t) => t.set(`queue/${U.B}/m`, { by: U.A, code }));
-  await deny('claim a ticket without one of my own', 'C', (t) => t.set(`queue/${U.B}/m`, { by: U.C, code: qcode }));
   await deny('claim a ticket in somebody else\'s name', 'A', (t) => t.set(`queue/${U.B}/m`, { by: U.C, code: qcode }));
+  await deny('claim a ticket into a room I do not host', 'C', (t) => t.set(`queue/${U.B}/m`, { by: U.C, code: qcode }));
   await deny('the older ticket claims the newer one', 'B', (t) => t.set(`queue/${U.A}/m`, { by: U.B, code: qcode }));
+  await deny("say another player took a bot", 'A', (t) => t.set(`queue/${U.C}/m`, { by: U.C, bot: true }));
+  await deny('claim a ticket the room was not made for', 'A', (t) => t.set(`queue/${U.C}/m`, { by: U.A, code: qcode }));
   await allow('claim the older ticket for my quick room', 'A', (t) => t.set(`queue/${U.B}/m`, { by: U.A, code: qcode }));
   await deny('claim a ticket twice', 'A', (t) => t.set(`queue/${U.B}/m`, { by: U.A, code: qcode }));
-  await deny('an unmatched player takes the quick-room seat', 'C', (t) => t.set(`${Q}/sl/1`, U.C));
-  await allow('take the seat I was matched to', 'B', (t) => t.set(`${Q}/sl/1`, U.B));
+  await allow('take a bot instead of waiting', 'C', (t) => t.set(`queue/${U.C}/m`, { by: U.C, bot: true }));
+  await deny('take a quick-room seat made for somebody else', 'C', (t) => t.set(`${Q}/sl/1`, U.C));
+  await allow('take the seat the room was made for', 'B', (t) => t.set(`${Q}/sl/1`, U.B));
   await allow('picks in the quick room', 'B', (t) => t.set(`${Q}/p/1`, seat('Probe B')));
   const mid2 = A.newId();
   const M2 = `matches/${mid2}`;
-  await allow('create the quick match record', 'A', (t) => t.set(M2, { code: qcode, k: 'quick', ts: TS, u: { 0: U.A, 1: U.B }, us: { [U.A]: 0, [U.B]: 1 }, tr: { 0: 0, 1: 0 } }));
+  const quickVal = (over = {}) => ({ code: qcode, k: 'quick', ts: TS, u: { 0: U.A, 1: U.B }, us: { [U.A]: 0, [U.B]: 1 }, tr: { 0: 0, 1: 0 }, ...over });
+  await deny('a quick match record without the trophies', 'A', (t) => t.set(M2, quickVal({ tr: null })));
+  await allow('create the quick match record', 'A', (t) => t.set(M2, quickVal()));
   const match2At = A.now();
-  await allow('quick room goes live', 'A', (t) => t.update({ [`${Q}/st`]: 'live', [`${Q}/mid`]: mid2, [`${Q}/mts`]: TS, [`${Q}/ts`]: TS }));
+  await allow('quick room goes live', 'A', (t) => t.update(live(Q, mid2)));
+  await deny('point a live room at another match', 'B', (t) => t.update(live(Q, mid)));
   const stakeHuman = (m, over = {}) => ({ ...base('Probe A2'), l: 1, sk: { a: TS, s: 0, st: 0, b: false, m, ms: 0, os: 1, o: 0, ...over } });
   await deny('a stake on a friend match', 'A', (t) => t.set(uA, stakeHuman(mid)));
   await deny('a stake on a match that does not exist', 'A', (t) => t.set(uA, stakeHuman('nothing')));
@@ -207,22 +248,22 @@ export async function runVectors({ A, B, C, wait, rand = Math.random }) {
   await allow('stake on my quick match', 'A', (t) => t.set(uA, stakeHuman(mid2)));
   const stakeAt = A.now();
 
-  // ------------------------------------------------------------------ disconnect forfeit (friend match)
-  await until(matchAt + 13500);
-  await allow('the rival heartbeats again', 'B', (t) => t.set(`${R}/hb/1`, { a: TS, t: 0 }));
-  await deny('forfeit a rival whose heartbeat is fresh', 'A', (t) => t.set(`${M}/out/1`, out(0, 0, 'dc')));
-  await wait(9300);
-  await deny('a forfeit from outside the match', 'C', (t) => t.set(`${M}/out/1`, out(0, 0, 'dc')));
-  await allow('forfeit a rival who has been silent', 'A', (t) => t.set(`${M}/out/1`, out(0, 0, 'dc')));
-
-  // ------------------------------------------------------------------ human win claim
+  // ------------------------------------------------------------------ disconnect forfeit
+  await until(match2At + 13500);
+  await allow('the rival heartbeats', 'B', (t) => t.set(`${Q}/hb/1`, { a: TS, t: 0 }));
+  await deny('forfeit a rival whose heartbeat is fresh', 'A', (t) => t.set(`${M2}/out/1`, out(100, 150, 'dc')));
+  await deny('the loser forfeits the winner after the match', 'B', (t) => t.set(`${M}/out/0`, out(0, 0, 'dc')));
   await until(match2At + 15500);
   await deny('a stake on an old match', 'B', (t) => t.set(uB, { ...base('Probe B'), l: 1, sk: { a: TS, s: 0, st: 0, b: false, m: mid2, ms: 1, os: 0, o: 0 } }));
-  await until(stakeAt + 20500);
+
+  // ------------------------------------------------------------------ human win claim
+  await until(Math.max(stakeAt + 20500, match2At + 23000));
   const humanWin = (over = {}) => ({ ...base('Probe A2'), tr: 28, pk: 28, w: 1, st: 1, bs: 1, ws: weekBase() + 28, cd: day(), cc: 1, ...over });
   await deny("a win without the rival's fall", 'A', (t) => t.set(uA, humanWin()));
   await deny('delete part of the stake', 'A', (t) => t.remove(`${uA}/sk/ms`));
-  await allow('the rival falls', 'B', (t) => t.set(`${M2}/out/1`, out(100, 150)));
+  await deny('a forfeit from outside the match', 'C', (t) => t.set(`${M2}/out/1`, out(100, 150, 'dc')));
+  await deny('back to the lobby before anybody fell', 'A', (t) => t.update(lobby(Q, 1)));
+  await allow('forfeit a rival who has been silent', 'A', (t) => t.set(`${M2}/out/1`, out(100, 150, 'dc')));
   await deny('claim +500 trophies', 'A', (t) => t.set(uA, humanWin({ tr: 500, pk: 500, ws: weekBase() + 500 })));
   await deny('claim a win without counting it for the day', 'A', (t) => t.set(uA, humanWin({ cc: 0 })));
   await deny('claim a survival time I did not reach', 'A', (t) => t.set(uA, humanWin({ bt: 3000 })));
@@ -241,21 +282,28 @@ export async function runVectors({ A, B, C, wait, rand = Math.random }) {
   await deny('close a stake and take the loss back', 'B', (t) => t.set(uB, base('Probe B')));
   await allow('close a lost stake', 'B', (t) => t.set(uB, { ...base('Probe B'), l: 1 }));
 
-  // ------------------------------------------------------------------ 4 seats, leaving, tidy up
+  // ------------------------------------------------------------------ rematch, 4 seats, leaving, tidy up
+  await deny('a rematch that skips the round count', 'B', (t) => t.set(`${R}/st`, 'lobby'));
+  await allow('back to the lobby once the match is over', 'B', (t) => t.update(lobby(R, 1)));
+  await allow('the host deletes the friend room', 'A', (t) => t.remove(R));
+  await deny('delete a live quick room', 'A', (t) => t.remove(Q));
+  await allow('quick room back to the lobby', 'A', (t) => t.update(lobby(Q, 1)));
+  await allow('the host deletes the quick room', 'A', (t) => t.remove(Q));
   let code4 = makeCode(rand);
   while (code4 === code || code4 === qcode) code4 = makeCode(rand);
+  await allow('reserve a third room code', 'A', (t) => t.set(`host/${U.A}`, code4));
   await allow('create a 4-seat friend room', 'A', (t) => t.set(`rooms/${code4}`, roomVal(U.A, 'friend', 4)));
   await allow('take seat 3 of a 4-seat room', 'C', (t) => t.set(`rooms/${code4}/sl/3`, U.C));
   await deny('take a second seat', 'C', (t) => t.set(`rooms/${code4}/sl/2`, U.C));
   await deny('seat 4 does not exist', 'B', (t) => t.set(`rooms/${code4}/sl/4`, U.B));
   await deny("empty a rival's seat", 'B', (t) => t.remove(`rooms/${code4}/sl/3`));
   await allow('leave my seat', 'C', (t) => t.remove(`rooms/${code4}/sl/3`));
-  await allow('the host deletes the room', 'A', (t) => t.remove(`rooms/${code4}`));
+  await deny('delete a room that still has its host', 'B', (t) => t.remove(`rooms/${code4}`));
+  await allow('the host leaves the seat', 'A', (t) => t.remove(`rooms/${code4}/sl/0`));
+  await allow('anyone clears a room nobody sits in', 'B', (t) => t.remove(`rooms/${code4}`));
   await allow('leave the queue', 'B', (t) => t.remove(`queue/${U.B}`));
   await allow('leave the queue (second player)', 'A', (t) => t.remove(`queue/${U.A}`));
-  await allow('stop watching', 'C', (t) => t.remove(`${R}/sp/${U.C}`));
-  await allow('the host deletes the friend room', 'A', (t) => t.remove(R));
-  await allow('the host deletes the quick room', 'A', (t) => t.remove(Q));
+  await allow('leave the queue (third player)', 'C', (t) => t.remove(`queue/${U.C}`));
   return results;
 }
 

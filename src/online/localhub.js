@@ -16,7 +16,8 @@
 //                                    -> { committed, val } or { retry: true, val }
 //   on    { lid, path, type, q }     start a listener; events arrive as { op:'ev', b:[[lid, type, key, val]], t }
 //   off   { lid }      od { path, value }  (onDisconnect set)      odc { path }  (cancel)
-//   net   { on }       the client's network went away / came back (fires onDisconnect after dropMs)
+//   net   { on }       the client's network went away / came back (onDisconnect fires after dropMs, or the
+//                      moment the client is back if that is sooner: a reconnect is a new connection)
 //   bye                clean disconnect (fires onDisconnect now)
 // hub -> client also: { op:'time', t } from hub.syncTime().
 
@@ -55,7 +56,8 @@ const related = (a, b) => {
  * createHub({ clock, rules, dropMs }) -> hub
  *   clock   { now(), after(ms, fn) -> cancel }   (a virtual clock makes tests deterministic)
  *   rules   createRules(...) from rulescheck.js, or null for an open database
- *   dropMs  how long after a client's network goes away its onDisconnect writes fire (default 5000)
+ *   dropMs  how long a dead connection goes unnoticed before its onDisconnect writes fire (default 5000);
+ *           a client that comes back sooner fires them on its return
  */
 export function createHub({ clock = REAL, rules = null, dropMs = 5000 } = {}) {
   let root = null;
@@ -125,7 +127,9 @@ export function createHub({ clock = REAL, rules = null, dropMs = 5000 } = {}) {
     if (!on) {
       conn.dropCancel = clock.after(dropMs, () => fireDisconnect(conn));
     } else {
-      if (conn.dropCancel) { conn.dropCancel(); conn.dropCancel = null; }
+      // Back on a NEW connection: the service cleans the old one up at once, so its onDisconnect writes
+      // fire now, however short the gap was (dropMs is only how long a dead socket goes unnoticed).
+      if (conn.dropCancel) { conn.dropCancel(); fireDisconnect(conn); }
       flush(conn, null); // catch up: one event per listener for whatever changed while it was away
     }
   }

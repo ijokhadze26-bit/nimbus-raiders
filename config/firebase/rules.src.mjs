@@ -71,6 +71,7 @@ const STAKE = and(
       `root.child('rooms/' + ${MN}.child('code').val() + '/mid').val() === ${NSK('m')}`,
       `${NSK('ms')} === 0 || ${NSK('ms')} === 1`,
       `${MN}.child('us/' + $uid).val() === ${NSK('ms')}`,
+      `${MN}.child('u/0').val() !== ${MN}.child('u/1').val()`,
       `${NSK('os')} === 1 - ${NSK('ms')}`,
       `${NSK('o')} === ${MN}.child('tr/' + (${NSK('os')} === 0 ? '0' : '1')).val()`,
     ),
@@ -159,14 +160,12 @@ const users = {
       '.validate': and("newData.hasChildren(['a', 's', 'st', 'b'])",
         "newData.child('b').val() === true || newData.hasChildren(['m', 'ms', 'os', 'o'])"),
       a: { '.validate': 'newData.val() === now || newData.val() === data.val()' },
-      s: { '.validate': FROZEN(INT) },
-      st: { '.validate': FROZEN(INT) },
+      s: { '.validate': FROZEN(INT) }, st: { '.validate': FROZEN(INT) },
       b: { '.validate': FROZEN('newData.isBoolean()') },
       m: { '.validate': FROZEN('newData.isString() && newData.val().length <= 40') },
       ms: { '.validate': FROZEN('newData.val() === 0 || newData.val() === 1') },
       os: { '.validate': FROZEN('newData.val() === 0 || newData.val() === 1') },
-      o: { '.validate': FROZEN(INT) },
-      $o: NONE,
+      o: { '.validate': FROZEN(INT) }, $o: NONE,
     },
     $o: NONE,
   },
@@ -212,104 +211,172 @@ const queue = {
         "root.child('queue/' + auth.uid + '/ts').val() > data.parent().child('ts').val()",
         "!root.child('queue/' + auth.uid + '/m').exists()"),
       '.validate': or(
-        and("newData.child('bot').val() === true", "!newData.child('code').exists()", "newData.child('by').val() === $uid"),
+        // "I took a bot": only the ticket's owner can say so (checked here because the owner's .write sits above)
+        and('auth.uid === $uid', "newData.child('bot').val() === true", "!newData.child('code').exists()", "newData.child('by').val() === $uid"),
+        // a claim: into a quick room the claimer hosts, still in its lobby, that was made for THIS ticket (q)
         and('auth.uid !== $uid', "newData.child('by').val() === auth.uid", "!newData.child('bot').exists()",
-          "newData.child('code').isString()", `${QROOM}.child('h').val() === auth.uid`, `${QROOM}.child('k').val() === 'quick'`),
+          "newData.child('code').isString()", `${QROOM}.child('h').val() === auth.uid`, `${QROOM}.child('k').val() === 'quick'`,
+          `${QROOM}.child('st').val() === 'lobby'`, `${QROOM}.child('q').val() === $uid`),
       ),
-      by: { '.validate': 'newData.isString()' },
-      code: { '.validate': 'newData.isString()' },
-      bot: { '.validate': 'newData.val() === true' },
-      $o: NONE,
+      by: { '.validate': 'newData.isString()' }, code: { '.validate': 'newData.isString()' },
+      bot: { '.validate': 'newData.val() === true' }, $o: NONE,
     },
     $o: NONE,
   },
 };
 
 // ------------------------------------------------------------------------------------------ rooms
+// What a rule on the way down grants, the rules below it never get to refuse, but every .validate still
+// runs. So anything a whole-room write must not smuggle in (seats, sizes, state) is checked in .validate.
 const seatedIn = (room) => or(...[0, 1, 2, 3].map((i) => `${room}.child('sl/${i}').val() === auth.uid`));
-const SEATED = seatedIn('data.parent()');                        // at rooms/$code/<field>
+const ROOM1 = 'data.parent()';                                   // at rooms/$code/<field>
+const NROOM = 'newData.parent()';                                // the same room after the write
+const SEATED = seatedIn(ROOM1);
 const ROOM2 = 'data.parent().parent()';                          // at rooms/$code/<list>/$i
 const OWNS = `${ROOM2}.child('sl/' + $i).val() === auth.uid`;
 const ROOM3 = 'data.parent().parent().parent()';                 // at rooms/$code/ev/$mid/$id
+const STALE = "data.child('ts').isNumber() && data.child('ts').val() < now - 7200000";
+const SLOT = '$i.matches(/^[0-3]$/)';
+// A seat is presence: it goes when the connection goes, in the lobby and in a match. A player of the
+// room's live match may still send, and may take the seat back, after a reconnect dropped it.
+const PLAYS = and(`${ROOM2}.child('st').val() === 'live'`, `${ROOM2}.child('mid').isString()`,
+  `root.child('matches/' + ${ROOM2}.child('mid').val() + '/u/' + $i).val() === auth.uid`);
+// The room's current match is over: at most one of its players has no fall record.
+const LIVE_M = `root.child('matches/' + ${ROOM1}.child('mid').val())`;
+const RUNS = (i) => `${LIVE_M}.child('u/${i}').exists() && !${LIVE_M}.child('out/${i}').exists()`;
+const OVER = and(...[[0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3]].map(([i, j]) => `!(${RUNS(i)} && ${RUNS(j)})`));
+const NEXT_M = `root.child('matches/' + ${NROOM}.child('mid').val())`;
+
+// One hosted room per account: host/$uid names the one room I may create. It can only move on once I
+// no longer sit in (or host) the old one, and a room with no seats left can be cleared by anyone.
+const HOSTED = "root.child('rooms/' + data.val())";
+const host = {
+  $uid: {
+    '.read': and(AUTH, 'auth.uid === $uid'),
+    '.write': and(AUTH, 'auth.uid === $uid', 'newData.exists()', "!root.child('ban/' + $uid).exists()"),
+    '.validate': and('newData.isString()', 'newData.val().matches(/^[A-HJ-NP-Z]{4}$/)',
+      or('!data.exists()', and('data.isString()', or(`${HOSTED}.child('h').val() !== auth.uid`, `!${seatedIn(HOSTED)}`)))),
+  },
+};
 
 const rooms = {
   $code: {
     '.read': AUTH,
-    '.write': and(AUTH, '$code.matches(/^[A-HJ-NP-Z]{4}$/)',
-      "(!data.exists() || (data.child('ts').isNumber() && data.child('ts').val() < now - 7200000))"
-      + " ? (newData.child('h').val() === auth.uid && !root.child('ban/' + auth.uid).exists())"
-      + " : (data.child('h').val() === auth.uid && !newData.exists())"),
-    '.validate': and("newData.hasChildren(['h', 'k', 'max', 'ts', 'st'])",
+    // Only ever a whole-room create or a whole-room delete; everything else goes through the fields below.
+    '.write': and(AUTH, '$code.matches(/^[A-HJ-NP-Z]{4}$/)', or(
+      and('!data.exists()', "newData.child('h').val() === auth.uid", "!root.child('ban/' + auth.uid).exists()",
+        "root.child('host/' + auth.uid).val() === $code"),
+      '!data.exists() && !newData.exists()',                                             // removing what is not there
+      and('data.exists()', '!newData.exists()', or(
+        and("data.child('h').val() === auth.uid", "data.child('st').val() === 'lobby'"), // its host, before a match
+        STALE,                                                                          // anyone: untouched for 2 hours
+        "!data.child('sl').exists()")),                                                // anyone: nobody sits here
+    )),
+    '.validate': and("newData.hasChildren(['h', 'k', 'max', 'ts', 'st', 'rn'])",
       "newData.child('k').val() === 'friend' || newData.child('k').val() === 'quick'",
-      "newData.child('max').val() === 2 || (newData.child('max').val() === 4 && newData.child('k').val() === 'friend')"),
-    h: { '.validate': 'newData.isString()' },
-    k: { '.validate': 'newData.isString()' },
-    max: { '.validate': 'newData.isNumber()' },
-    ts: { '.write': and(AUTH, SEATED), '.validate': 'newData.val() === now' },
-    mts: { '.write': and(AUTH, SEATED), '.validate': 'newData.val() === now' },
-    rn: { '.write': and(AUTH, SEATED), '.validate': INT },
-    st: { '.write': and(AUTH, SEATED), '.validate': "newData.val() === 'lobby' || newData.val() === 'live'" },
+      "newData.child('max').val() === 2 || (newData.child('max').val() === 4 && newData.child('k').val() === 'friend')",
+      // a NEW room is a fresh lobby holding its host and nothing else
+      or('data.exists()', and("newData.child('sl/0').val() === auth.uid",
+        ...[1, 2, 3].map((i) => `!newData.child('sl/${i}').exists() && !newData.child('p/${i}').exists()`),
+        ...['mid', 'mts', 'l', 'hb', 'ev', 'sp'].map((f) => `!newData.child('${f}').exists()`),
+        "!newData.child('q').exists() || newData.child('k').val() === 'quick'"))),
+    h: { '.validate': 'newData.isString()' }, k: { '.validate': 'newData.isString()' }, max: { '.validate': 'newData.isNumber()' },
+    q: { '.validate': 'newData.isString() && newData.val().length <= 128' },   // quick room: the one player it was made for
+    ts: { '.write': and(AUTH, SEATED, 'newData.exists()'), '.validate': 'newData.val() === now' },
+    // mid + mts are written once per match, in the lobby -> live step, and never touched while it is live
+    mts: {
+      '.write': and(AUTH, SEATED, 'newData.exists()', `${ROOM1}.child('st').val() === 'lobby'`),
+      '.validate': and('newData.val() === now', `${NROOM}.child('st').val() === 'live'`),
+    },
     mid: {
-      '.write': and(AUTH, SEATED),
+      '.write': and(AUTH, SEATED, 'newData.exists()', `${ROOM1}.child('st').val() === 'lobby'`),
       '.validate': and('newData.isString()', "root.child('matches/' + newData.val() + '/code').val() === $code",
-        "newData.parent().child('mts').val() === now", "newData.parent().child('st').val() === 'live'"),
+        "root.child('matches/' + newData.val() + '/ts').isNumber()",
+        "now - root.child('matches/' + newData.val() + '/ts').val() < 3000",
+        `${NROOM}.child('mts').val() === now`, `${NROOM}.child('st').val() === 'live'`),
+    },
+    rn: {
+      '.write': and(AUTH, SEATED, 'newData.exists()'),
+      '.validate': or(and(`!${ROOM1}.exists()`, 'newData.val() === 0'),
+        and('data.isNumber()', 'newData.val() === data.val() + 1', `${ROOM1}.child('st').val() === 'live'`, `${NROOM}.child('st').val() === 'lobby'`)),
+    },
+    st: {
+      '.write': and(AUTH, SEATED, 'newData.exists()'),
+      '.validate': or(
+        and('!data.exists()', "newData.val() === 'lobby'"),
+        // lobby -> live: together with a new match record whose players are exactly the seats
+        and("data.val() === 'lobby'", "newData.val() === 'live'", `${NROOM}.child('mts').val() === now`,
+          `${NROOM}.child('mid').isString()`, `${NROOM}.child('mid').val() !== ${ROOM1}.child('mid').val()`,
+          ...[0, 1, 2, 3].map((i) => `${NEXT_M}.child('u/${i}').val() === ${NROOM}.child('sl/${i}').val()`)),
+        // live -> lobby (rematch): only once the match is over (or past the cap), and it is the next round
+        and("data.val() === 'live'", "newData.val() === 'lobby'", `${ROOM1}.child('rn').isNumber()`,
+          `${NROOM}.child('rn').val() === ${ROOM1}.child('rn').val() + 1`,
+          or(and(`${ROOM1}.child('mid').isString()`, OVER),
+            and(`${ROOM1}.child('mts').isNumber()`, `now - ${ROOM1}.child('mts').val() > 344000`))),
+      ),
     },
     sl: {
+      '.validate': 'newData.hasChildren()',
       $i: {
         '.write': and(AUTH, or(
-          // take an empty seat: lobby only, one seat each, and a quick room needs the host's ticket claim
-          and('!data.exists()', 'newData.val() === auth.uid', `${ROOM2}.child('st').val() === 'lobby'`,
-            `!${seatedIn(ROOM2)}`,
-            or(`${ROOM2}.child('k').val() === 'friend'`, `${ROOM2}.child('h').val() === auth.uid`,
-              and("root.child('queue/' + auth.uid + '/m/code').val() === $code",
-                `root.child('queue/' + auth.uid + '/m/by').val() === ${ROOM2}.child('h').val()`))),
+          // take an empty seat, one seat each: in the lobby (a friend room, the host, or the player a quick
+          // room was made for), or a player of the live match coming back to a seat a reconnect dropped
+          and('!data.exists()', 'newData.val() === auth.uid', `!${seatedIn(ROOM2)}`, or(
+            and(`${ROOM2}.child('st').val() === 'lobby'`, or(`${ROOM2}.child('k').val() === 'friend'`,
+              `${ROOM2}.child('h').val() === auth.uid`, `${ROOM2}.child('q').val() === auth.uid`)),
+            PLAYS)),
           // leave my own seat at any time
           and('data.val() === auth.uid', '!newData.exists()'),
           // the host may empty a seat while still in the lobby
           and('!newData.exists()', `${ROOM2}.child('h').val() === auth.uid`, `${ROOM2}.child('st').val() === 'lobby'`),
         )),
-        '.validate': and('newData.isString()', '$i.matches(/^[0-3]$/)',
-          "$i === '0' || $i === '1' || newData.parent().parent().child('max').val() === 4"),
+        // a seat only ever holds the player who wrote it (also when a whole room is written at once)
+        '.validate': and('newData.isString()', SLOT,
+          "$i === '0' || $i === '1' || newData.parent().parent().child('max').val() === 4",
+          'newData.val() === data.val() || newData.val() === auth.uid'),
       },
     },
     p: {
+      '.validate': 'newData.hasChildren()',
       $i: {
         '.write': and(AUTH, OWNS),
-        '.validate': "newData.hasChildren(['n'])",
+        '.validate': and(SLOT, "newData.hasChildren(['n'])"),
         n: { '.validate': 'newData.isString() && newData.val().length <= 20' },
-        he: { '.validate': STR20 },
-        we: { '.validate': STR20 },
-        hs: { '.validate': STR20 },
-        ws: { '.validate': STR20 },
+        he: { '.validate': STR20 }, we: { '.validate': STR20 }, hs: { '.validate': STR20 }, ws: { '.validate': STR20 },
         tr: { '.validate': INT },
         rdy: { '.validate': INT },   // the round (rn + 1) this seat is ready for; any other number means "not ready"
         rm: { '.validate': INT },    // the round (rn + 1) this seat wants a rematch after
         $o: NONE,
       },
     },
-    l: { $i: { '.write': and(AUTH, OWNS), '.validate': 'newData.isString() && newData.val().length <= 64' } },
+    l: {
+      '.validate': 'newData.hasChildren()',
+      $i: { '.write': and(AUTH, or(OWNS, PLAYS)), '.validate': and(SLOT, 'newData.isString()', 'newData.val().length <= 64') },
+    },
     hb: {
+      '.validate': 'newData.hasChildren()',
       $i: {
-        '.write': and(AUTH, OWNS),
-        '.validate': "newData.child('a').val() === now && newData.child('t').isNumber()",
-        a: { '.validate': 'newData.isNumber()' },
-        t: { '.validate': 'newData.isNumber()' },
-        $o: NONE,
+        '.write': and(AUTH, or(OWNS, PLAYS)),
+        '.validate': and(SLOT, "newData.child('a').val() === now", "newData.child('t').isNumber()"),
+        a: { '.validate': 'newData.isNumber()' }, t: { '.validate': 'newData.isNumber()' }, $o: NONE,
       },
     },
-    sp: { $uid: { '.write': and(AUTH, 'auth.uid === $uid'), '.validate': 'newData.val() === true' } },
+    sp: {
+      '.validate': 'newData.hasChildren()',
+      $uid: { '.write': and(AUTH, 'auth.uid === $uid'), '.validate': 'newData.val() === true' },
+    },
     ev: {
+      '.validate': 'newData.hasChildren()',
       $mid: {
+        '.validate': 'newData.hasChildren()',
         $id: {
           '.write': and(AUTH, '!data.exists()', 'newData.exists()', `${ROOM3}.child('mid').val() === $mid`,
-            or(...[0, 1, 2, 3].map((i) => `newData.child('f').val() === ${i} && ${ROOM3}.child('sl/${i}').val() === auth.uid`))),
+            or(...[0, 1, 2, 3].map((i) => and(`newData.child('f').val() === ${i}`, or(`${ROOM3}.child('sl/${i}').val() === auth.uid`,
+              and(`${ROOM3}.child('st').val() === 'live'`, `root.child('matches/' + $mid + '/u/${i}').val() === auth.uid`)))))),
           '.validate': "newData.hasChildren(['k', 'a', 'f', 'to'])",
           k: { '.validate': 'newData.isString() && newData.val().length === 1' },
-          a: { '.validate': 'newData.isNumber()' },
-          f: { '.validate': 'newData.isNumber()' },
-          to: { '.validate': 'newData.isNumber()' },
-          q: { '.validate': 'newData.isNumber()' },
-          $o: NONE,
+          a: { '.validate': 'newData.isNumber()' }, f: { '.validate': 'newData.isNumber()' },
+          to: { '.validate': 'newData.isNumber()' }, q: { '.validate': 'newData.isNumber()' }, $o: NONE,
         },
       },
     },
@@ -323,12 +390,18 @@ const OUT_M = 'data.parent().parent()';                           // matches/$mi
 const OUT_ROOM = `root.child('rooms/' + ${OUT_M}.child('code').val())`;
 const OUT_HB = `${OUT_ROOM}.child('hb/' + $slot)`;
 const BY = "newData.child('by').val()";
+// Closing a rival's seat (dc / cap) is for players still standing: once my own fall is recorded I can
+// write nobody else's, so a loser cannot forge the winner's forfeit after the match.
+const NO_FALL = and(...[0, 1, 2, 3].map((i) => `!(${OUT_M}.child('us/' + auth.uid).val() === ${i} && ${OUT_M}.child('out/${i}').exists())`));
 
 const matches = {
   $mid: {
     '.read': AUTH,
-    '.write': and(AUTH, or('!data.exists() && newData.exists()',
-      "data.exists() && !newData.exists() && data.child('ts').isNumber() && data.child('ts').val() < now - 604800000")),
+    '.write': and(AUTH, or('!data.exists() && newData.exists()', and('data.exists()', '!newData.exists()', or(
+      "data.child('ts').isNumber() && data.child('ts').val() < now - 604800000",
+      // a record its room never went live with (a start that failed) may be tidied away by one of its players
+      and("!data.child('out').exists()", "data.child('us/' + auth.uid).exists()", "data.child('code').isString()",
+        "root.child('rooms/' + data.child('code').val() + '/mid').val() !== $mid"))))),
     // write-once: after creation only out/$slot can be added (it has its own .write below)
     '.validate': and("newData.hasChildren(['code', 'k', 'ts', 'u', 'us'])", or('data.exists()', and(
       "newData.child('ts').val() === now",
@@ -338,19 +411,23 @@ const matches = {
       `newData.child('k').val() === ${MROOM}.child('k').val()`,
       "newData.child('us/' + auth.uid).exists()",
       ...[0, 1, 2, 3].map((i) => `newData.child('u/${i}').val() === ${MROOM}.child('sl/${i}').val()`),
+      // every player is in `us` (nobody can be left unable to record a fall); it also means no uid sits twice
+      ...[0, 1, 2, 3].map((i) => `!newData.child('u/${i}').exists() || (newData.child('u/${i}').isString() && newData.child('us/' + newData.child('u/${i}').val()).val() === ${i})`),
+      "newData.child('k').val() !== 'quick' || (newData.child('tr/0').isNumber() && newData.child('tr/1').isNumber())",
     ))),
-    code: { '.validate': 'newData.isString()' },
-    k: { '.validate': 'newData.isString()' },
-    ts: { '.validate': 'newData.isNumber()' },
-    u: { $i: { '.validate': 'newData.isString() && $i.matches(/^[0-3]$/)' } },
+    code: { '.validate': 'newData.isString() && newData.val().length === 4' },
+    k: { '.validate': 'newData.isString()' }, ts: { '.validate': 'newData.isNumber()' },
+    u: { '.validate': 'newData.hasChildren()', $i: { '.validate': and('newData.isString()', SLOT) } },
     us: {
+      '.validate': 'newData.hasChildren()',
       $uid: {
         '.validate': or(...[0, 1, 2, 3].map((i) => `newData.val() === ${i} && newData.parent().parent().child('u/${i}').val() === $uid`)),
       },
     },
     tr: {
+      '.validate': 'newData.hasChildren()',
       $i: {
-        '.validate': and("newData.parent().parent().child('u/' + $i).isString()",
+        '.validate': and(SLOT, "newData.parent().parent().child('u/' + $i).isString()",
           "newData.val() === root.child('users/' + newData.parent().parent().child('u/' + $i).val() + '/tr').val()"),
       },
     },
@@ -361,7 +438,7 @@ const matches = {
             // my own fall
             and(`${OUT_M}.child('u/' + $slot).val() === auth.uid`, `${BY} === 'dead' || ${BY} === 'quit'`),
             // a rival who went silent: the room must have gone live with THIS match, and their heartbeat is old or stalled
-            and(`${BY} === 'dc'`, `${OUT_M}.child('u/' + $slot).exists()`,
+            and(`${BY} === 'dc'`, `${OUT_M}.child('u/' + $slot).exists()`, NO_FALL,
               `${OUT_ROOM}.child('mid').val() === $mid`,
               `${OUT_ROOM}.child('mts').isNumber()`,
               `${OUT_ROOM}.child('mts').val() - ${OUT_M}.child('ts').val() < 3000`,
@@ -369,7 +446,7 @@ const matches = {
               or(`!${OUT_HB}.exists()`, `${OUT_HB}.child('a').val() < now - 9000`,
                 `${OUT_HB}.child('t').val() * 100 < now - ${OUT_M}.child('ts').val() - 19000`)),
             // nothing lasts past the cap
-            and(`${BY} === 'cap'`, `${OUT_M}.child('u/' + $slot).exists()`, `now - ${OUT_M}.child('ts').val() > 344000`),
+            and(`${BY} === 'cap'`, `${OUT_M}.child('u/' + $slot).exists()`, NO_FALL, `now - ${OUT_M}.child('ts').val() > 344000`),
           )),
         '.validate': and("newData.hasChildren(['t', 'd', 'ts', 'by'])",
           "newData.child('ts').val() === now",
@@ -378,9 +455,7 @@ const matches = {
           `${OUT_M}.child('ts').isNumber()`,
           `newData.child('t').val() * 100 <= now - ${OUT_M}.child('ts').val() - 4000 + 1500`,
           "newData.child('d').val() >= 0 && newData.child('d').val() <= 40 + newData.child('t').val() * 1.8"),
-        t: { '.validate': 'newData.isNumber()' },
-        d: { '.validate': 'newData.isNumber()' },
-        ts: { '.validate': 'newData.isNumber()' },
+        t: { '.validate': 'newData.isNumber()' }, d: { '.validate': 'newData.isNumber()' }, ts: { '.validate': 'newData.isNumber()' },
         by: { '.validate': "newData.val() === 'dead' || newData.val() === 'quit' || newData.val() === 'dc' || newData.val() === 'cap'" },
         $o: NONE,
       },
@@ -393,23 +468,27 @@ export const rules = {
   rules: {
     '.read': false,
     '.write': false,
-    cfg, ban, meter, rk, queue, users, rooms, matches,
+    cfg, ban, meter, rk, queue, host, users, rooms, matches,
   },
 };
 
 /** Constructs the real service has not been seen to accept yet (SPEC4 section 13). The live probe
  *  (scripts/rules-probe.mjs --live) exists to settle these; each entry names where it is used. */
 export const UNVERIFIED = [
-  '?: (ternary), also nested and inside arithmetic / string joins (users, rooms/$code .write, queue ts)',
+  '?: (ternary), also nested and inside arithmetic / string joins (users, queue ts)',
   '% on numbers (integer checks, the WK week index and DAY)',
   '$var.matches(/regex/) on a wildcard key ($code, $i, $k)',
   "a '-' as the last character of a character class: /^[A-Za-z0-9 _-]{3,12}$/",
   'query.orderByValue, query.orderByChild, query.limitToFirst, query.limitToLast in .read',
   'that .validate on a parent runs when only one child is written or removed (every users/$uid transition)',
-  'that newData.parent() sees the other paths of the same multi-path update (rooms/$code/mid needs mts + st)',
+  'that newData.parent() sees the other paths of the same multi-path update (going live needs mid + mts + st, a rematch needs st + rn)',
+  'that every .validate inside a written value runs even when a .write higher up granted it (seats and sizes on a whole-room create)',
   'string.length on newData.val()',
   'newData read inside a .write rule (ev/$mid/$id, out/$slot)',
+  'auth read inside a .validate rule (a seat holds its writer, the fresh-room shape, the queue bot marker)',
+  'hasChildren() with no list (the "a container, not a bare value" checks)',
   'comparisons and arithmetic on a missing (null) value: every use here is guarded first, so it should not matter',
   'whether a failing sub-expression makes the whole rule false or only that branch (written to be safe both ways)',
   'any size limit on the rules text (the generated block is small; rules-build prints its size)',
+  "nothing checks a leaf's .priority (getPriority): a large priority string on a leaf may be accepted",
 ];

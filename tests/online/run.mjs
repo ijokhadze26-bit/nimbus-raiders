@@ -5,8 +5,8 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const FILES = ['codec', 'verdict', 'hub', 'rules', 'room', 'match', 'channel', 'fire'];
-const BOTH_WAYS = new Set(['hub', 'room', 'match']);
+const FILES = ['codec', 'verdict', 'hub', 'rules', 'attacks', 'room', 'match', 'fixes', 'channel', 'fire'];
+const BOTH_WAYS = new Set(['hub', 'room', 'match', 'fixes']);
 const want = process.argv.slice(2);
 const quiet = process.env.NET_QUIET === '1';
 
@@ -19,7 +19,10 @@ for (const name of FILES) {
     const lines = (r.stdout || '').trimEnd().split('\n');
     console.log((quiet && r.status === 0 ? lines.slice(-1) : lines).join('\n'));
     if (r.stderr && r.stderr.trim()) console.log(r.stderr.trimEnd());
-    if (r.status !== 0) failed++;
+    // a test file whose last await never settles exits 0 without its summary line: that is a failure too
+    const done = /^OK /.test(lines[lines.length - 1] || '');
+    if (r.status === 0 && !done) console.log(`FAILED ${name}: stopped before its summary line (a promise never settled)`);
+    if (r.status !== 0 || !done) failed++;
   }
 }
 console.log(failed ? `\nFAILED: ${failed} test file run(s) failed` : '\nALL ONLINE TESTS PASSED');

@@ -57,22 +57,32 @@ test('a banned player cannot make a profile, a room or a ticket', async () => {
   eq(await A.get('ban/uidA'), true, 'they can see their own flag');
 });
 
-test('a room untouched for 2 hours can be taken over, a fresh one cannot', async () => {
+test('a room untouched for 2 hours can be cleared and its code reused, a fresh one cannot; nobody takes one over', async () => {
   const w = world();
-  const { A, B } = await trio(w);
+  const { A, B, C } = await trio(w);
   const room = (h) => ({ h, k: 'friend', max: 2, ts: TS, st: 'lobby', rn: 0, sl: { 0: h }, p: { 0: { n: 'x' } } });
+  await A.set('host/uidA', 'ABCD');
+  await B.set('host/uidB', 'ABCD');
   ok(await can(A.set('rooms/ABCD', room('uidA'))));
+  ok(await can(C.set('rooms/ABCD/sl/1', 'uidC')));
   await w.clock.advance(2 * HOUR - 1000);
-  ok(!(await can(B.set('rooms/ABCD', room('uidB')))), 'still fresh');
+  ok(!(await can(B.remove('rooms/ABCD'))), 'still fresh');
   await w.clock.advance(2000);
-  ok(await can(B.set('rooms/ABCD', room('uidB'))), 'stale: overwritten');
-  eq(await A.get('rooms/ABCD/h'), 'uidB');
-  ok(!(await can(A.remove('rooms/ABCD'))), 'the old host has no say any more');
+  ok(!(await can(B.set('rooms/ABCD', room('uidB')))), 'stale, but a room is never overwritten');
+  ok(!(await can(B.set('rooms/ABCD/h', 'uidB'))), 'nor taken over with one child write that keeps the seats');
+  ok(!(await can(B.set('rooms/ABCD/l/1', 'zzz'))), "an outsider cannot write a seated player's state");
+  ok(!(await can(B.remove('rooms/ABCD/sl/1'))), 'or empty a seat');
+  ok(await can(B.remove('rooms/ABCD')), 'stale: anyone may clear it away as a whole');
+  ok(await can(B.set('rooms/ABCD', room('uidB'))), 'and then make a fresh room on the code');
+  eq(await A.get('rooms/ABCD'), { h: 'uidB', k: 'friend', max: 2, ts: w.clock.now(), st: 'lobby', rn: 0, sl: { 0: 'uidB' }, p: { 0: { n: 'x' } } }, 'nothing of the old room is left');
+  await w.clock.advance(2 * HOUR + 1000);
+  ok(await can(B.remove('rooms/ABCD')), 'a host can delete its own room when it is stale too');
 });
 
 test('a match record can be removed after 7 days, not before', async () => {
   const w = world();
   const { A } = await trio(w);
+  w.hub.admin.set('rooms/ABCD', { h: 'uidA', k: 'friend', max: 2, ts: w.clock.now(), st: 'live', mid: 'm1', mts: w.clock.now(), rn: 0, sl: { 0: 'uidA' } });
   w.hub.admin.set('matches/m1', { code: 'ABCD', k: 'friend', ts: w.clock.now(), u: { 0: 'uidA' }, us: { uidA: 0 } });
   await w.clock.advance(7 * 24 * HOUR - 5000);
   ok(!(await can(A.remove('matches/m1'))));
@@ -194,7 +204,11 @@ test('forfeits: a stalled played clock and the 344 s cap', async () => {
   ok(!(await can(A.set('matches/m2/out/0', { t: 10, d: 0, ts: TS, by: 'cap' }))), 'no cap before 344 s');
   ok(!(await can(C.set('matches/m2/out/0', { t: 10, d: 0, ts: TS, by: 'cap' }))), 'never from outside');
   await w.clock.advance(320000);
-  ok(await can(B.set('matches/m2/out/0', { t: 3300, d: 5000, ts: TS, by: 'cap' })), 'cap after 344 s');
+  ok(!(await can(B.set('matches/m2/out/0', { t: 3300, d: 5000, ts: TS, by: 'cap' }))), 'a player who is already out cannot cap anybody');
+  // a second match where nobody has fallen by the cap
+  w.hub.admin.set('matches/m3', { code: 'FFFF', k: 'friend', ts: now, u: { 0: 'uidA', 1: 'uidB' }, us: { uidA: 0, uidB: 1 } });
+  ok(await can(B.set('matches/m3/out/0', { t: 3300, d: 5000, ts: TS, by: 'cap' })), 'cap after 344 s');
+  ok(!(await can(A.set('matches/m3/out/1', { t: 3300, d: 5000, ts: TS, by: 'cap' }))), 'and the capped player cannot cap back');
 });
 
 test('a forfeit needs the room to have gone live with that very match', async () => {
