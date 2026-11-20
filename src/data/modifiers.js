@@ -30,7 +30,7 @@ function editGates(run, fn) {
 }
 
 /** Ladder rungs (config GATE.rungs): 0..2 are ÷4 ÷3 ÷2, 3..5 are ×2 ×3 ×4; mirror = the same k on the bad side. */
-const badRung = (r) => (r >= 3 ? 5 - r : r);
+export const badRung = (r) => (r >= 3 ? 5 - r : r);
 
 /** HALF SQUAD: a + gate gives half (at least 1). */
 function halfSpec(s) {
@@ -42,7 +42,7 @@ function halfSpec(s) {
 }
 
 /** ONLY RED GATES: + becomes - (half), x becomes the same-size ÷ (shoot it back up). */
-function redSpec(s) {
+export function redSpec(s) {
   if (s.op === 'add') { if ((s.value | 0) > 0) s.value = -Math.max(1, Math.round(s.value / 2)); }
   else if (s.rung !== undefined) { s.rung = badRung(s.rung); if (s.op === 'mul') s.op = 'div'; }
   else if (s.op === 'mul') s.op = 'div';

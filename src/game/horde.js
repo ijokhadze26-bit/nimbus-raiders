@@ -109,7 +109,7 @@ export class Horde {
     const lane = ev.lane || 'both';
     // toughness: per event (endless ramps it) or per level (data/levels.js enemyHp); looks are unchanged
     const def = this.game.run && this.game.run.def;
-    const hpMul = ev.hpMul ?? (def && def.enemyHp) ?? 1;
+    const hpMul = (ev.hpMul ?? (def && def.enemyHp) ?? 1) * (this.game.run?.hpRamp || 1); // hpRamp: online versus only
     const cx = lane === 'both' || lane === 'C' ? 0 : LANES[lane];
     const width = ev.width ?? (lane === 'both' || lane === 'C' ? 9.2 : 4.3);
     // type list from mix
