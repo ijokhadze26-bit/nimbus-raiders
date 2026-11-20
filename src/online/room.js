@@ -9,7 +9,8 @@
 //             spectators, mid, t0, seed, rn,   + hostLeft, watching, gone }
 //
 // - `mid`, `t0`, `seed` are null until the match record has been read from the server, then appear
-//   together ('start' fires at the same moment). t0 = record ts + 4000, seed = hash32(ts, mid).
+//   together ('start' fires at the same moment; a listener added later is told as well).
+//   t0 = record ts + 4000, seed = hash32(ts, mid). While st is 'live' and mid is still null: wait.
 // - Ready and rematch are stored as the round they belong to (rn + 1), so an old "ready" can never
 //   start the next round by accident and nobody has to clear another player's seat. `rdy` / `rm` in the
 //   state are plain booleans for the current round.
@@ -141,7 +142,12 @@ function makeRoom(tp, code, uid, { clock = realClock, autoStart = true } = {}) {
     on(type, cb) {
       if (!handlers.has(type)) handlers.set(type, new Set());
       handlers.get(type).add(cb);
-      return () => handlers.get(type).delete(cb);
+      // joining a room whose match is already on (a reload, a watcher): tell a late listener too
+      const st = room.state;
+      if (type === 'start' && st && st.mid && st.mid === startedMid) {
+        queueMicrotask(() => { if (!closed && handlers.get(type)?.has(cb)) cb({ mid: st.mid, t0: st.t0, seed: st.seed }); });
+      }
+      return () => handlers.get(type)?.delete(cb);
     },
 
     /** Change my hero / weapon / skins. Locked once I am ready. */

@@ -234,6 +234,74 @@ test('silence: a 10 s countdown, then a win by disconnect; the one who dropped i
   eq(b.status[b.status.length - 1], 'on');
 });
 
+test('a forfeit the server refuses decides nothing (the rival came back just in time)', async () => {
+  const w = world();
+  // A hears everything 600 ms late, so its countdown can run out after B is in fact back
+  const { games, mid, net, to } = await arena(w, 2, { nets: [{ lat: 600 }, { lat: 20 }] });
+  const [a, b] = games;
+  await to(20);
+  net(1).offline(true);
+  for (let i = 0; i < 400 && !(a.peer.length && a.peer[a.peer.length - 1].countdown === 1); i++) await w.clock.advance(50);
+  eq(a.peer[a.peer.length - 1].countdown, 1);
+  await w.clock.advance(600);
+  net(1).offline(false);            // B's heartbeat reaches the server now; A will only hear of it in 600 ms
+  await w.clock.advance(3000);
+  ok(w.denials.some((d) => d.path === `matches/${mid}/out/1`), 'A did try the forfeit, and the rules refused it');
+  eq(w.hub.admin.get(`matches/${mid}/out`), null);
+  eq([a.verdict, b.verdict], [null, null], 'nobody was told a result');
+  eq(a.outs, [], 'and the game was not told the rival fell');
+  eq(a.peer[a.peer.length - 1].countdown, null, 'the chip went away');
+  b.fallAt(b.t + 2);
+  await w.clock.advance(8000);
+  eq([a.verdict.result, a.verdict.reason, b.verdict.result], ['win', 'standing', 'lose'], 'the match then ends the normal way');
+});
+
+test('a frozen game (hidden tab) still heartbeats, and is forfeited once its played clock is 15 s behind', async () => {
+  const w = world();
+  const { games, to, mid } = await arena(w);
+  const [a, b] = games;
+  await to(20);
+  b.alive = false;                 // the page stops stepping the game; its link keeps ticking
+  await to(30);
+  eq(a.verdict, null, '10 s behind is not enough');
+  eq(a.peer.filter((p) => p.countdown === 0).length, 0, 'heartbeats still arrive, so this is not the silence path');
+  await to(39);
+  eq([a.verdict.result, a.verdict.reason], ['win', 'dc']);
+  near(w.hub.admin.get(`matches/${mid}/out/1/t`), 200, 2, 'ranked at the time their game stopped');
+  eq(b.verdict.reason, 'dc', 'the frozen player is told why they lost');
+});
+
+test('falling while offline: a provisional lose after 8 s, and the rival still gets the win', async () => {
+  const w = world();
+  const { games, to, mid, net } = await arena(w, 2, { nets: [{ lat: 20 }, null] });
+  const [a, b] = games;
+  await to(10);
+  net(0).offline(true);
+  a.fallAt(12);
+  await to(19.5);
+  eq(a.verdict, null, 'still hoping the connection returns');
+  await to(21);
+  eq([a.verdict.result, a.verdict.reason], ['lose', 'offline']);
+  await to(25);
+  eq([b.verdict.result, b.verdict.reason], ['win', 'dc']);
+  net(0).offline(false);
+  await w.clock.advance(2000);
+  eq(w.hub.admin.get(`matches/${mid}/out/0/by`), 'dc', 'the write-once record stays the forfeit; my late fall is refused');
+});
+
+test('quitOut: the fall for a match I left by reloading, written on my next visit', async () => {
+  const w = world();
+  const { games, to, mid, ps, t0 } = await arena(w, 2, { noLink: [1] });
+  await to(6);
+  const { quitOut } = await import('../../src/online/match.js');
+  eq(await w.settle(quitOut(ps[1].tp, { mid, slot: 1, t: 5.2, d: 60, ts0: t0 - 4000 })), true);
+  eq(w.hub.admin.get(`matches/${mid}/out/1`).by, 'quit');
+  eq(w.hub.admin.get(`matches/${mid}/out/1/t`), 52);
+  eq(await w.settle(quitOut(ps[1].tp, { mid, slot: 0, t: 1, d: 1, ts0: t0 - 4000 })), false, 'never for somebody else');
+  await to(8);
+  eq([games[0].verdict.result, games[0].verdict.reason], ['win', 'quit']);
+});
+
 test('silence that ends in time cancels the countdown', async () => {
   const w = world();
   const { games, to, mid, net } = await arena(w, 2, { nets: [null, { lat: 20 }] });

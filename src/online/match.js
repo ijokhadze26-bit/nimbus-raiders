@@ -65,13 +65,13 @@ export function createMatch({ transport: tp, room, cfg = {}, timer = realClock }
   const stats = { sent: 0, held: 0, thinned: 0, recv: 0, hb: 0 };
   // what I know about each rival
   const P = new Map(peers.map((p) => [p.slot, { slot: p.slot, heard: ts0, t10: 0, d: 0, str: null, last: null, out: null,
-    hbA: 0, hbT: null, cd: null, tryAt: 0, suspect: false }]));
+    hbA: 0, hbT: null, cd: null, tryAt: 0, closing: 0, suspect: false }]));
   const my = { fell: false, t10: 0, d: 0, by: 'dead', acked: false, out: null, tries: 0, retryAt: 0, fellAt: 0, liveT10: -1 };
   const seenEv = new Set();
 
   let left = false, draining = false, verdictSent = false, finalSent = false;
   let buf = [], last = null, seq = 0, halvings = 0, stride = 1, skip = 0, evQ = 0;
-  let nextFlush = 0, nextHb = 0, offAt = null, stopTimer = null;
+  let nextFlush = 0, nextHb = 0, offAt = null, stopTimer = null, lastOuts = {};
 
   const emit = (type, ...args) => {
     if (left) return;
@@ -116,7 +116,11 @@ export function createMatch({ transport: tp, room, cfg = {}, timer = realClock }
     if (by === 'dc' && now - ts0 <= 13250) return; // the rules refuse a forfeit in the first 13 s of a match
     p.tryAt = now + 1000;
     const t10 = clamp(p.t10, 0, Math.max(0, maxT10(now, ts0)));
-    quiet(tp.set(`${M}/out/${p.slot}`, { t: t10, d: clamp(p.d, 0, maxD(t10)), ts: TS, by }));
+    // Until the server has answered, a record for this seat may only be my own unconfirmed write
+    // (the real SDK shows it to my listeners at once): it must not decide anything yet.
+    p.closing++;
+    const settled = () => { p.closing--; if (!left) onOuts(lastOuts); };
+    tp.set(`${M}/out/${p.slot}`, { t: t10, d: clamp(p.d, 0, maxD(t10)), ts: TS, by }).then(settled, settled);
   }
 
   // ------------------------------------------------------------------ receiving
@@ -155,12 +159,14 @@ export function createMatch({ transport: tp, room, cfg = {}, timer = realClock }
   }
 
   function onOuts(all) {
+    lastOuts = all;
     for (const slot of slots) {
       const o = all[slot];
-      if (!o || typeof o.ts !== 'number') continue;
-      const rank = toRank(o, t0);
-      if (slot === me) { my.out = rank; continue; }
+      const there = !!o && typeof o.ts === 'number';
+      if (slot === me) { my.out = there ? toRank(o, t0) : null; continue; } // null again if my write was refused
       const p = P.get(slot);
+      if (!there || p.closing > 0) continue;
+      const rank = toRank(o, t0);
       const first = !p.out;
       p.out = rank;
       if (first) emit('out', slot, { T: rank.T, d: rank.d, by: rank.by });
@@ -231,7 +237,7 @@ export function createMatch({ transport: tp, room, cfg = {}, timer = realClock }
       if (my.fell && !my.acked && !my.out && my.retryAt && now >= my.retryAt) writeOut();
     }
 
-    if (on && me !== null) {
+    if (on && me !== null && !finalSent) { // once the ranking is final nobody needs forfeiting
       for (const p of P.values()) {
         if (p.out) continue;
         const silent = (now - p.heard) / 1000;

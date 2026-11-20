@@ -1,11 +1,14 @@
 // Local adapter: the transport interface (transport.js) over a port to a localhub.js hub.
 // Used by the Node tests, the two-page harness (?net=bridge) and two-tab play (?net=local).
-// Unlike the real SDK it has no optimistic local echo: listeners hear a write only once the hub
-// has accepted it. Code written against the interface must not depend on either behaviour.
+// By default it has no optimistic local echo: listeners hear a write only once the hub has accepted it.
+// The real SDK does the opposite (my own listeners fire inside set(), a server timestamp first shows a
+// local estimate, and a refused write is rolled back afterwards). `echo: true` imitates that for plain
+// 'value' listeners, so the room and match code can be tested against both behaviours before the real
+// service exists. Code written against the interface must not depend on either.
 
 import { NET } from './config.js';
 import { TS, DENIED, netError, statusBox, realClock } from './transport.js';
-import { plain } from './tree.js';
+import { plain, segs, getIn, setIn } from './tree.js';
 
 const ID_CHARS = '0123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 
@@ -17,8 +20,9 @@ const ID_CHARS = '0123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
  *   clock   { now(), after(ms, fn) -> cancel }; the real clock by default
  *   follow  true: now() is the last time the hub told us (for a hub on a virtual clock driven from
  *           outside this page); false: now() runs on `clock` plus the offset measured from the hub.
+ *   echo    true: imitate the real SDK's optimistic local events (see the top of this file)
  */
-export function createLocalTransport({ hub = null, port = null, uid = null, clock = realClock, follow = false } = {}) {
+export function createLocalTransport({ hub = null, port = null, uid = null, clock = realClock, follow = false, echo = false } = {}) {
   const link = port || hub.connect();
   const status = statusBox('off');
   const waits = new Map();   // request id -> { res, rej }
@@ -49,7 +53,9 @@ export function createLocalTransport({ hub = null, port = null, uid = null, cloc
       for (const [lid, , key, val] of m.b) {
         const s = subs.get(lid);
         if (!s) continue;
-        try { s.cb(val === undefined ? null : val, key); } catch (e) { console.error(e); }
+        const v = val === undefined ? null : val;
+        if (s.plainValue) { s.have = true; s.server = v; s.shown = v; }
+        try { s.cb(v, key); } catch (e) { console.error(e); }
       }
     }
   };
@@ -60,11 +66,50 @@ export function createLocalTransport({ hub = null, port = null, uid = null, cloc
     waits.set(id, { res, rej });
     post({ ...m, id });
   });
+  const now = () => (follow ? hubTime : clock.now() + offset);
+
+  // --- echo mode: what the real SDK does with my own writes before the server has answered ---
+  const estimate = (v, at) => {
+    if (v === null || typeof v !== 'object') return v;
+    if (v['.sv'] === 'timestamp') return at;
+    const out = {};
+    for (const k of Object.keys(v)) out[k] = estimate(v[k], at);
+    return out;
+  };
+  function showLocally(w) {
+    const touched = [];
+    const at = now() + 3; // a local guess, deliberately not the server's value
+    for (const s of subs.values()) {
+      if (!s.plainValue || !s.have) continue;
+      let next = s.shown, hit = false;
+      for (const [path, value] of w) {
+        const wp = segs(path), lp = s.path;
+        const n = Math.min(wp.length, lp.length);
+        if (wp.slice(0, n).join('/') !== lp.slice(0, n).join('/')) continue;
+        hit = true;
+        const v = estimate(value, at);
+        next = wp.length >= lp.length ? setIn(next, wp.slice(lp.length), v) : plain(getIn(plain(v), lp.slice(wp.length)));
+      }
+      if (!hit || JSON.stringify(next) === JSON.stringify(s.shown)) continue;
+      s.shown = next;
+      touched.push(s);
+      try { s.cb(next === null ? null : JSON.parse(JSON.stringify(next)), s.path[s.path.length - 1] ?? null); } catch (e) { console.error(e); }
+    }
+    return touched;
+  }
+  function rollBack(touched) {
+    for (const s of touched) {
+      if (JSON.stringify(s.shown) === JSON.stringify(s.server)) continue;
+      s.shown = s.server;
+      try { s.cb(s.server, s.path[s.path.length - 1] ?? null); } catch (e) { console.error(e); }
+    }
+  }
+
   const write = (w) => {
     pend++;
-    return req({ op: 'write', w }).then(() => { pend--; }, (e) => { pend--; throw e; });
+    const touched = echo ? showLocally(w) : null;
+    return req({ op: 'write', w }).then(() => { pend--; }, (e) => { pend--; if (touched) rollBack(touched); throw e; });
   };
-  const now = () => (follow ? hubTime : clock.now() + offset);
 
   function newId() {
     // push-id shaped: sorts by creation time, then a per-client counter, then noise
@@ -126,7 +171,7 @@ export function createLocalTransport({ hub = null, port = null, uid = null, cloc
 
     on(path, type, cb, q, onError) {
       const lid = nextId++;
-      subs.set(lid, { cb });
+      subs.set(lid, { cb, path: segs(path), plainValue: type === 'value' && !q, have: false, server: null, shown: null });
       req({ op: 'on', lid, path, type, q: q || null }).catch((e) => {
         subs.delete(lid);
         if (onError) onError(e); else if (e.code !== DENIED) console.error(e);

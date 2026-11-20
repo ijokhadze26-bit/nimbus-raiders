@@ -33,11 +33,14 @@ export async function run(title) {
       console.log(`FAIL ${title}: ${t.name}\n     ${e instanceof Fail ? e.message : e.stack}`);
     }
   }
-  console.log(`${failed ? 'FAILED' : 'OK'} ${title}: ${tests.length - failed}/${tests.length} passed`);
+  console.log(`${failed ? 'FAILED' : 'OK'} ${title}${ECHO ? ' (echo)' : ''}: ${tests.length - failed}/${tests.length} passed`);
   process.exit(failed ? 1 : 0);
 }
 
 export const RULES = createRules(rules);
+
+/** NET_ECHO=1 runs the same tests with the local adapter imitating the real SDK's optimistic events. */
+export const ECHO = process.env.NET_ECHO === '1';
 
 /** A hub on a virtual clock with the real rules, plus helpers to add signed-in players. */
 export function world({ withRules = true, dropMs = 5000, start } = {}) {
@@ -49,7 +52,7 @@ export function world({ withRules = true, dropMs = 5000, start } = {}) {
     clock, hub, denials,
     /** A connected transport for `uid`; `net` ({ lat, jit, loss }) wraps it in the slow-network shim. */
     async client(uid, net) {
-      let tp = createLocalTransport({ hub, uid, clock });
+      let tp = createLocalTransport({ hub, uid, clock, echo: ECHO });
       if (net) tp = shape(tp, { clock, seed: uid.length * 7919 + 13, ...net });
       const p = tp.connect();
       await clock.advance(1);

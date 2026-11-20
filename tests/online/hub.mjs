@@ -243,6 +243,36 @@ test('transport: status, pending, denied writes, connect timeout', async () => {
   eq(dead.status(), 'off');
 });
 
+test('echo mode imitates the real SDK: my listeners fire at once, a timestamp is first a guess, a refusal rolls back', async () => {
+  const w = world();
+  const a = createLocalTransport({ hub: w.hub, uid: 'uidA', clock: w.clock, echo: true });
+  const p = a.connect();
+  await w.clock.advance(1);
+  await p;
+  await a.set('users/uidA', { n: 'Echo', tr: 0, pk: 0, w: 0, l: 0, st: 0, bs: 0, bt: 0, ws: 0, cd: 0, cc: 0 });
+  const seen = [];
+  a.on('users/uidA', 'value', (v) => seen.push(v && [v.n, v.tr]));
+  await w.clock.advance(1);
+  eq(seen, [['Echo', 0]]);
+  const refused = a.set('users/uidA/tr', 500).catch((e) => e.code);
+  eq(seen[seen.length - 1], ['Echo', 500], 'shown before the server has answered');
+  eq(await w.settle(refused), 'PERMISSION_DENIED');
+  eq(seen[seen.length - 1], ['Echo', 0], 'and taken back when the rules said no');
+  await a.set('users/uidA/n', 'Echo Two');
+  eq(seen[seen.length - 1], ['Echo Two', 0]);
+  // a server timestamp: a local guess first, then the server's own value
+  const stamps = [];
+  await a.set('rooms/ABCD', { h: 'uidA', k: 'friend', max: 2, ts: a.TS, st: 'lobby', rn: 0, sl: { 0: 'uidA' } });
+  a.on('rooms/ABCD/ts', 'value', (v) => stamps.push(v));
+  await w.clock.advance(5);
+  const write = a.set('rooms/ABCD/ts', a.TS);
+  const guess = stamps[stamps.length - 1];
+  await w.settle(write);
+  const real = stamps[stamps.length - 1];
+  eq(real, w.hub.admin.get('rooms/ABCD/ts'));
+  ok(guess !== real && Math.abs(guess - real) < 50, `guess ${guess}, server ${real}`);
+});
+
 test('nettest: delay, order and the loss model', async () => {
   const w = world({ withRules: false });
   const a = shape(await w.client('A'), { clock: w.clock, lat: 400 });

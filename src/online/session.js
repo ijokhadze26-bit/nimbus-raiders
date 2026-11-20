@@ -1,4 +1,15 @@
 // Sign-in, the live config knobs and the player's profile (SPEC4 4.1, 9, 11).
+//
+// How the network side fits together (everything the UI needs):
+//   const { transport, reason } = await createTransport('fire');       // reason 'unconfigured' -> COMING SOON
+//   const session = createSession({ transport });
+//   const { gate } = await session.connect();                          // rejects -> UNAVAILABLE; gate -> PAUSED / UPDATE / banned
+//   await session.ensureProfile(name);                                 // first use: the name screen
+//   const room = await createRoom({ transport, profile: session.profile, picks });   // or joinRoom({ ..., code })
+//   room.on('change', draw);  room.pick(...);  room.ready(true);
+//   room.on('start', () => game.versus.start(createMatch({ transport, room, cfg: session.cfg }), picks));
+//   ... link 'verdict' -> result screen;  room.rematch({ ready: true })  or  link.leave(); room.leave();
+//   transport.idle() when the online screens close.
 // Stage 1 uses: connect(), gate(), ensureProfile() / rename(). Stake / claim / close are stage 4:
 // the RULES for them are already in config/firebase/rules.src.mjs (the owner pastes rules once),
 // the client calls here are stubs that change nothing.
