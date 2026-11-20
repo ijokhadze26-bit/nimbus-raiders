@@ -7,10 +7,15 @@
 // 3. TIE inside 1 s: further distance wins (the rival falls 0.5 s after me but went less far -> I win although I fell).
 // 4. DRAW: a verdict 'draw' ends the run and is kept in versus.result.
 // 5. Forfeited while standing (verdict lose, reason 'dc'): the run ends, no fall is reported by me.
-// 6. No verdict ever (network gone): the run still ends as a loss after VS.end.verdictWait.
+//    A lost match pays nothing either: the coins picked up on the road are 0 in run:lose and game.lastResult.
+// 6. No verdict ever (a broken link): the run still ends as a loss, but only after VS.end.verdictWait, a last resort
+//    far past the network side's slowest verdict. A rival that went silent 2 s before my fall is forfeited by the
+//    network 13 s after its last message: that late 'win' must still be mine.
 // 7. stop() while alive reports my fall as 'quit', leaves the link and goes back to the title; HOME (toTitle) does too.
 // 8. Samples: 10 a second with the fields of the contract; none after my fall. link.tick is called every step.
 // 9. Four players: three rivals, places from the verdict land in view().peers.
+// 10. Rematch: view().me starts clean (no danger left over from the last match during the countdown).
+// 11. RETRY on the stock result screen (game.retry()) after a match never leaves an offline 'versus' run: title.
 const g = window.__game, d = g.debug;
 g.loop.stop();
 const fails = [], info = {};
@@ -71,7 +76,13 @@ try {
   ok(versus.view().me.n === g.squad.count && Math.abs(versus.view().t - 12) < 0.1, 'view() me / t wrong');
   const tFall = versus.t, dFall = Math.round(g.run.dist);
   link.test.setClock(tFall); // the rival's clock stops with mine: no verdict can come yet
+  d.give('coins', 37);
+  const wallet = g.save.data.coins, bank = g.bank.coins;
+  ok(g.run.coins >= 37, 'the test run picked up no coins');
   wipe();
+  const lost = log.find((l) => l[0] === 'run:lose');
+  ok(lost && lost[1].coins === 0 && g.lastResult && g.lastResult.win === false && g.lastResult.coins === 0 && g.run.coinsEarned === 0, `a lost match shows coins: run:lose ${lost && lost[1].coins}, lastResult ${g.lastResult && g.lastResult.coins}`);
+  ok(g.save.data.coins === wallet && g.bank.coins === bank && !g.lastAward, `a lost match paid: wallet ${g.save.data.coins} (was ${wallet}), bank ${g.bank.coins} (was ${bank})`);
   ok(link.test.falls.length === 1 && link.test.falls[0].by === 'dead' && Math.abs(link.test.falls[0].t - tFall) < 1e-9 && link.test.falls[0].d === dFall, 'fall report: ' + JSON.stringify(link.test.falls));
   ok(log.some((l) => l[0] === 'run:lose' && l[1].mode === 'versus'), 'run:lose { mode: versus } missing');
   ok(log.some((l) => l[0] === 'fx:slowmo' && l[1].scale === VS.end.loseSlow.scale), 'no slow motion at my fall');
@@ -130,10 +141,26 @@ try {
   link = start({ referee: false, rivals: [{ slot: 1, name: 'Mika' }] });
   pump(3);
   wipe();
+  ok(VS.end.verdictWait >= 25, `verdictWait ${VS.end.verdictWait} s is not past the network side's slowest verdict (stalled rival: ~20 s)`);
   pump(VS.end.verdictWait - 1);
   ok(g.state === 'playing' && !versus.result, 'gave up on the verdict too early');
   pump(4);
   ok(g.state === 'result' && versus.result && versus.result.result === 'lose' && versus.result.reason === 'noverdict', 'no verdict: ' + JSON.stringify(versus.result) + ' ' + g.state);
+  d.toTitle();
+  // the rival's last message at 20 s, I fall at 22 s; the network side closes the rival's seat 3 + 10 s after its
+  // last message and only then sends the verdict (src/online/match.js): I outlasted it, so that is a WIN
+  link = start({ referee: false, rivals: [{ slot: 1, name: 'Gone' }] });
+  pump(20);
+  link.test.silence(1, 3, 10);
+  pump(2);
+  wipe();
+  pump(11.3, () => !!versus.result);
+  ok(g.state === 'playing' && versus.live && !versus.result, `decided without the network while the rival's countdown ran: ${JSON.stringify(versus.result)} ${g.state}`);
+  link.test.rivalFall(1, { T: 20, d: 150, by: 'dc' });
+  link.test.verdict({ result: 'win', place: 1, places: [{ slot: 0, T: 22, d: 200, by: 'dead' }, { slot: 1, T: 20, d: 150, by: 'dc' }], reason: 'dc' });
+  ok(versus.result && versus.result.result === 'win' && versus.result.reason === 'dc', 'late forfeit verdict: ' + JSON.stringify(versus.result));
+  pump(4);
+  ok(g.state === 'result' && versus.result.result === 'win', 'late forfeit: no result screen');
   d.toTitle();
 
   // ---- 7. stop / HOME ----
@@ -159,6 +186,37 @@ try {
   ok(ps[0].place === 4 && ps[1].place === 3 && ps[2].place === 2, '4 players places: ' + JSON.stringify(ps.map((p) => p.place)));
   ok(log.filter((l) => l[0] === 'versus:peerdown').length === 3 && log.filter((l) => l[0] === 'fx:slowmo' && l[1].scale === VS.end.rivalSlow.scale).length === 1, 'peerdown x3, one slow motion (the last rival)');
   info.four = versus.result;
+  d.toTitle();
+
+  // ---- 10. rematch: view().me starts clean ----
+  link = start({ referee: false, rivals: [{ slot: 1, name: 'Mika' }] });
+  pump(VS.danger.grace + 1);
+  for (let i = 0; i < 12; i++) { g.squad.setCount(3, 'storm'); versus.pump(1 / 60, 1 / 60); } // (held at 3 over a sample)
+  const dangerWas = versus.view().me.danger;
+  ok(dangerWas >= 6, `a squad of 3 after the grace time should be in danger (${dangerWas}, squad ${g.squad.count})`);
+  wipe();
+  link.test.verdict({ result: 'lose', place: 2, places: [], reason: null });
+  pump(4);
+  ok(g.state === 'result', 'rematch setup: no result screen');
+  let clock = -3;
+  link = start({ clock: () => clock, rivals: [{ slot: 1, name: 'Mika' }] }); // straight from the result screen, as a rematch does
+  const me0 = { ...versus.view().me };
+  for (let i = 0; i < 60; i++) { clock += 1 / 60; versus.pump(1 / 60, 1 / 60); }
+  ok(me0.danger === 0 && me0.dist === 0 && versus.view().me.danger === 0 && !versus.view().go, `rematch countdown shows the last match: ${JSON.stringify(me0)} -> ${JSON.stringify(versus.view().me)}`);
+  versus.stop();
+
+  // ---- 11. RETRY after a match ----
+  link = start({ rivals: [{ slot: 1, name: 'Mika', fallAt: 3 }] });
+  pump(12);
+  ok(g.state === 'result' && versus.result && versus.result.result === 'win', 'retry setup: no win');
+  g.retry(); // what the RETRY button of the stock result screen does
+  await new Promise((r) => setTimeout(r, 0));
+  ok(g.state === 'title' && !g.run && !versus.live, `RETRY after a match left an offline versus run: state ${g.state}, run ${g.run && g.run.mode}`);
+  // ... and a real start right after is untouched by that guard
+  link = start({ rivals: [{ slot: 1, name: 'Mika' }] });
+  await new Promise((r) => setTimeout(r, 0));
+  pump(1);
+  ok(g.state === 'playing' && versus.live && g.run && g.run.mode === 'versus' && versus.t > 0.9, 'a match started after RETRY did not run');
 } catch (e) {
   fails.push('threw: ' + (e.stack || e.message).slice(0, 600));
 } finally {

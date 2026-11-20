@@ -42,7 +42,15 @@ export class Versus {
     ev.on('endless:boss', () => this.onZone());
     ev.on('boss:spawn', () => this.onBossSpawn());
     ev.on('game:state', (p) => this.onState(p.state));
-    ev.on('run:start', (p) => { if (this.live && p.mode !== 'versus') this.stop({ toTitle: false }); }); // another run began: the match is left
+    ev.on('run:start', (p) => {
+      if (p.mode !== 'versus') { if (this.live) this.stop({ toTitle: false }); return; } // another run began: the match is left
+      if (this.live) return;
+      // A 'versus' run nobody started through start() (RETRY on a result screen after a match: game.retry() repeats
+      // the last run def): there is no link, no rival and no ramp, so it is not a match. Back to the title, once the
+      // caller is done starting it (the other run:start listeners still expect game.run).
+      const run = this.game.run;
+      queueMicrotask(() => { const g = this.game; if (!this.live && g.run === run && g.state === 'playing') g.toTitle(); });
+    });
   }
 
   // ---------------- lifecycle ----------------
@@ -54,11 +62,12 @@ export class Versus {
     this.t = 0; this.simT = 0; this.stall = 0; this.sampleT = 0; this.ci = 0;
     this.counts.fill(0);
     this.go = false; this.inPump = false;
-    this.fallen = false; this.reported = false; this.sinceFall = 0; this.closing = false;
+    this.fallen = false; this.reported = false; this.sinceFall = 0; this.fellAt = 0; this.closing = false;
     this.verdict = null; this.result = null; this.myT = null; this.myD = null; this.rivalSlow = false;
     this.quitReason = null; this.dNow = 0;
     const v = this.v;
     v.t = 0; v.sudden = false; v.storm = false; v.go = false; v.net = 'on';
+    v.me.n = 0; v.me.dist = 0; v.me.danger = 0; // (danger is only rewritten by the first sample after GO)
     v.peers = (link.peers || []).map((p) => ({ slot: p.slot, name: p.name, hero: p.hero, weapon: p.weapon, bot: !!p.bot, n: 0, dist: 0, danger: 0, x: 0, form: 0, flags: 0, boss: 0, zone: 1, alive: true, silent: 0, countdown: null, place: null, T: null, d: null, by: null }));
     this.offs = [
       link.on('state', (slot, s) => this.onPeerState(slot, s)),
@@ -153,7 +162,10 @@ export class Versus {
     // my squad is down: the result screen waits for the verdict (the slow-motion moment covers the wait)
     const E = VS.end;
     this.sinceFall += raw;
-    if (!this.verdict && this.sinceFall > E.verdictWait) this.onVerdict({ result: 'lose', place: null, places: [], reason: 'noverdict' });
+    // The verdict is the network side's to give, and it always gives one: at once when the rival plays on, after its
+    // 3 s + 10 s countdown when the rival went silent, after ~20 s when the rival's clock stalled, after 8 s when I am
+    // offline myself. Only if none of that arrives (a broken link) does the run end here, so the screen never hangs.
+    if (!this.verdict && link.clock() - this.fellAt > E.verdictWait) this.onVerdict({ result: 'lose', place: null, places: [], reason: 'noverdict' });
     if (!this.verdict) g.resultTimer = 9;
     else if (!this.closing) { this.closing = true; g.resultTimer = Math.max(E.minHold, E.loseHold - this.sinceFall); }
   }
@@ -205,12 +217,19 @@ export class Versus {
   onBossSpawn() { if (this.live && this.game.run && this.game.run.mode === 'versus') this.game.rng.seed((this.seed ^ (this.game.endless.zone * 0x9E37)) >>> 0); }
 
   onLose(p) {
-    if (!this.live || !p || p.mode !== 'versus' || this.fallen) return;
-    this.fallen = true; this.sinceFall = 0;
+    if (!this.live || !p || p.mode !== 'versus') return;
+    // An online match pays nothing: the coins picked up on the road must not be shown as won. (This listener is the
+    // newest on run:lose, so it runs first: the result screen, audio and fx read 0 like on the win path.)
+    const g = this.game;
+    if (p.coins) { g.bank.coins -= p.coins; p.coins = 0; }
+    if (g.lastResult && g.lastResult.mode === 'versus') g.lastResult.coins = 0;
+    if (g.run && g.run.mode === 'versus') g.run.coinsEarned = 0;
+    if (this.fallen) return;
+    this.fallen = true; this.sinceFall = 0; this.fellAt = this.link.clock();
     this.myT = this.t;
     this.myD = (p.dist || 0) + (p.bossMax ? Math.floor(30 * (1 - p.bossHp / p.bossMax)) : 0);
     if (!this.reported && !this.verdict) { this.reported = true; this.link.fall({ t: this.t, d: this.myD, by: 'dead' }); }
-    this.game.events.emit('fx:slowmo', VS.end.loseSlow);
+    g.events.emit('fx:slowmo', VS.end.loseSlow);
   }
 
   /** Out without dying (stalled too long): reported as 'quit', then the run ends like a wipe-out. */

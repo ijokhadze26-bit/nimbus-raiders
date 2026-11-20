@@ -47,7 +47,9 @@ export const VS = {
     minHold: 0.6,
     rivalSlow: { scale: 0.3, duration: 1.0 },  // the last rival fell: slow motion through the 1 s tie window
     winHold: 2.2,         // result screen this long after the win
-    verdictWait: 8,       // fallen and no verdict after this long (network gone): the run ends as a loss
+    // fallen and still no verdict this long after (match clock): the run ends as a loss. A LAST RESORT, far past the
+    // network side's slowest verdict (silent rival 3 + 10 s, stalled rival ~20 s, me offline 8 s: src/online/config.js)
+    verdictWait: 30,
   },
 
   // rival ghosts (ghost.js / track.js)
