@@ -1,0 +1,88 @@
+// Online survival match: every tunable number in one place (SPEC4 §6). Times are seconds on the PLAYED clock
+// (Versus.t = real seconds of simulation stepped), distances are road units.
+// Calibrated with `node scripts/balance/versus.mjs` (casual and pro autopilots, shop upgrades off): see the
+// header of that script for the measured survival times.
+export const VS = {
+  // Boss hp per arena, then x bossGrowth each. The first boss is a warm-up; the SECOND is the wall most matches end
+  // at: the autopilots reach it after about 1:50 with a full squad and nobody shoots 500000 hp down before its attacks
+  // have thinned the squad. Dodging decides who lasts (calibration: the casual bot falls there after ~55 s, the pro
+  // bot hangs on with a handful of Raiders until Sudden Death).
+  bossHp: [30000, 500000, 700000, 900000], bossGrowth: 1.35,
+  // boss tier per arena (cadence, warning time, broods; the last value repeats): single-player endless uses 1, 2, 3 ...
+  bossTier: [1, 5, 6, 7],
+
+  // pace: forward speed x (1 + gain * min(1, t / over)); in Sudden Death + suddenPerSec each second, never above max.
+  // (SPEC4 guessed +25% over 180 s: then the second boss comes at 2:30 and the casual bot lasts 3:20. +50% in the first
+  // minute brings that boss to about 1:50, which is what puts the casual median under 170 s.)
+  pace: { gain: 0.5, over: 60, suddenPerSec: 0.005, max: 1.6 },
+  // tougher enemies: every horde spawned at t has hp x (1 + t / per)
+  hpRamp: { per: 150 },
+  // pressure waves (extra hordes on top of the road's own): from `from` s, one every max(everyMin, every0 - t / everyDiv) s,
+  // count = round(count0 + t / countDiv) (x bossMul in an arena), spawned `ahead` u in front of the squad (aheadBoss in
+  // an arena: the squad stands still there, so a wave from 60 u is under fire for ~11 s and only hurts a weak squad;
+  // from 30 u it wipes any small squad at once and the two bots fall in the same second)
+  waves: { from: 45, every0: 18, everyDiv: 15, everyMin: 8, count0: 10, countDiv: 3, ahead: 60, aheadBoss: 60, bossMul: 0.5 },
+  // more red gates, by DISTANCE (identical for every player): a gate row past `from` u turns its better side red with
+  // chance min(max, base + per700 * at / 700); one draw per row from Rng(seed * 97 + 3)
+  red: { from: 300, base: 0.08, per700: 0.12, max: 0.45 },
+
+  // Sudden Death from `at` s: wave k every max(everyMin, every0 - everyStep * k) s with
+  // count = min(countMax, round(count0 * growth^k)), hp x hpGrowth^k, elite share min(eliteMax, eliteStep * k)
+  sudden: { at: 180, dark: 0.35, aheadBoss: 60, every0: 6, everyStep: 0.3, everyMin: 2.5, count0: 40, growth: 1.2, countMax: 400, hpGrowth: 1.12, eliteStep: 0.05, eliteMax: 0.5 },
+  // Storm wall from `at` s: every `every` s the squad loses ceil(count * frac) + flat Raiders; at hardEnd everyone is out
+  storm: { at: 270, every: 1, frac: 0.12, flat: 2, dark: 0.55, fogMul: 0.6, hardEnd: 322 },
+
+  // pump (SPEC4 §5.3): up to `extra` catch-up steps of `step` s per frame while the played clock is behind the match
+  // clock; a gap over maxGap s is a stall (not simulated); stalled for more than `forfeit` s in total = out
+  pump: { extra: 3, step: 1 / 30, maxGap: 1, forfeit: 15 },
+  sample: 0.1, // one state sample every 0.1 s (10 a second)
+
+  // danger 0..9 sent with every sample: 9 * max(1 - n / low (after `grace` s), share of the squad lost in `window` s)
+  danger: { low: 15, grace: 20, window: 2 },
+
+  // the end of a match (real seconds)
+  end: {
+    loseSlow: { scale: 0.25, duration: 1.2 },  // my squad is down
+    loseHold: 2.6,        // result screen this long after my fall (or minHold after the verdict, whichever is later)
+    minHold: 0.6,
+    rivalSlow: { scale: 0.3, duration: 1.0 },  // the last rival fell: slow motion through the 1 s tie window
+    winHold: 2.2,         // result screen this long after the win
+    verdictWait: 8,       // fallen and no verdict after this long (network gone): the run ends as a loss
+  },
+
+  // rival ghosts (ghost.js / track.js)
+  ghost: {
+    perHigh: 26, perLow: 14,       // most Raiders drawn per rival
+    perSqrt: 2.6,                  // drawn = round(perSqrt * sqrt(squad)), so a bigger squad reads bigger
+    alpha: 0.5,                    // body opacity at full strength
+    nearAlpha: 0.55,               // x this when the ghost overlaps my own squad
+    near: [0.8, 4.5],              // |metres apart| over which nearAlpha eases back to 1
+    ahead: 34, farAlpha: 0.4, farFade: 30,  // further ahead than `ahead`: pinned there, fading to farAlpha over farFade u
+    behind: 5,                     // rivals behind fade out by this many units (the bar at the top shows them)
+    lift: 0.05, scale: 1.06,
+    // jitter buffer (SPEC4 §5.4): playhead = match clock - D, D = worst arrival offset of the last 10 messages + pad
+    delayPad: 0.08, delayMin: 0.35, delayMax: 2.5, rateMin: 0.95, rateMax: 1.05, snap: 3,
+    extrapolate: 0.4, starveAlpha: 0.15, starveFade: 0.6,
+    tag: true,                     // High only: the rival's name floats over the ghost leader
+  },
+};
+
+/** Seat colours (ghost tint; the versus bar can use the same ones). */
+export const SLOT_COLORS = ['#59e0ff', '#ff8fd0', '#ffe066', '#9dff8a'];
+
+/** Boss hp of arena n (1-based) in a versus match. */
+export function vsBossHp(n) {
+  const T = VS.bossHp;
+  const raw = n <= T.length ? T[n - 1] : T[T.length - 1] * Math.pow(VS.bossGrowth, n - T.length);
+  return Math.round(raw / 500) * 500;
+}
+
+/** Boss tier of arena n (1-based). */
+export function vsBossTier(n) { const T = VS.bossTier; return T[Math.min(T.length, n) - 1]; }
+
+/** Pace multiplier at played time t. */
+export function vsPace(t) {
+  const P = VS.pace, S = VS.sudden;
+  const base = 1 + P.gain * Math.min(1, t / P.over);
+  return t <= S.at ? base : Math.min(P.max, base + P.suddenPerSec * (t - S.at));
+}
