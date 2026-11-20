@@ -7,7 +7,9 @@
     "dev": "vite --host",
     "build": "vite build",
     "preview": "vite preview --host",
-    "test:u2": "node scripts/u2.mjs"
+    "test:u2": "node scripts/u2.mjs",
+    "test:online": "node tests/online/run.mjs",
+    "balance:versus": "node scripts/balance/versus.mjs"
   },
   "dependencies": {
     "@fontsource-variable/nunito": "^5.3.0",
