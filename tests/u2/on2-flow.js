@@ -53,6 +53,7 @@ try {
   ok(P.text('.on-me-n') === 'Sky Rider', 'the hub does not show my name');
   ok(!P.q('.on-hub').textContent.match(/QUICK|LEADERBOARD|TROPH/i), 'the hub shows something that is not built yet');
   K.layout(P.el, ['.topbar', '.on-hub .on-card', '.on-me'], fails, 'hub');
+  ok(P.q('.on-code').getBoundingClientRect().bottom < innerHeight * 0.5, 'the code box sits in the lower half: a phone keyboard would cover it');
   // CHANGE -> rename -> back on the hub with the new name
   P.tap('[data-act="rename"]');
   ok(P.view() === 'name' && P.q('.on-nameinput').value === 'Sky Rider' && !P.q('.on-cancel').hidden, 'CHANGE does not open the name view with CANCEL');

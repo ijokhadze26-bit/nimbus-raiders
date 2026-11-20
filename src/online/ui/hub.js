@@ -71,10 +71,12 @@ function createHubView(ui, flow, page) {
     enter() { local = ''; },
     sync() {
       nameEl.textContent = flow.name;
-      for (const b of buttons) b.classList.toggle('is-disabled', !!flow.busy);
+      const away = flow.net !== 'on'; // my connection dropped: nothing can be asked of the service right now
+      for (const b of buttons) b.classList.toggle('is-disabled', !!flow.busy || away);
       const n = flow.notice;
-      msg.classList.toggle('bad', !flow.busy && (!!n || !!local));
+      msg.classList.toggle('bad', !flow.busy && !away && (!!n || !!local));
       if (flow.busy) msg.textContent = BUSY[flow.busy] || 'ONE MOMENT...';
+      else if (away) msg.textContent = 'RECONNECTING... one moment.';
       else if (n) msg.innerHTML = `<b>${n.title}</b><span>${n.text}</span>`; // (fixed sentences from flow.js, never player text)
       else msg.textContent = local;
     },

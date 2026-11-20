@@ -12,11 +12,12 @@
 .screen-online .topbar { justify-content: center; min-height: 52px; }
 .screen-online .topbar > .ibtn { position: absolute; left: 0; top: 0; }
 .screen-online .topbar .plaque { max-width: calc(100% - 128px); }
+.screen-online .topbar:has(.on-net.show) .plaque { font-size: 17px; padding-inline: 10px; } /* room for the chip on a 360 px phone */
 .on-net { position: absolute; right: 0; top: 50%; transform: translateY(-50%); visibility: hidden; }
 /* the lobby says it in a banner instead (with what it means for the seat) */
 .screen-online[data-view="lobby"] .on-net { display: none; }
 .on-net span {
-  display: block; max-width: 58px; padding: 5px 6px 6px; border-radius: 10px; font: 400 9px/1.1 var(--font-display); letter-spacing: 0.3px; color: #fff; text-align: center; overflow-wrap: anywhere;
+  display: block; padding: 5px 7px 6px; border-radius: 10px; font: 400 10px/1 var(--font-display); letter-spacing: 0.3px; color: #fff; white-space: nowrap;
   background: #ff3b4e; border: 2px solid #fff; box-shadow: 0 3px 0 #8e0f22; animation: on-blink 1s ease-in-out infinite;
 }
 .on-net.show { visibility: visible; }
@@ -147,6 +148,8 @@
 .on-foot .on-fine { color: #b9d2ff; }
 .on-leave { margin-top: 2px; }
 .on-foot.picking .on-leave, .on-foot.picking .on-fine { display: none; }
+/* the host has gone: nothing left to do here but LEAVE ROOM, so that button comes up */
+.on-foot.closed .btn-row, .on-foot.closed .on-status, .on-foot.closed .on-fine { display: none; }
 
 /* narrow phones (360 px): a little tighter so the whole lobby fits without scrolling */
 @container (max-width: 375px) {

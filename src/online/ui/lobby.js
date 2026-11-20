@@ -154,6 +154,7 @@ export function createLobbyView(ui, flow) {
       changeBtn.classList.toggle('is-disabled', blocked || ready);
       changeBtn.hidden = picking; readyBtn.hidden = picking;
       foot.classList.toggle('picking', picking); root.classList.toggle('picking', picking);
+      foot.classList.toggle('closed', !!st.hostLeft && !picking);
       status.textContent = picking ? 'Pick a hero and a weapon you own.'
         : st.hostLeft ? '' : !mine ? 'One moment...'
           : all ? 'STARTING...'

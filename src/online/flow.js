@@ -267,9 +267,10 @@ export function createFlow(game, ui, { transport, session }) {
   transport.onStatus((s) => { flow.net = s; changed(); });
   const ev = game.events;
   ev.on('game:state', ({ state }) => {
-    if (state === 'online') { if (transport.status() !== 'on') transport.connect().catch(() => {}); return; }
-    if (!MENU_STATES.has(state) || ui.navigating === 'online') return; // (a run, or passing through the title on the way here)
-    // any other menu: nothing online stays open behind it
+    // (the ONLINE page itself, a run, or passing through the title on the way back to the hub: nothing to close)
+    if (state === 'online' || !MENU_STATES.has(state) || ui.navigating === 'online') return;
+    // any other menu: nothing online stays open behind it, and the connection is let go a little later
+    // (every way back in goes through ui.openOnline -> connect(), which takes it up again)
     if (flow.room || flow.link) dropRoom(null);
     transport.idle();
   });
