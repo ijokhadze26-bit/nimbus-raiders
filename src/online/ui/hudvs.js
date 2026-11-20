@@ -126,10 +126,11 @@ export function mountVsHud(ctx) {
     const me = v.go && !vs.fallen && v.me.danger >= DANGER;
     if (me !== S.me) setMe(me);
 
-    let dcN = null, dcName = '', dcCount = 0;
+    let dcN = null, dcName = '', dcCount = 0, standing = 0;
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i], p = vs.peer(r.slot);
       if (!p) continue;
+      if (p.alive) standing++;
       const silent = p.alive && p.countdown != null;
       if (silent) { dcCount++; if (dcN === null || p.countdown < dcN) { dcN = p.countdown; dcName = p.name; } }
       if (p.n !== r.n) { r.n = p.n; r.cntEl.textContent = String(p.n); }
@@ -140,7 +141,8 @@ export function mountVsHud(ctx) {
       setRow(r, !p.alive ? 'down' : silent ? 'silent' : p.danger >= DANGER ? 'danger' : '', gapText(p, rel, single));
     }
 
-    const dc = dcN === null ? '' : `${dcCount > 1 ? 'RIVALS' : single ? 'RIVAL' : esc(up(dcName))} LOST CONNECTION · ${single || dcCount === rows.length ? 'WIN' : 'OUT'} IN <b class="num">${dcN}</b>`;
+    // (the countdown ends the match for me only when nobody else is left standing: then it says WIN)
+    const dc = dcN === null ? '' : `${dcCount > 1 ? 'RIVALS' : single ? 'RIVAL' : esc(up(dcName))} LOST CONNECTION · ${dcCount === standing ? 'WIN' : 'OUT'} IN <b class="num">${dcN}</b>`;
     if (dc !== S.dc) { S.dc = dc; dcEl.innerHTML = dc; dcEl.classList.toggle('hidden', !dc); }
     chip(netEl, 'net', v.net === 'lost');
     chip(waitEl, 'wait', !!vs.fallen && !vs.verdict && vs.sinceFall > WAIT_AFTER);

@@ -5,7 +5,9 @@
 // The network side hands in one LINK (STAGE1): this class pushes a sample 10 times a second, reports its own fall once
 // and listens for the rivals' state, their falls and the verdict. It never decides who won.
 //
-//   start(link, { hero, weapon })  begins the run; frozen at the start line until link.clock() >= 0
+//   start(link, { hero, weapon, heroSkin, weaponSkin })
+//                                  begins the run; frozen at the start line until link.clock() >= 0 (the skins are
+//                                  only remembered for the VS card: the squad wears what the save has equipped)
 //   live                           true from start() until the result screen (game.pause() is blocked meanwhile)
 //   pump(dt, real)                 game.frame's step while live: countdown freeze + catch-up steps (SPEC4 §5.3)
 //   t                              played clock: real seconds of simulation stepped while my squad was alive
