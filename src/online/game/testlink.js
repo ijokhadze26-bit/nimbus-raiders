@@ -147,6 +147,7 @@ export function createTestLink(opts = {}) {
       for (let i = 0; i < outbox.length; i++) {
         if (outbox[i].at > now + 1e-9) continue;
         const { e } = outbox.splice(i--, 1)[0];
+        if (e.to !== -1 && e.to !== mySlot) continue; // routed like match.js: only mine or everyone's
         delivered.push(e);
         emit('event', { ...e });
         if (test.left) return;
