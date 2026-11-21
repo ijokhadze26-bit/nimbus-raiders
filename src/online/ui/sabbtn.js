@@ -1,7 +1,7 @@
 // The SABOTAGE button of an online match (STAGE2 "Builder SABUI" point 2). A copy of src/ui/hudability.js
 // mountAbility in the sabotage purple, on the side OPPOSITE the ability button (.hud.side-left / .hud.left-hand,
 // set by ui.applyHand: ability right -> sabotage left, above the weapon badge), 62 px:
-//   - conic ring `--f` = progress to the next normal charge, quantised to 1/40 (full while 2 are stored);
+//   - conic ring `--f` = progress to the next normal charge, quantised to 1/40 (full while a charge is held);
 //   - the icon of the kind a send uses now (`next`), or the big kind in gold with a BIG tag while one is held;
 //   - "x2" while two normal charges are stored, the seconds of the 6 s send gap while waiting;
 //   - a one-shot READY chip on sab:charge, a NOW! chip + pulse while a send is possible and its target is in danger.
@@ -88,7 +88,8 @@ export function mountSabButton(ctx) {
     if (show !== S.show) { S.show = show; btn.style.display = show ? '' : 'none'; }
     if (chipT > 0) { chipT -= dt || 0; if (chipT <= 0) chip.classList.remove('show'); }
     if (!show) return;
-    const f = v.ready >= 2 ? 1 : Math.round(Math.max(0, Math.min(1, v.fill || 0)) * Q) / Q;
+    // (a charge in hand reads as a full ring, like a ready ability; the x2 badge says when a second one is stored)
+    const f = v.ready >= 1 || v.big ? 1 : Math.round(Math.max(0, Math.min(1, v.fill || 0)) * Q) / Q;
     if (f !== S.f) { S.f = f; btn.style.setProperty('--f', `${(f * 360).toFixed(1)}deg`); }
     const code = v.big || v.next || 1;
     if (code !== S.code) {

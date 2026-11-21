@@ -63,7 +63,7 @@ try {
     ok(c.classList.contains('hit') && sfx.includes(kind.sfx) && flashF() > 0.2, `landing ${code}: ${c.className} ${sfx} ${flashF()}`);
     k.frames(0.6, () => { keep(); return false; });
     ok(!c.isConnected && cards().length === 0, `landing ${code}: the card stays`);
-    stub.end(code); k.frames(0.05);
+    stub.endEffect(code); k.frames(0.05);
   }
 
   // ---- 2. stacking + geometry ----

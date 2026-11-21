@@ -55,6 +55,7 @@ export function mountVsMoment(ctx) {
 
   function cinema(tone) {
     bars.classList.add('on');
+    ui.hud.el.classList.add('vs-cine');
     tint.className = `vm-tint on ${tone}`;
     if (!M.cam) { M.cam = true; M.camT0 = performance.now(); }
     hideHint();
@@ -100,6 +101,7 @@ export function mountVsMoment(ctx) {
     down.className = 'vs-down hidden'; down.innerHTML = '';
     moment.className = 'vs-moment hidden'; moment.innerHTML = '';
     bars.classList.remove('on');
+    ui.hud.el.classList.remove('vs-cine');
     tint.className = 'vm-tint';
   }
 

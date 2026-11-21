@@ -128,14 +128,17 @@ try {
   ok(!btn() && !k.q('.sab-warn') && !k.text('.sab-feed'), 'sabotage pieces in the single-player HUD after a match');
   d.toTitle();
 
-  // ---- 6. no sab at all (the game side absent) ----
+  // ---- 6. no sab at all (the game side absent; with SABGAME merged versus.js needs its own, so this is skipped) ----
+  const real = stub.real;
   stub.remove(); stub = null;
-  delete versus.sab;
-  k.start({ referee: false, rivals: [{ slot: 1, name: 'Mika' }] });
-  let threw = null;
-  try { k.frames(1); keyQ(); if (btn()) down(btn()); } catch (e) { threw = e.message; }
-  ok(!threw && !shown(), 'without game.versus.sab: ' + (threw || 'the button shows'));
-  k.end();
+  if (!real) {
+    delete versus.sab;
+    k.start({ referee: false, rivals: [{ slot: 1, name: 'Mika' }] });
+    let threw = null;
+    try { k.frames(1); keyQ(); if (btn()) down(btn()); } catch (e) { threw = e.message; }
+    ok(!threw && !shown(), 'without game.versus.sab: ' + (threw || 'the button shows'));
+    k.end();
+  } else info.noSab = 'skipped: the real game.versus.sab exists';
 } catch (e) {
   fails.push('threw: ' + (e.stack || e.message).slice(0, 600));
 } finally {
