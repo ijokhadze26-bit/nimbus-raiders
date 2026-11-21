@@ -1,10 +1,8 @@
-// The VS card and the countdown of an online match, and the short win / lose moment at its end.
+// The VS card and the countdown of an online match (the moment at its end is vsmoment.js since stage 2).
 // - From 'versus:start' until GO (link.clock() < 0, about 4 s) the run waits at the start line (versus.js) and this
 //   card shows every player of the match (2-4): name, hero, weapon, Pip outfit and gun paint, in the seat colour of
 //   their ghost. The middle reads VS, then 3 - 2 - 1 from the match clock, then GO! as the cards fly off.
 //   A player who arrives after GO (late start, SPEC4 §5.2) gets no card, only the GO!.
-// - At the verdict ('versus:end') a big YOU WIN! / YOU LOSE / DRAW! sits over the slow-motion end of the run until the
-//   result screen takes over (the big slow-motion moment is stage 2; this is the basic one).
 // Pure DOM in the UI root, above the HUD and below the screens (so the LEAVE MATCH? dialog covers it); it never
 // takes a tap. The countdown number is written only when it changes.
 import { heroIcon, weaponIcon } from '../../ui/icons2.js';
@@ -16,7 +14,6 @@ import { esc, up } from './vswords.js';
 
 const GO_MS = 800;        // how long GO! stays
 const LATE = -0.3;        // a start this close to GO (or after it) skips the card
-const MOMENT = { win: 'YOU WIN!', lose: 'YOU LOSE', draw: 'DRAW!' };
 
 const div = (cls, html) => { const e = document.createElement('div'); e.className = cls; if (html != null) e.innerHTML = html; return e; };
 
@@ -41,8 +38,6 @@ export function mountVsCard(ctx) {
   const ev = game.events, root = ui.hud.root;
   const el = div('vs-card hidden');
   root.appendChild(el);
-  const moment = div('vs-moment hidden');
-  root.appendChild(moment);
   let state = 'off', shown = null, midEl = null, goAt = 0, hideT = 0;
 
   function hide() {
@@ -94,21 +89,10 @@ export function mountVsCard(ctx) {
     if (n <= 3) setMid(String(n), 'count');
   }
 
-  function showMoment(result) {
-    const kind = result && MOMENT[result.result] ? result.result : 'lose';
-    moment.className = `vs-moment ${kind}`;
-    moment.innerHTML = `<div class="vm-big">${MOMENT[kind]}</div>`;
-    const hint = ui.hud.hazardHint; // "RIVAL DOWN! Stay alive" has done its job once the verdict is in
-    if (hint && hint.hide) hint.hide();
-  }
-  const hideMoment = () => { if (!moment.classList.contains('hidden')) moment.className = 'vs-moment hidden'; };
-
-  ev.on('versus:start', () => { hideMoment(); show(); });
+  ev.on('versus:start', show);
   ev.on('versus:go', go);
-  ev.on('versus:end', (r) => { if (game.state === 'playing') showMoment(r); });
-  ev.on('versus:revised', (r) => { if (game.state === 'playing' && !moment.classList.contains('hidden')) showMoment(r); });
-  ev.on('run:start', (p) => { if (p.mode !== 'versus') { hide(); hideMoment(); } });
-  ev.on('game:state', ({ state: s }) => { if (s !== 'playing' && s !== 'paused') { hide(); hideMoment(); } });
+  ev.on('run:start', (p) => { if (p.mode !== 'versus') hide(); });
+  ev.on('game:state', ({ state: s }) => { if (s !== 'playing' && s !== 'paused') hide(); });
 
-  return { update, el, moment, hide, get state() { return state; }, get shown() { return shown; } };
+  return { update, el, hide, get state() { return state; }, get shown() { return shown; } };
 }

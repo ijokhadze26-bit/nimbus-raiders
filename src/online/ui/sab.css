@@ -1,0 +1,222 @@
+/* Stage 2 of the online match UI (src/online/ui): the SABOTAGE button (sabbtn.js), incoming warnings, the feed and
+   the frozen frame (sabwarn.js), the rival flags in the versus bar (hudvs.js) and the big end-of-match moment
+   (vsmoment.js). Phone first (390 x 844, 360 x 640). Plain DOM: no CSS filter on the canvas, no backdrop-filter,
+   the same on Low graphics. */
+
+/* ================= the SABOTAGE button ================= */
+/* the side opposite the ability button, above the weapon badge (ability right -> here left; ui.applyHand) */
+.sab-btn {
+  --f: 0deg; --kc: #b49dff; --sc: #b49dff;
+  position: absolute; left: calc(var(--safe-l, 0px) + 12px); bottom: calc(var(--safe-b, 0px) + 88px); z-index: 1;
+  width: 62px; height: 62px; padding: 0; border: 0; border-radius: 50%; background: none; pointer-events: auto;
+  touch-action: none; cursor: pointer; -webkit-tap-highlight-color: transparent; user-select: none;
+  font: 400 15px/1 'Lilita One', sans-serif; color: #fff;
+}
+.hud.side-left .sab-btn, .hud.left-hand .sab-btn { left: auto; right: calc(var(--safe-r, 0px) + 12px); }
+.hud.hinting .sab-btn { display: none; }
+.sab-btn .sb-ring {
+  position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background: conic-gradient(var(--sc) var(--f), rgba(255, 255, 255, 0.28) 0); box-shadow: 0 4px 0 rgba(30, 10, 80, 0.5);
+}
+.sab-btn .sb-face {
+  position: absolute; inset: 6px; border-radius: 50%; display: grid; place-items: center; overflow: hidden;
+  background: radial-gradient(circle at 38% 30%, #6b4fd0, #2a1462 75%); border: 3px solid #fff; transition: transform 0.12s ease;
+}
+.sab-btn .sb-ico { width: 30px; height: 30px; display: block; opacity: 0.5; }
+.sab-btn .sb-ico .sab-svg { width: 100%; height: 100%; display: block; }
+.sab-btn .sb-wait {
+  position: absolute; inset: 0; display: grid; place-items: center; font-size: 22px; color: #fff;
+  -webkit-text-stroke: 4px #2a1462; paint-order: stroke fill;
+}
+.sab-btn .sb-wait:empty { display: none; }
+.sab-btn.ready .sb-face { background: radial-gradient(circle at 38% 30%, #d9c9ff, #8a5cff 45%, #4b22b8 88%); }
+.sab-btn.big.ready .sb-face { background: radial-gradient(circle at 38% 30%, #fff3b0, #ffc531 45%, #c26a00 90%); }
+.sab-btn.ready .sb-ico { opacity: 1; filter: drop-shadow(0 2px 0 rgba(30, 10, 80, 0.6)); }
+.sab-btn.ready:not(.can) .sb-ico { opacity: 0.45; }
+.sab-btn.can .sb-ring { animation: sb-pulse 1.1s ease-in-out infinite; }
+.sab-btn.can::after {
+  content: ''; position: absolute; inset: -6px; border-radius: 50%; border: 3px solid var(--sc); pointer-events: none;
+  animation: sb-halo 1.1s ease-out infinite;
+}
+.sab-btn.big { --sc: #ffd34d; }
+.sab-btn.big .sb-face { border-color: #fff3b0; }
+.sab-btn.now { --sc: #ff4f6a; }
+.sab-btn.now .sb-ring, .sab-btn.now::after { animation-duration: 0.5s; }
+.sab-btn:active .sb-face, .sab-btn.used .sb-face { transform: scale(0.9); }
+.sab-btn.used .sb-face { animation: ab-used 0.35s ease-out; }
+.sab-btn.deny { animation: sb-deny 0.4s ease-out; }
+/* the small tags: x2 (top corner, inner side), BIG (under the face), READY / BIG! chip (above), NOW! (inner side) */
+.sab-btn .sb-x2, .sab-btn .sb-big, .sab-btn .sb-now, .sab-btn .sb-chip {
+  position: absolute; display: none; padding: 2px 6px 3px; border-radius: 9px; border: 2px solid #fff; white-space: nowrap; pointer-events: none;
+  font-size: 12px; line-height: 1; letter-spacing: 0.5px; -webkit-text-stroke: 3px #2a1462; paint-order: stroke fill; box-shadow: 0 2px 0 rgba(30, 10, 80, 0.5);
+}
+.sab-btn .sb-x2 { right: -8px; top: -6px; background: #7a4dff; }
+.sab-btn.x2 .sb-x2 { display: block; }
+.sab-btn .sb-big { left: 50%; bottom: -9px; transform: translateX(-50%); background: #ffb21f; color: #fff; -webkit-text-stroke-color: #6a3a00; }
+.sab-btn.big .sb-big { display: block; }
+.sab-btn .sb-chip { display: block; left: 50%; top: -22px; transform: translateX(-50%) scale(0); background: var(--sc); }
+.sab-btn .sb-chip.show { animation: ab-chip 1.4s ease-out forwards; }
+.sab-btn .sb-now { left: calc(100% + 4px); top: 50%; transform: translateY(-50%); font-size: 14px; padding: 3px 7px 4px; background: #ff3b4e; -webkit-text-stroke-color: #5a1020; }
+.sab-btn.now .sb-now { display: block; animation: sb-now 0.5s ease-in-out infinite alternate; }
+.hud.side-left .sab-btn .sb-now, .hud.left-hand .sab-btn .sb-now { left: auto; right: calc(100% + 4px); }
+.hud.side-left .sab-btn .sb-x2, .hud.left-hand .sab-btn .sb-x2 { right: auto; left: -8px; }
+@keyframes sb-pulse { 50% { transform: scale(1.07); } }
+@keyframes sb-halo { from { transform: scale(0.95); opacity: 0.9; } to { transform: scale(1.3); opacity: 0; } }
+@keyframes sb-deny { 15% { translate: -7px 0; } 35% { translate: 6px 0; } 55% { translate: -4px 0; } 75% { translate: 2px 0; } 100% { translate: 0 0; } }
+@keyframes sb-now { from { scale: 1; } to { scale: 1.12; } }
+@media (prefers-reduced-motion: reduce) { .sab-btn.can .sb-ring, .sab-btn.can::after, .sab-btn.now .sb-now { animation: none; } }
+
+/* ================= incoming warnings ================= */
+/* under the versus bar and the hazard line, clear of the combo meter; in an arena under the boss bar too */
+.sab-warns {
+  position: absolute; left: 50%; top: calc(var(--safe-t, 0px) + 182px); z-index: 4; transform: translateX(-50%); pointer-events: none;
+  width: min(300px, calc(100% - 116px)); display: flex; flex-direction: column; align-items: stretch; gap: 6px;
+}
+.hud.boss-phase ~ .sab-warns { top: calc(var(--safe-t, 0px) + 186px); }
+/* the hazard line is up (it can wrap to three lines on a 360 px phone and end near 200 px): the warnings go under it */
+.hazard-hint:not(.hidden) ~ .sab-warns { top: calc(var(--safe-t, 0px) + 208px); }
+.vs-chips:not(.hidden) ~ .sab-warns { top: calc(var(--safe-t, 0px) + 212px); }
+/* in an arena the feed sits under the boss bar / hazard line: the warnings under the feed */
+.hud.boss-phase ~ .sab-feed:not(:empty) ~ .sab-warns { top: calc(var(--safe-t, 0px) + 244px); }
+.hud.boss-phase ~ .hazard-hint:not(.hidden) ~ .sab-feed:not(:empty) ~ .sab-warns { top: calc(var(--safe-t, 0px) + 266px); }
+/* a MK UP / NEW WEAPON banner (17%) is up, or the hazard line moved under it: the warnings go under both */
+.tier-banner:not(.hidden) ~ .sab-warns { top: calc(17% + 112px); }
+.hazard-hint.below:not(.hidden) ~ .sab-warns { top: calc(17% + 180px); }
+.sab-warn {
+  --kc: #b49dff;
+  position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 8px;
+  padding: 7px 11px 12px 8px; border-radius: 18px; color: #fff; overflow: hidden;
+  background: linear-gradient(180deg, rgba(34, 14, 70, 0.9), rgba(20, 10, 46, 0.86)); border: 3px solid var(--kc);
+  box-shadow: 0 4px 0 #1a0838, 0 0 22px color-mix(in srgb, var(--kc) 70%, transparent);
+  animation: sw-in 0.32s cubic-bezier(.2, 1.6, .4, 1) both;
+}
+.sab-warn .sw-ico {
+  width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center;
+  background: radial-gradient(circle at 38% 32%, color-mix(in srgb, var(--kc) 55%, #fff), color-mix(in srgb, var(--kc) 75%, #2a1060)); border: 3px solid #fff;
+}
+.sab-warn .sw-ico .sab-svg { width: 28px; height: 28px; display: block; filter: drop-shadow(0 2px 0 rgba(30, 10, 80, 0.6)); }
+.sab-warn .sw-t { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.sab-warn .sw-head {
+  font-weight: normal; font-size: min(27px, 7cqw); line-height: 1; letter-spacing: 0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--kc); -webkit-text-stroke: 5px #1a0838; paint-order: stroke fill;
+}
+.sab-warn .sw-head.long { font-size: min(24px, 6.1cqw); }
+.sab-warn .sw-from { font-size: 13px; line-height: 1.1; letter-spacing: 0.8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-text-stroke: 3px #1a0838; paint-order: stroke fill; }
+.sab-warn .sw-bar { position: absolute; left: 10px; right: 10px; bottom: 4px; height: 5px; border-radius: 3px; overflow: hidden; background: rgba(255, 255, 255, 0.2); }
+.sab-warn .sw-bar u { position: absolute; inset: 0; transform-origin: left center; border-radius: 3px; background: var(--kc); box-shadow: 0 0 6px var(--kc); }
+.sab-warn.big { border-width: 4px; background: linear-gradient(180deg, rgba(70, 14, 70, 0.92), rgba(40, 8, 50, 0.88)); }
+.sab-warn.hit { animation: sw-hit 0.45s ease-out forwards; }
+/* an older warning under the newest one: one line */
+.sab-warn.small { padding: 3px 9px 7px 5px; border-radius: 13px; border-width: 2px; column-gap: 6px; }
+.sab-warn.small .sw-ico { width: 26px; height: 26px; border-width: 2px; }
+.sab-warn.small .sw-ico .sab-svg { width: 17px; height: 17px; }
+.sab-warn.small .sw-t { flex-direction: row; align-items: baseline; gap: 6px; }
+.sab-warn.small .sw-head, .sab-warn.small .sw-head.long { font-size: 16px; -webkit-text-stroke-width: 4px; }
+.sab-warn.small .sw-from { font-size: 11px; }
+.sab-warn.small .sw-bar { height: 3px; bottom: 3px; }
+@keyframes sw-in { from { transform: translateY(-10px) scale(0.6); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes sw-hit { 0% { transform: scale(1); } 30% { transform: scale(1.12); } 100% { transform: scale(0.9); opacity: 0; } }
+
+/* ================= frozen steering ================= */
+.sab-ice {
+  position: absolute; inset: 0; z-index: 3; pointer-events: none;
+  box-shadow: inset 0 0 0 9px rgba(170, 238, 255, 0.95), inset 0 0 0 12px rgba(255, 255, 255, 0.6), inset 0 0 90px 26px rgba(110, 215, 255, 0.6);
+  background: linear-gradient(180deg, rgba(200, 245, 255, 0.16), rgba(200, 245, 255, 0) 30%, rgba(200, 245, 255, 0) 70%, rgba(200, 245, 255, 0.2));
+}
+.sab-ice.hidden { display: none; }
+.sab-ice .si-txt {
+  position: absolute; left: 50%; top: 48%; transform: translateX(-50%); /* (on the road ahead, not over the squad) */
+  display: flex; align-items: baseline; gap: 8px; padding: 4px 14px 7px; border-radius: 16px; white-space: nowrap;
+  background: rgba(10, 40, 80, 0.72); border: 3px solid #bff3ff; box-shadow: 0 4px 0 #0a2850, 0 0 20px rgba(120, 220, 255, 0.9);
+}
+.sab-ice b { font-weight: normal; font-size: 26px; line-height: 1; letter-spacing: 1px; color: #bff3ff; -webkit-text-stroke: 5px #0a2850; paint-order: stroke fill; }
+.sab-ice .si-n { font-size: 26px; line-height: 1; color: #fff; -webkit-text-stroke: 5px #0a2850; paint-order: stroke fill; }
+
+/* ================= the feed ================= */
+/* top-left under the bar and above the hazard line (3 lines end at ~117 px, the line starts at 118; while it shows only
+   the 2 newest lines do); beside the power pills when there are any; in an arena under the boss bar, the hazard line
+   and the combo meter (the warnings step down under it) */
+.sab-feed {
+  position: absolute; left: calc(var(--safe-l, 0px) + 10px); top: calc(var(--safe-t, 0px) + 64px); z-index: 4; pointer-events: none;
+  max-width: calc(100% - 140px); display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+}
+.hazard-hint:not(.hidden) ~ .sab-feed .sf-line:nth-last-child(n+3) { display: none; }
+.hud.boss-phase ~ .hazard-hint ~ .sab-feed .sf-line { display: block; }
+.hud.vs-tall ~ .sab-feed { max-width: calc(100% - 150px); }
+.hud:has(.hud-powers > .pw:not(.out)) ~ .sab-feed { left: calc(var(--safe-l, 0px) + 66px); max-width: calc(100% - 196px); }
+.hud.boss-phase ~ .sab-feed { top: calc(var(--safe-t, 0px) + 184px); left: calc(var(--safe-l, 0px) + 66px); max-width: calc(100% - 76px); }
+.hud.boss-phase ~ .hazard-hint:not(.hidden) ~ .sab-feed { top: calc(var(--safe-t, 0px) + 206px); }
+.hud.boss-phase:has(.hud-powers > .pw:not(.out)) ~ .sab-feed { left: calc(var(--safe-l, 0px) + 66px); }
+.sab-feed:empty { display: none; }
+.sf-line {
+  --fc: #b49dff;
+  max-width: 100%; padding: 1px 7px 2px; border-radius: 8px; font-size: 12px; line-height: 1.1; letter-spacing: 0.4px; color: #fff;
+  background: rgba(20, 10, 46, 0.72); border-left: 4px solid var(--fc); box-shadow: 0 2px 0 rgba(10, 6, 30, 0.45);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; -webkit-text-stroke: 3px #1a0838; paint-order: stroke fill;
+  animation: sf-in 0.25s ease-out both;
+}
+@keyframes sf-in { from { transform: translateX(-12px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* ================= rival flags in the versus bar ================= */
+.vs-r { position: relative; }
+.vs-fl { display: none; }
+.vs-fl:not(:empty) { display: flex; }
+.vs-fi {
+  --fc: #9b6bff;
+  flex: none; display: grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; background: var(--fc); border: 2px solid #fff;
+  box-shadow: 0 1px 0 var(--outline);
+}
+.vs-fi svg { width: 11px; height: 11px; display: block; }
+.vs-fi.sabotaged { animation: vs-fi 0.5s ease-in-out infinite alternate; }
+@keyframes vs-fi { to { scale: 1.15; } }
+/* one rival: a badge on the card's top-right corner (up to three icons) */
+/* (on the top border, right of centre: over the border only, never over the name or the numbers) */
+.n1 .vs-fl { position: absolute; right: 10px; top: -10px; gap: 2px; }
+.n1 .vs-fi { width: 15px; height: 15px; }
+.n1 .vs-fi svg { width: 10px; height: 10px; }
+/* two or three rivals: one small icon after the seat dot (the name gives way) */
+.n2 .vs-fl, .n3 .vs-fl { flex: none; }
+.n2 .vs-fi, .n3 .vs-fi { width: 13px; height: 13px; border-width: 1.5px; }
+.n2 .vs-fi svg, .n3 .vs-fi svg { width: 8px; height: 8px; }
+
+/* ================= the big moment ================= */
+.vm-tint { position: absolute; inset: 0; z-index: 3; pointer-events: none; opacity: 0; transition: opacity 0.5s ease; }
+.vm-tint.on { opacity: 1; }
+.vm-tint.lose { background: radial-gradient(120% 80% at 50% 45%, rgba(90, 40, 50, 0.18), rgba(60, 20, 30, 0.6)); }
+.vm-tint.rival { background: radial-gradient(120% 80% at 50% 45%, rgba(255, 240, 200, 0), rgba(40, 30, 10, 0.35)); }
+.vm-bars { position: absolute; inset: 0; z-index: 5; pointer-events: none; overflow: hidden; }
+.vm-bar { position: absolute; left: 0; right: 0; height: max(8%, 62px); background: #000; transition: transform 0.45s cubic-bezier(.2, .9, .3, 1); }
+.vm-bar.t { top: 0; height: max(8%, calc(var(--safe-t, 0px) + 62px)); transform: translateY(-101%); }
+.vm-bar.b { bottom: 0; height: max(8%, calc(var(--safe-b, 0px) + 62px)); transform: translateY(101%); }
+.vm-bars.on .vm-bar { transform: none; }
+.vs-down { position: absolute; left: 0; right: 0; top: 13%; z-index: 5; padding: 0 12px; text-align: center; pointer-events: none; color: #fff; }
+.vs-down.hidden { display: none; }
+.vd-big {
+  font-size: min(52px, 12.6cqw); line-height: 1; letter-spacing: 1px; white-space: nowrap; paint-order: stroke fill;
+  animation: vd-slam 0.5s cubic-bezier(.2, 1.7, .4, 1) both;
+}
+.vs-down.lose .vd-big { color: #ff4f5f; -webkit-text-stroke: 9px #4a0812; text-shadow: 0 6px 0 #4a0812, 0 0 30px rgba(255, 40, 60, 0.85); }
+.vs-down.rival .vd-big { color: #fff; -webkit-text-stroke: 9px #1b3a8a; text-shadow: 0 6px 0 #1b3a8a, 0 0 30px rgba(160, 220, 255, 0.95); }
+.vd-sub {
+  margin-top: 6px; font-size: min(24px, 6.4cqw); line-height: 1.1; letter-spacing: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: #ffd34d; -webkit-text-stroke: 5px #1b3a8a; paint-order: stroke fill; animation: vd-sub 0.5s ease-out 0.2s both;
+}
+@keyframes vd-slam { 0% { transform: scale(3); opacity: 0; } 50% { transform: scale(0.88); opacity: 1; } 70% { transform: scale(1.06); } 100% { transform: scale(1); } }
+@keyframes vd-sub { from { transform: translateY(10px); opacity: 0; } to { transform: none; opacity: 1; } }
+/* while a moment runs the HUD steps aside under the bars (the run is over, or a second from over): the top bar, the
+   combo meter and power timers, the buttons and the weapon badge fade out */
+.hud.vs-cine .hud-top, .hud.vs-cine .combo-meter, .hud.vs-cine .hud-powers, .hud.vs-cine .sab-btn, .hud.vs-cine .hud-weapon,
+.hud.vs-cine .hud-ability-mount, .hud.vs-cine .form-btn, .hud.vs-cine .dodge-btn { opacity: 0; pointer-events: none; transition: opacity 0.35s ease; }
+.hud.vs-cine ~ .sab-feed { opacity: 0; transition: opacity 0.35s ease; }
+/* the verdict sits under the banner */
+.vs-moment { isolation: isolate; }
+.vs-moment.under { top: 31%; }
+.vs-moment.win::before {
+  content: ''; position: absolute; z-index: -1; left: 50%; top: 50%; width: 150vmin; height: 150vmin; margin: -75vmin 0 0 -75vmin; border-radius: 50%;
+  background: repeating-conic-gradient(rgba(255, 220, 90, 0.42) 0deg 9deg, rgba(255, 220, 90, 0) 9deg 24deg);
+  -webkit-mask-image: radial-gradient(closest-side, #000 18%, transparent 100%); mask-image: radial-gradient(closest-side, #000 18%, transparent 100%);
+  animation: vm-rays 9s linear infinite;
+}
+.vs-moment.win.low::before { animation: none; }
+@keyframes vm-rays { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .vs-moment.win::before { animation: none; } }
