@@ -43,6 +43,7 @@ export const scenarios = [
       ok(won, 'A gets a verdict');
       const a2 = await duo.play(6, async () => { const v = await A.view(); return shown(v) ? v : null; }, 1);
       eq([a2.result.result, a2.result.reason, a2.ribbon, a2.why], ['win', 'dc', 'YOU WIN!', 'RIVAL LOST CONNECTION'], 'A\'s screen');
+      await duo.until(async () => (await A.view()).rematchNote === 'RIVAL IS OFFLINE', 'A: REMATCH says RIVAL IS OFFLINE (not LEFT) under a dropped rival');
       await A.shot('dc-win');
       const b2 = await B.view();
       ok(b2.live && b2.state === 'playing' && !b2.result && b2.chipNet, `B, still offline, is still playing: ${JSON.stringify({ live: b2.live, state: b2.state, result: b2.result })}`);
@@ -78,6 +79,7 @@ export const scenarios = [
       eq([a1.result.result, a1.result.provisional, a1.ribbon], ['lose', true, 'YOU LOSE'], 'A\'s first screen (B is taken to be still running)');
       eq([b1.result.result, b1.result.reason, b1.result.provisional, b1.why], ['lose', 'offline', true, 'CONNECTION LOST'], 'B\'s first screen');
       ok(/Checking the result/.test(await A.text('.vsr .vsr-why')) && /will update/.test(await B.text('.vsr .vsr-why')), 'both say the result is still being checked');
+      eq(a1.rematchNote, 'RIVAL IS OFFLINE', 'A\'s REMATCH note while B is silent');
       await A.shot('guess'); await B.shot('guess');
       // B is back: its fall record lands, and both screens are corrected
       await B.offline(false);
