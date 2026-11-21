@@ -1,5 +1,5 @@
 // A stand-in for game.versus.sab (STAGE2 "THE API between the two builders") so the on5-* scenarios test the
-// sabotage UI on its own, with or without SABGAME's real Sabotage. It has the exact API and emits the exact events:
+// sabotage UI on its own (on5-real.js tests the UI with the real one). It has the exact API and emits the exact events:
 //   sab.view() -> V (the same object every call), sab.send() -> { ok, code, big, to, why }, sab.test.{ give, giveBig, clear }
 // plus drivers for the tests:
 //   stub.set(partialView)          force fields of V (on, ready, fill, next, big, wait, target, targetDanger, incoming,
@@ -14,9 +14,9 @@
 //   stub.drop(why, o)              emits sab:drop (o: { code, from })
 //   stub.endEffect(code)           emits sab:end
 //   stub.calls                     { send: n, results: [...] }
-//   stub.real                      SABGAME's own Sabotage when it exists (null before the merge)
+//   stub.real                      the real Sabotage (src/online/game/sabotage.js) it stands in front of
 //   stub.remove()                  puts the previous game.versus.sab and game.events.emit back
-// With SABGAME's real one present, game.versus.sab becomes a Proxy: the UI-facing API (view, send, test) is the stub's,
+// game.versus.sab becomes a Proxy: the UI-facing API (view, send, test) is the stub's,
 // every other member (what versus.js calls on its own Sabotage: step, end, dropFrom, ...) goes to the real one so the
 // match keeps running, and while the stub is installed only the stub's own sab:* events reach the bus (the real
 // meter / crates / receiver cannot add lines the scenario did not ask for).
@@ -31,6 +31,7 @@ export function installSabStub(game, init = {}) {
   const hadSab = Object.prototype.hasOwnProperty.call(vs, 'sab');
   const prev = hadSab ? vs.sab : undefined;
   const real = prev && typeof prev === 'object' && !prev.__sabStub ? prev : null;
+  if (!real) throw new Error('sabstub: game.versus.sab (the real Sabotage) is missing');
   const ev = game.events;
   const V = { on: false, ready: 0, fill: 0, next: CYCLE[0], big: 0, wait: 0, can: false, target: null, targetDanger: 0, incoming: 0, frozen: 0, fog: 0, speed: 0, blackout: 0 };
   const forced = {};
@@ -157,14 +158,14 @@ export function installSabStub(game, init = {}) {
     for (const k of Object.keys(forced)) delete forced[k];
   }) || (() => {});
   // the UI sees the stub's view / send / test; versus.js keeps talking to its own Sabotage for everything else
-  vs.sab = real ? new Proxy(stub, {
+  vs.sab = new Proxy(stub, {
     get(t, p) {
       if (API.has(p) || !(p in real)) return t[p];
       const v = real[p];
       return typeof v === 'function' ? v.bind(real) : v;
     },
     set(t, p, v) { if (API.has(p)) t[p] = v; else real[p] = v; return true; },
-  }) : stub;
+  });
   if (init && Object.keys(init).length) stub.set(init);
   return stub;
 }

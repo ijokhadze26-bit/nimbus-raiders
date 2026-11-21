@@ -1,9 +1,10 @@
 // Online survival calibration: how long do the autopilots last in a versus match (shop upgrades off)?
 //   node scripts/balance/versus.mjs [--seeds 10] [--profs casual,pro] [--hero pip] [--weapon thunderclap]
-//                                   [--seed0 1] [--vs '{"waves":{"count0":14}}'] [--json out.json]
+//                                   [--seed0 1] [--vs '{"waves":{"count0":14}}'] [--json out.json] [--sab mirror]
 // Runs scripts/balance/versus.js in one headless Chrome (scripts/smoke.mjs) and prints one line per run plus the
 // median / min / max per profile. --vs merges numbers over VS (src/online/game/vsdata.js) for that run only, so a
-// candidate can be tried without editing the file.
+// candidate can be tried without editing the file. --sab mirror: a rival of equal skill sends back every sabotage the
+// bot sends (and the bot sends whenever it can); the runs then also print sent / landed sabotages.
 // Targets (STAGE1): casual median 120-170 s, pro 200-260 s, nobody past 330 s (the storm wall guarantees it).
 //
 // Measured 2026-11-20 with the numbers now in vsdata.js (survival in seconds, medians; `--seeds 40`, `--seed0 41`):
@@ -31,6 +32,11 @@
 //   it 15 / 18 of 20 at 300000, 8 / 9 of 20 at 350000) and everybody then falls at the third boss at about 3:50.
 // - To separate skill for real, the lever has to be something the bots do differently before the squad cap or at the
 //   boss with a FULL squad; none of the numbers in VS is that lever.
+// Stage 2 (sabotage), measured 2026-11-21, Pip + Thunderclap, seeds 1-20 (`--seeds 20`):
+//   no sabotage sent      casual 175.0 (95-263)    pro 213.1 (166-255)
+//   --sab mirror          casual 167.4 (110-253)   pro 184.8 (160-274)   7-10 sends a match (21-27 when zone 4 is reached)
+// So a rival of equal skill shortens a casual match by ~8 s and a pro one by ~28 s. The autopilot ignores fog and
+// blackout (visual only), so the real effect on a player is larger.
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -41,6 +47,7 @@ const opt = (name, def) => { const i = args.indexOf('--' + name); return i >= 0 
 const q = new URLSearchParams({ test: '1', seeds: opt('seeds', '10'), profs: opt('profs', 'casual,pro'), hero: opt('hero', 'pip'), weapon: opt('weapon', 'thunderclap'), seed0: opt('seed0', '1') });
 if (opt('vs', '')) q.set('vs', opt('vs', ''));
 if (opt('max', '')) q.set('max', opt('max', ''));
+if (opt('sab', '')) q.set('sab', opt('sab', ''));
 const out = process.env.BALANCE_OUT || path.join(root, 'shots/balance');
 const p = spawn(process.execPath, ['scripts/smoke.mjs', '--no-hmr', '--seconds', '0', '--shots', '0', '--out', out, '--query', q.toString(), '--scenario', path.join(root, 'scripts/balance/versus.js')], { cwd: root });
 let so = '', se = '';
@@ -54,12 +61,12 @@ p.on('close', (code) => {
   const r = o.scenarioResult;
   if (opt('json', '')) fs.writeFileSync(opt('json', ''), JSON.stringify(r, null, 1) + '\n');
   const med = (a) => { const s = a.slice().sort((x, y) => x - y); return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2; };
-  console.log(`${r.hero} + ${r.weapon}, upgrades off`);
+  console.log(`${r.hero} + ${r.weapon}, upgrades off${r.sab ? `, sabotage ${r.sab}` : ''}`);
   const byProf = {};
   for (const x of r.runs) {
     (byProf[x.prof] ||= []).push(x);
     const m = Object.entries(x.marks).map(([k, v]) => `${k}:${v}`).join(' ');
-    console.log(`${x.prof.padEnd(7)} seed ${String(x.seed).padEnd(7)} ${String(x.t).padStart(6)} s${x.alive ? ' (ALIVE)' : ''}  ${String(x.d).padStart(5)} m  zone ${x.zone}  Mk ${x.mk}  peak ${String(x.peak).padStart(3)}  by ${String(x.by).padEnd(8)} squad ${m}`);
+    console.log(`${x.prof.padEnd(7)} seed ${String(x.seed).padEnd(7)} ${String(x.t).padStart(6)} s${x.alive ? ' (ALIVE)' : ''}  ${String(x.d).padStart(5)} m  zone ${x.zone}  Mk ${x.mk}  peak ${String(x.peak).padStart(3)}  by ${String(x.by).padEnd(8)} squad ${m}${x.sab ? `  sab sent ${x.sab.sent} landed ${x.sab.landed}` : ''}`);
   }
   console.log('');
   let worst = 0;

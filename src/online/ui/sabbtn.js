@@ -7,7 +7,7 @@
 //   - a one-shot READY chip on sab:charge, a NOW! chip + pulse while a send is possible and its target is in danger.
 // Pointerdown (works while another finger drags; the next click is swallowed), key Q on desktop (not in INPUT /
 // TEXTAREA). A tap calls game.versus.sab.send(); a refused send shakes and plays 'deny'.
-// The game side (game.versus.sab, SABGAME) may be absent: then the button never shows. It is put into the HUD on
+// It reads game.versus.sab (src/online/game/sabotage.js; without one the button never shows). It is put into the HUD on
 // 'versus:start' and taken out on any other run, so the single-player HUD never has it. DOM writes only on change.
 import { sabIcon, sabKind, SAB_COLOR, BIG_COLOR } from './sabwords.js';
 

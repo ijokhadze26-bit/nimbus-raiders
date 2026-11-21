@@ -11,7 +11,8 @@
 // Stage 2: a rival's sabotage flags (codec.js FLAG, sent in its state): purple bolt while it is being sabotaged,
 // snowflake while frozen, gold star while it holds a big one. One rival: all three on the card's corner; two or three
 // rivals: only one small icon after the seat dot (frozen > big > sabotaged).
-// The one-off SUDDEN DEATH / STORM / RIVAL DOWN lines stay with versus.js (hazard:hint): the tag here is the state.
+// The one-off SUDDEN DEATH / STORM lines stay with versus.js (hazard:hint), RIVAL DOWN! is vsmoment.js's banner: the
+// tag here is the state.
 // DOM writes only when a value changes, and the numbers are read 8 times a second, not every frame.
 import { icon } from '../../ui/icons.js';
 import { SLOT_COLORS } from '../game/vsdata.js';

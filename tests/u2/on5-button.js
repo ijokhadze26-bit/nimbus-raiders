@@ -1,6 +1,6 @@
 // @smoke --seconds 0 --shots 0
 // Online stage 2, sabotage UI: the SABOTAGE button (src/online/ui/sabbtn.js) against the stub of game.versus.sab
-// (tests/u2/lib/sabstub.js: the exact API of STAGE2, so this runs with or without SABGAME's real one).
+// (tests/u2/lib/sabstub.js: the exact API of STAGE2 in front of the real one; on5-real.js runs the real one).
 // 1. Hidden in single-player and before GO; shown after GO; gone after my fall; never in the single-player HUD later.
 // 2. Shows the icon of `next`, x2 at 2 charges, the wait seconds, BIG (gold) with a big one, NOW! when the target is in
 //    danger and a send is possible; a READY chip on sab:charge.
@@ -8,7 +8,6 @@
 //    formation / dodge buttons or the weapon badge.
 // 4. A tap (pointerdown) and Q call send() once each; a refused send shakes and plays 'deny'.
 // 5. DOM writes only on change: <= 10 per 60 frames of steady fill, 0 with nothing changing.
-// 6. Without any game.versus.sab the button never shows and nothing throws.
 const g = window.__game, d = g.debug;
 const fails = [], info = {};
 const ok = (c, what) => { if (!c) fails.push(what); };
@@ -128,17 +127,7 @@ try {
   ok(!btn() && !k.q('.sab-warn') && !k.text('.sab-feed'), 'sabotage pieces in the single-player HUD after a match');
   d.toTitle();
 
-  // ---- 6. no sab at all (the game side absent; with SABGAME merged versus.js needs its own, so this is skipped) ----
-  const real = stub.real;
   stub.remove(); stub = null;
-  if (!real) {
-    delete versus.sab;
-    k.start({ referee: false, rivals: [{ slot: 1, name: 'Mika' }] });
-    let threw = null;
-    try { k.frames(1); keyQ(); if (btn()) down(btn()); } catch (e) { threw = e.message; }
-    ok(!threw && !shown(), 'without game.versus.sab: ' + (threw || 'the button shows'));
-    k.end();
-  } else info.noSab = 'skipped: the real game.versus.sab exists';
 } catch (e) {
   fails.push('threw: ' + (e.stack || e.message).slice(0, 600));
 } finally {

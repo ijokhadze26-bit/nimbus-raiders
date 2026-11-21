@@ -90,7 +90,7 @@ export function mountVsMoment(ctx) {
     M.verdict = key;
     moment.className = `vs-moment ${kind}${M.banner ? ' under' : ''}${low ? ' low' : ''}`;
     moment.innerHTML = `<div class="vm-big">${WORDS[kind]}</div>`;
-    hideHint(); // ("RIVAL DOWN! Stay alive" has done its job once the verdict is in)
+    hideHint(); // (a SUDDEN DEATH / STORM line has nothing more to say once the verdict is in)
     if (!M.banner) cinema(kind === 'win' ? 'rival' : 'lose');
   }
 
@@ -121,7 +121,7 @@ export function mountVsMoment(ctx) {
 
   return {
     /** Per frame (ui.update): while a banner shows it owns the screen, so a hazard line emitted with or after the event
-     *  that started it (versus.js "RIVAL DOWN! Stay alive", a SUDDEN DEATH line) is taken off. */
+     *  that started it (a SUDDEN DEATH / STORM line) is taken off. */
     update() { if (!M.banner) return; const h = ui.hud.hazardHint; if (h && h.el && !h.el.classList.contains('hidden')) h.hide(); },
     tint, bars, down, moment, clear,
     get banner() { return M.banner; }, get verdict() { return M.verdict.split(':')[0]; }, get cam() { return M.cam; },
