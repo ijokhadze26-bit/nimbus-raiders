@@ -13,10 +13,12 @@ export const SAB = {
   // `store` charges at most, `bigStore` big ones; one send per `gap` s
   meter: { first: 60, step: 40, max: 240, store: 2, bigStore: 1, gap: 6 },
   cycle: { mul: 131, add: 17 },                  // Rng(seed * 131 + 17): order of the normal kinds
-  // receiver: lands `delay` s after receipt; one per `perSender` s from the same sender; at most `queue` waiting;
-  // a road-only kind waits at most `waitMax` s for a boss arena to end (then it is an EXTRA WAVE); an event sent more
-  // than `stale` s before my match clock, or more than `joinGrace` s before my join, is old
-  recv: { delay: 1.0, perSender: 5, queue: 3, waitMax: 20, stale: 8, joinGrace: 1 },
+  // receiver: lands `delay` s after receipt; one per `perSender` s from the same sender (on the sender's clock in `a`)
+  // and one per `floor` s of my receipts; at most `queue` waiting; a road-only kind waits at most `waitMax` s for a
+  // boss arena to end (then it is an EXTRA WAVE); an event sent more than `stale` s before my match clock, more than
+  // `ahead` s after it, or more than `joinGrace` s before my join, is old; a big one needs a boss behind it: one per
+  // ENDLESS.bossEvery u of the sender's reported distance (+ `earnSlack`: the arena starts 2 u before the boss row)
+  recv: { delay: 1.0, perSender: 5, floor: 2, queue: 3, waitMax: 20, stale: 8, ahead: 2, joinGrace: 1, earnSlack: 10 },
   arenaMul: 0.3, arenaMin: 4,                    // waves in a boss arena (STAGE2 Decision 5)
   wave: { frac: 0.35, min: 12, max: 120 },       // count = clamp(round(frac * E), min, max), E = generator knobs
   fog: { dur: 6, fogMul: 0.4 },

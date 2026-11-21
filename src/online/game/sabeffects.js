@@ -4,7 +4,8 @@
 // world read them next).
 //   1 EXTRA WAVE   ramp.wave(clamp(round(0.35 E), 12, 120)), x0.3 (min 4) in a boss arena
 //   2 FOG          6 s of mods.fogMul <= 0.4
-//   3 RED GATE     a full row of two -N gates spliced into the road ahead (N = max(4, round(0.2 x squad)))
+//   3 RED GATE     a full row of two -N gates spliced into the road ahead (N = max(4, round(0.2 x squad))), 12 u
+//                  clear of every gate, barrel and crate row
 //   4 SPEED UP     5 s of mods.speedMul x 1.35 (after the ramp's pace; run.speed is never touched)
 //   5 FREEZE       2 s: the leader's x is held through runMods.holdFn (covers the autopilot), then released
 //                  without a jump (the drag re-anchors where the squad stands)
@@ -17,6 +18,7 @@ import { gate } from '../../data/beats.js';
 
 const C = SAB.code;
 const TIMED = ['fog', 'speed', 'freeze', 'blackout'];
+const BLOCK = ['gate', 'barrel', 'crate']; // rows a red gate keeps SAB.red.clear u away from
 
 export class SabEffects {
   constructor(game, versus) {
@@ -24,6 +26,7 @@ export class SabEffects {
     this.left = { fog: 0, speed: 0, freeze: 0, blackout: 0 };
     this.fogBy = C.fog;
     this.heldX = 0; this.holding = false;
+    this.rows = []; // (redSpot's scratch list)
     this.lastHit = -Infinity; // played clock of the last wave / gate / storm landing (the 'sabotaged' flag)
     this.hold = () => this.heldX;
     this.stats = { waves: 0, waveCount: 0, reds: 0, landed: 0 };
@@ -45,13 +48,18 @@ export class SabEffects {
     return this.arena() ? Math.max(SAB.arenaMin, Math.round(n * SAB.arenaMul)) : n;
   }
 
-  /** Where a red gate row would go now (null = no room left in this zone). */
+  /** Where a red gate row would go now (null = no room left in this zone): `clear` u from every gate, barrel and
+   *  crate row (the weapon crate and the sabotage crate too), like the generator keeps them apart. */
   redSpot() {
-    const run = this.game.run, R = SAB.red, ev = run.eventsOf('gate');
-    const end = run.length - R.preBoss;
-    for (let at = Math.ceil(run.dist + R.ahead); at < end; at += R.step) {
+    const run = this.game.run, R = SAB.red, end = run.length - R.preBoss, from = Math.ceil(run.dist + R.ahead);
+    const rows = this.rows; rows.length = 0;
+    for (const type of BLOCK) {
+      const ev = run.eventsOf(type);
+      for (let i = 0; i < ev.length; i++) if (ev[i].at > from - R.clear && ev[i].at < end + R.clear) rows.push(ev[i].at);
+    }
+    for (let at = from; at < end; at += R.step) {
       let ok = true;
-      for (let i = 0; i < ev.length; i++) if (Math.abs(ev[i].at - at) < R.clear) { ok = false; break; }
+      for (let i = 0; i < rows.length; i++) if (Math.abs(rows[i] - at) < R.clear) { ok = false; break; }
       if (ok) return at;
     }
     return null;

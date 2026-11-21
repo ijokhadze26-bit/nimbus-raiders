@@ -3,7 +3,8 @@
 // of src/online/game/testlink.js on its 'sim' clock (the match clock IS the simulated time, so nothing waits).
 //
 //   const k = await (await import('/tests/u2/lib/on4kit.js')).on4(window.__game);
-//   k.start({ rivals, seed, clock, ap })  -> link      a match (autopilot `ap`, default 'pro'); 3 rivals by default
+//   k.start({ rivals, seed, clock, ap, trust })  -> link  a match (autopilot `ap`, default 'pro'); 3 rivals by default;
+//                                                       trust: false keeps the receiver's earned check for big ones
 //   k.run(seconds, each?)                             pump at 60 steps a second (each(step) after every step)
 //   k.until(fn, seconds)                              pump until fn() (false when it never came)
 //   k.log / k.of(type)                                every sab:* event as { type, t (played clock), clock, ...payload }
@@ -35,6 +36,9 @@ export async function on4(g) {
       d.setAutopilot(o.ap === undefined ? 'pro' : o.ap, 1);
       const link = createTestLink({ game: g, seed: o.seed ?? 11, rivals: o.rivals || peers([30, 80, 50]), ...(o.clock ? { clock: o.clock } : {}), ...(o.link || {}) });
       versus.start(link, { hero: 'pip', weapon: 'thunderclap' });
+      // the scripted rivals send big ones long before their curve reaches a boss: skip the earned check unless a test
+      // checks it (o.trust === false)
+      if (o.trust !== false) versus.sab.test.trust(true);
       return link;
     },
     run(seconds, each) {

@@ -2,7 +2,8 @@
 // Online stage 2, what a sabotage does when it lands (src/online/game/sabeffects.js):
 // 1. The numbers: EXTRA WAVE count from the generator's E, FOG / BLACKOUT fogMul and dark for their seconds, SPEED UP
 //    speedMul x 1.35 on top of the ramp's pace, HORDE STORM ramp.wave(90, 1, 0.33) + 4 s of fog, the RED GATE row
-//    (two -N gates, N = max(4, round(0.2 x squad)), at >= dist + 115, 12 u clear of every row). sab:end at the end.
+//    (two -N gates, N = max(4, round(0.2 x squad)), at >= dist + 115, 12 u clear of every gate, barrel and crate
+//    row). sab:end at the end.
 // 2. FREEZE holds the leader's x for 2 s while the drag target moves, then releases without a jump; with the
 //    autopilot too. holdFn is null after it, after my fall and after a run of another mode.
 // 3. A red gate splice keeps the ramp's red rows identical to a run without it (gate rows of zones 1-2).
@@ -61,7 +62,7 @@ try {
   l = landNow(link, 3, 3);
   const ev = g.run.eventsOf('gate'), row = ev.filter((e) => e.sab);
   const N = Math.max(4, Math.round(0.2 * sq)), at = row[0] && row[0].at;
-  const others = ev.filter((e) => !e.sab);
+  const others = [...ev.filter((e) => !e.sab), ...g.run.eventsOf('barrel'), ...g.run.eventsOf('crate')];
   ok(l && l.count === -N && row.length === 2 && row.every((e) => e.at === at && e.op === 'add' && e.value === -N && e.max === -1) && row.map((e) => e.lane).sort().join() === 'L,R', `red gate: ${JSON.stringify(l)} ${JSON.stringify(row)} squad ${sq}`);
   ok(at >= dist + 115 && at < g.run.length - 55 && others.every((e) => Math.abs(e.at - at) >= 12) && ev.every((e, i) => i === 0 || ev[i - 1].at <= e.at) && ev.indexOf(row[0]) >= g.gates.cursor, `red gate spot ${at} (dist ${dist}, length ${g.run.length})`);
   // it reaches the road: two red gates spawn and passing one costs N

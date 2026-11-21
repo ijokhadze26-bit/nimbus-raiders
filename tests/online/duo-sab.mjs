@@ -18,6 +18,8 @@ const arm = (...ps) => Promise.all(ps.map((p) => p.ev((T) => {
   g.runMods.ext.push(() => { if (L.keep && g.run && g.run.active && g.run.mode === 'versus') { g.heroes.guard = 99; if (g.squad.count < L.keep) g.squad.setCount(L.keep, 'test'); } });
 }, TYPES)));
 const keep = (p, n) => p.ev((x) => { window.__sab.keep = x; }, n);
+/** p takes big ones its rivals have not earned with a boss (the kinds tests load them with giveBig at zone 1). */
+const trust = (...ps) => Promise.all(ps.map((p) => p.ev(() => window.__game.versus.sab.test.trust(true))));
 const log = (p, from = 0) => p.ev((f) => window.__sab.log.slice(f), from);
 const mark = (p) => p.ev(() => window.__sab.log.length);
 const sabView = (p) => p.ev(() => ({ ...window.__game.versus.sab.view() }));
@@ -71,6 +73,7 @@ export const scenarios = [
     name: 'each of the 7 kinds A -> B: warning words on B, feed on A, lands 1.0 s after receipt',
     async run(duo, { ok, eq, note }) {
       const [A, B] = await match(duo);
+      await trust(B);
       for (const code of [1, 2, 3, 4, 5, 11, 12]) {
         await duo.play(5.2); // (B takes one sabotage per 5 s from one sender)
         const k = sabKind(code);
@@ -206,6 +209,7 @@ export const scenarios = [
       eq(r.sent.names, ['Ben'], 'the normal one went to');
       eq((await log(C, mc)).filter((e) => e.type === 'sab:warn').length, 0, 'Cyd got the normal one');
       await duo.play(6);
+      await trust(B, C);
       const [mb2, mc2] = [await mark(B), await mark(C)];
       await load(A, 12); await duo.step(); await A.click('.sab-btn');
       const wb = await wait(duo, B, mb2, (e) => e.type === 'sab:warn' && e.code === 12);

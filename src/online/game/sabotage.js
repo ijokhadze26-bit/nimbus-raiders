@@ -11,12 +11,18 @@
 // sab:warn { id, code, big, from, name, lands, again }, sab:wait { id, code, from, name },
 // sab:land { id, code, big, from, name, dur, count }, sab:end { code }, sab:drop { code, from, why }.
 // Wire: link.sendEvent({ k: 's', a: sabEncode(code, link.clock()), to }) (sabdata.js); a receiver drops a replay
-// ('dup', per `f:q`), an event from before its join or more than 8 s old ('old'), one from a sender that is unknown
-// or out ('out'), a second one from the same sender inside 5 s ('spam'), a 4th waiting ('full'), an unknown code ('bad').
+// ('dup', per `f:q`), an event from before its join, more than 8 s old or more than 2 s ahead of my clock ('old'), one
+// from a sender that is unknown or out ('out'), an unknown code, a normal one sent to everyone or a big one sent to one
+// rival, and a big one the sender cannot have earned yet ('bad': one per boss, so one per 700 u of the distance its
+// states report, which verdict.js plausible() bounds), a second one from the same sender less than 5 s later on the
+// SENDER's clock in `a` (legit sends are 6 s apart there, however the network delays them) or less than 2 s after
+// the last one arrived ('spam'), a 4th waiting ('full'). A modified client can still send a normal kind every 5 s
+// without filling its meter: the meter lives on the sender's page and no receiver can check it.
 import { Rng } from '../../core/rng.js';
 import { SAB, sabEncode, sabDecode, sabCost, sabBig, sabRoad, sabKnown } from './sabdata.js';
 import { SabEffects } from './sabeffects.js';
 import { SabCrates } from './sabcrate.js';
+import { ENDLESS } from '../../data/endless.js';
 
 const EPS = 1e-6;
 
@@ -26,13 +32,15 @@ export class Sabotage {
     this.fx = new SabEffects(game, versus);
     this.crates = new SabCrates(game);
     this.V = { on: false, ready: 0, fill: 0, next: 1, big: 0, wait: 0, can: false, target: null, targetDanger: 0, incoming: 0, frozen: 0, fog: 0, speed: 0, blackout: 0 };
-    this.pending = []; this.seen = new Set(); this.lastFrom = new Map();
-    this.live = false;
+    this.pending = []; this.seen = new Set(); this.lastFrom = new Map(); this.lastSent = new Map(); this.bigsFrom = new Map();
+    this.live = false; this.trust = false;
     this.reset(1, 0);
     this.test = {
       give: (code, n = 1) => { this.ready = Math.min(SAB.meter.store, this.ready + Math.max(1, n | 0)); if (code != null && SAB.normal.includes(code)) { this.force = code; this.forceN = Math.max(1, n | 0); } if (this.ready >= SAB.meter.store) this.fill = 0; return this.view(); },
       giveBig: (code = SAB.code.storm) => { if (SAB.big.includes(code)) this.big = code; return this.view(); },
       clear: () => { this.ready = 0; this.fill = 0; this.big = 0; this.force = 0; this.forceN = 0; this.lastSend = -Infinity; return this.view(); },
+      // this receiver takes big ones without the earned check, until the next match (tests whose rivals send bigs early)
+      trust: (on = true) => { this.trust = !!on; },
     };
     const ev = game.events;
     ev.on('crate:take', (p) => { if (p && p.kind === 'sabotage') this.onCrate(); });
@@ -44,7 +52,8 @@ export class Sabotage {
     this.force = 0; this.forceN = 0; this.lastKills = 0;
     this.cycleRng = new Rng(seed * SAB.cycle.mul + SAB.cycle.add);
     this.cycle = this.shuffle(); this.ci = 0;
-    this.pending.length = 0; this.seen.clear(); this.lastFrom.clear();
+    this.pending.length = 0; this.seen.clear(); this.lastFrom.clear(); this.lastSent.clear(); this.bigsFrom.clear();
+    this.trust = false;
     this.joinT = joinT; this.nextId = 1;
     this.stats = { sent: 0, accepted: 0, landed: 0, dropped: {} };
     this.fx.reset();
@@ -165,21 +174,27 @@ export class Sabotage {
     if (this.seen.has(key)) return this.drop(code, from, 'dup');
     this.seen.add(key);
     if (!valid) return this.drop(0, from, 'bad');
-    const link = this.versus.link, R = SAB.recv;
-    if (sent < this.joinT - R.joinGrace || link.clock() - sent > R.stale) return this.drop(code, from, 'old');
+    const link = this.versus.link, R = SAB.recv, now = link.clock();
+    if (sent < this.joinT - R.joinGrace || now - sent > R.stale || sent - now > R.ahead) return this.drop(code, from, 'old');
     const p = this.versus.peer(from);
     if (!p || !p.alive) return this.drop(code, from, 'out');
-    const t = this.versus.t, last = this.lastFrom.get(from);
-    if (last != null && t - last < R.perSender - EPS) return this.drop(code, from, 'spam');
+    const big = sabBig(code), bigs = this.bigsFrom.get(from) || 0;
+    if (!sabKnown(code) || big !== (e.to === -1)) return this.drop(code, from, 'bad');
+    if (big && !this.trust && bigs >= this.earned(p)) return this.drop(code, from, 'bad');
+    const t = this.versus.t, lastS = this.lastSent.get(from), lastR = this.lastFrom.get(from);
+    if ((lastS != null && sent - lastS < R.perSender - EPS) || (lastR != null && t - lastR < R.floor - EPS)) return this.drop(code, from, 'spam');
     if (this.pending.length >= R.queue) return this.drop(code, from, 'full');
-    if (!sabKnown(code)) return this.drop(code, from, 'bad');
-    this.lastFrom.set(from, t);
+    this.lastFrom.set(from, t); this.lastSent.set(from, sent);
+    if (big) this.bigsFrom.set(from, bigs + 1);
     this.stats.accepted++;
-    const item = { id: this.nextId++, code, big: sabBig(code), from, name: p.name, recvT: t, state: 'warn', waitT: 0 };
+    const item = { id: this.nextId++, code, big, from, name: p.name, recvT: t, state: 'warn', waitT: 0 };
     this.pending.push(item);
     this.warn(item, false);
     if (sabRoad(code) && !this.fx.canLand(code)) this.toWait(item);
   }
+
+  /** Big ones rival p can have earned: one per boss, and boss n stands at n x 700 u (its reported distance). */
+  earned(p) { return Math.floor(((p.dist || 0) + SAB.recv.earnSlack) / ENDLESS.bossEvery); }
 
   warn(item, again) {
     item.state = 'warn';

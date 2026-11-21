@@ -30,6 +30,7 @@ for (const prof of profs) {
     d.setLoadout(hero, weapon);
     d.setAutopilot(prof, seed0 + i);
     versus.start(createTestLink({ game: g, seed, ...(mirror ? { mirror: true, rivals: [{ slot: 1, name: 'Mirror' }] } : {}) }), { hero, weapon });
+    if (mirror) versus.sab.test.trust(true); // the mirror earns its big ones with my boss kills, not its scripted curve
     const marks = {};
     let peak = 0, next = 30;
     while (g.run && g.run.active && g.state === 'playing' && versus.t < maxT) {
