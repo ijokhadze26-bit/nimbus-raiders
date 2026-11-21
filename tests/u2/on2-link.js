@@ -4,7 +4,9 @@
 // 1. The page address: ?room=abcd is read (upper case), online is opened at boot, and room / watch leave the address
 //    so a reload does not join again; the other parameters stay. With no service set up the title says COMING SOON.
 // 2. A link to a real room: first visit -> name first, then straight into that lobby as the second player.
-// 3. THE HOST LEFT: banner, READY off, LEAVE ROOM goes back to the hub. A short connection blip keeps my seat.
+// 3. A short connection blip keeps my seat. The host's connection drops: WAITING FOR THE HOST (READY kept, no share
+//    buttons), after the grace THE HOST LEFT (READY off); the host comes back and the room works again. The host taps
+//    LEAVE: the room is gone for everyone (ROOM CLOSED on my hub). A room whose host has gone cannot be joined.
 // 4. ROOM NOT FOUND (a wrong code), ROOM IS FULL, MATCH ALREADY STARTED, ROOM CLOSED: plain words on the hub, and
 //    nothing of me is left in those rooms.
 // 5. YOU LOST YOUR SEAT: my connection drops, someone takes the seat, I come back.
@@ -23,7 +25,7 @@ try {
   ok(ui.params.room === 'ABCD' && ui.params.watch === true && ui.params.net === null && ui.params.pid === 'A1' && ui.params.nettest === 'lat400,jit200,loss5', 'params: ' + JSON.stringify(ui.params));
   ok(!q.has('room') && !q.has('watch') && q.get('test') === '1' && q.get('pid') === 'A1', 'address after boot: ' + location.search);
   await K.until(() => ui.online.state !== 'loading' && ui.online.state !== 'idle', 6000);
-  const lbl = ui.screens.title.el.querySelector('.btn-online .on-lbl').textContent;
+  const lbl = ui.screens.title.el.querySelector('.btn-online .btn-online-lbl').textContent;
   ok(ui.online.state === 'soon' && lbl === 'ONLINE · COMING SOON' && g.state === 'title', `link with no service: ${ui.online.state} "${lbl}" ${g.state}`);
   for (const bad of ['ABC', 'ABCDE', 'AB1D', 'ABIO', 'A<CD']) ok(!/^[A-HJ-NP-Z]{4}$/i.test(bad), 'room pattern lets through ' + bad);
   // ---- 2. a link to a real room ----
@@ -57,13 +59,35 @@ try {
   offline(false);
   await K.until(() => flow.room && flow.room.state.me === 1 && flow.room.state.seats[1].rdy && P.q('.on-banner').hidden, 4000);
   ok(P.view() === 'lobby' && flow.room && flow.room.state.me === 1 && flow.room.state.seats[1].rdy && flow.room.state.seats[1].n === 'Linky', 'a short blip lost my seat / my READY');
-  await room.leave();
-  await K.until(() => flow.room && flow.room.state.hostLeft);
+  const LV = P.scr.views.lobby, share = () => P.q('.on-sharerow').hidden;
+  ok(!share(), 'the share buttons are hidden in a normal lobby');
+  LV.graceMs = 1500;
+  holly.tp._net(false); // the host's internet drops (the hub frees a dead connection's seat after 300 ms here)
+  await K.until(() => flow.room && flow.room.state.hostLeft, 3000);
   await K.wait(50);
-  ok(/THE HOST LEFT/.test(P.text('.on-banner')) && P.q('.on-ready').classList.contains('is-disabled') && !/WAITING FOR A FRIEND/.test(P.text('.on-seats')), 'host left: ' + P.text('.on-banner'));
-  P.tap('[data-act="leave"]');
-  await K.until(() => P.view() === 'hub');
-  ok(P.view() === 'hub' && flow.room === null && !flow.notice, 'LEAVE ROOM after the host left');
+  ok(/WAITING FOR THE HOST/.test(P.text('.on-banner')) && !/HOST LEFT/.test(P.text('.on-banner')) && !P.q('.on-ready').classList.contains('is-disabled') && flow.room.state.seats[1].rdy && share(),
+    `host dropped: "${P.text('.on-banner')}" ready-off ${P.q('.on-ready').classList.contains('is-disabled')} share-hidden ${share()}`);
+  await K.until(() => /THE HOST LEFT/.test(P.text('.on-banner')), 3000);
+  ok(/THE HOST LEFT/.test(P.text('.on-banner')) && P.q('.on-ready').classList.contains('is-disabled') && share() && /NOBODY HERE/.test(P.text('.on-seats')), 'after the grace: ' + P.text('.on-banner'));
+  holly.tp._net(true); // back: room.js takes the seat back
+  await K.until(() => flow.room && !flow.room.state.hostLeft && P.q('.on-banner').hidden, 4000);
+  ok(P.q('.on-banner').hidden && !share() && /Holly/.test(P.text('.on-seats')) && flow.room.state.seats[1].rdy, 'the host came back: ' + P.text('.on-banner'));
+  LV.graceMs = 20000;
+  await room.leave(); // the host taps LEAVE ROOM: the room is gone for everyone
+  await K.until(() => P.view() === 'hub', 3000);
+  ok(P.view() === 'hub' && flow.room === null && flow.notice && flow.notice.kind === 'closed' && hub.admin.get(`rooms/${room.code}`) === null, `host left: view ${P.view()} ${JSON.stringify(flow.notice)}`);
+  // an old code of a room whose host has gone: ROOM CLOSED, not a dead lobby (and that room is tidied away)
+  room = await holly.create();
+  holly.tp._net(false);
+  await K.until(() => !hub.admin.get(`rooms/${room.code}/sl`), 3000);
+  P.type('.on-code', room.code); P.tap('[data-act="join"]');
+  await K.until(() => !flow.busy && !!flow.notice, 4000);
+  ok(P.view() === 'hub' && flow.room === null && flow.notice && flow.notice.kind === 'closed' && /ROOM CLOSED/.test(P.text('.on-hub .on-msg')), 'joining a dead room: ' + JSON.stringify(flow.notice));
+  await K.until(() => hub.admin.get(`rooms/${room.code}`) === null, 3000);
+  ok(hub.admin.get(`rooms/${room.code}`) === null, 'the dead room was not tidied away');
+  room.close();
+  holly.tp._net(true);
+  flow.clearNotice();
   // ---- 4. wrong code / full / playing / closed ----
   ui.nav('title');
   r = await ui.openOnline({ room: 'ZZZZ' });

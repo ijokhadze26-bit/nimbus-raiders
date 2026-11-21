@@ -15,7 +15,8 @@
 //   setPicks({ hero, weapon })      change my pick (only heroes / weapons I own; not while READY)
 //   ready(on)                       READY / NOT READY in the lobby
 //   startMatch()                    runs on the room's 'start': link = createMatch(...), game.versus.start(link, picks)
-//   rematchState()                  { can, mine, others: [{ slot, name, here, wants }], waitingFor, lost, hostLeft }
+//   rematchState()                  { can, mine, others: [{ slot, name, here, wants, offline }], waitingFor, lost, hostLeft }
+//                                   (offline: not seated, and the match saw that rival's connection drop)
 //   rematch()                       I want another round; the next 'start' of the room begins it
 //   leave(to = 'online')            leave the match and the room for good, then go to the hub ('online') or 'title'
 //   on(type, cb) -> off             'change': something a screen shows has changed
@@ -37,6 +38,7 @@ export const NOTICES = {
   full: ['ROOM IS FULL', 'That room already has all its players.'],
   playing: ['MATCH ALREADY STARTED', 'That room is in the middle of a match. Ask your friend for a new code.'],
   closed: ['ROOM CLOSED', 'That room is gone. Make a new one!'],
+  hostaway: ['THE HOST IS AWAY', "The host's internet dropped. Try again in a moment."],
   lostseat: ['YOU LOST YOUR SEAT', 'Your connection dropped and someone took your place. Join again or make a new room.'],
   nocreate: ['COULD NOT MAKE A ROOM', 'Something went wrong. Please try again.'],
   noanswer: ['NO ANSWER', 'The room did not answer. Check your internet and try again.'],
@@ -50,6 +52,7 @@ export function createFlow(game, ui, { transport, session }) {
   let wantRematch = false;
   let matchRn = 0;          // the room's round number when the current match began
   let players = [];         // who was in the current / last match: [{ slot, uid, name }]
+  let parked = false;       // I was un-readied because my rematch partner went away (ready again when they are back)
   let queued = false;
 
   const emitNow = () => { queued = false; for (const cb of [...(handlers.get('change') || [])]) { try { cb(flow); } catch (e) { console.error(e); } } };
@@ -102,7 +105,30 @@ export function createFlow(game, ui, { transport, session }) {
     // no seat for me: the room was full or already playing (watching a match comes in a later stage)
     if (state.watching && !inMatch) { dropRoom(state.st === 'live' ? 'playing' : 'full'); return; }
     if (state.lost && !inMatch) { dropRoom('lostseat'); return; }
+    if (inMatch) guardRematch(state);
     changed();
+  }
+
+  // On the result screen, a rematch only ever starts with the players of the last match. The room is back in the
+  // lobby for the next round: when my partner is not seated I am not READY (so nobody else can start a match from
+  // my result screen); when someone new sits down, I am taken to the lobby to see them and tap READY there.
+  function guardRematch(st) {
+    if (st.st !== 'lobby' || st.rn <= matchRn || st.me === null || !flow.room) return;
+    const mine = st.seats[st.me];
+    const known = (s) => players.some((p) => p.uid === s.uid);
+    const others = st.seats.filter((s) => s && s.uid !== session.uid);
+    if (others.some((s) => !known(s))) {
+      if (mine && mine.rdy) flow.room.ready(false);
+      parked = false; wantRematch = false;
+      const l = flow.link; flow.link = null; if (l) l.leave();
+      if (game.state !== 'online') ui.nav('online');
+      return;
+    }
+    if (!others.length) {
+      if (mine && mine.rdy) { parked = true; flow.room.ready(false); }
+    } else if (parked && mine && !mine.rdy) {
+      parked = false; flow.room.ready(true);
+    }
   }
 
   function adopt(room) {
@@ -182,7 +208,7 @@ export function createFlow(game, ui, { transport, session }) {
     /** `code`: four letters. (A link with &watch=1 joins like any other until the watch view exists, stage 5.) */
     joinRoom(code) {
       return enter('join', () => joinRoom({ transport, code, profile: session.profile, picks: seatPicks() }),
-        (e) => (e && e.code === 'not-found' ? 'notfound' : e && e.code === 'full' ? 'full' : 'noanswer'));
+        (e) => ({ 'not-found': 'notfound', full: 'full', closed: 'closed', hostaway: 'hostaway' }[e && e.code] || 'noanswer'));
     },
 
     /** Hero / weapon for the next match: stored like the LOADOUT page stores it, then shown to the room. */
@@ -205,7 +231,7 @@ export function createFlow(game, ui, { transport, session }) {
       const link = createMatch({ transport, room, cfg: session.cfg });
       if (link.slot === null) { link.leave(); dropRoom('playing'); return false; } // it began without me
       flow.link = link;
-      wantRematch = false;
+      wantRematch = false; parked = false;
       matchRn = st.rn;
       players = (st.players || []).map((p) => ({ slot: p.slot, uid: p.uid, name: p.n }));
       pending.set({ mid: link.mid, slot: link.slot, uid: session.uid, ts0: link.t0 - NET.goMs });
@@ -215,18 +241,20 @@ export function createFlow(game, ui, { transport, session }) {
     },
 
     rematchState() {
+      // a rival the match saw drop (forfeited for silence, or silent right now) is offline, not gone for good
+      const offline = (slot) => { const p = game.versus && game.versus.peer ? game.versus.peer(slot) : null; return !!p && (p.by === 'dc' || p.silent > 0 || p.countdown != null); };
       const out = { can: false, mine: false, others: [], waitingFor: null, lost: false, hostLeft: false };
       const st = flow.room && flow.room.state;
       const rivals = players.filter((p) => p.uid !== session.uid);
       if (!st || st.gone) {
-        out.others = rivals.map((p) => ({ slot: p.slot, name: p.name, here: false, wants: false }));
+        out.others = rivals.map((p) => ({ slot: p.slot, name: p.name, here: false, wants: false, offline: false }));
         return out;
       }
       const turned = st.st === 'lobby' && st.rn > matchRn; // everyone who is still here asked: the next round is being set up
       const wants = (seat) => !!seat && (turned || (st.st === 'live' ? seat.rm : seat.rdy));
       out.others = rivals.map((p) => {
         const seat = st.seats.find((s) => s && s.uid === p.uid) || null;
-        return { slot: p.slot, name: seat ? seat.n : p.name, here: !!seat, wants: wants(seat) };
+        return { slot: p.slot, name: seat ? seat.n : p.name, here: !!seat, wants: wants(seat), offline: !seat && offline(p.slot) };
       });
       const seat = st.me !== null ? st.seats[st.me] : null;
       out.mine = !!seat && (wantRematch || wants(seat));

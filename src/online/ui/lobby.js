@@ -4,6 +4,9 @@
 // skin id is looked up in the game's own tables (an unknown one shows the starter), names are text.
 // CHANGE opens the picker in place: the same chips as the LOADOUT page (ui/screens/armory.js chipHtml); only heroes
 // and weapons I own can be picked, a locked chip says how to unlock it. Picks lock while I am READY.
+// The host's seat empty (room.js `hostLeft`: a host who taps LEAVE removes the room, so this is a dropped connection):
+// "WAITING FOR THE HOST" with READY kept, and only after HOST_GRACE_MS without them "THE HOST LEFT". The share
+// buttons are hidden meanwhile: a friend could not get into that room.
 import { el, bump } from '../../ui/ui.js';
 import { icon } from '../../ui/icons.js';
 import { heroIcon, weaponIcon } from '../../ui/icons2.js';
@@ -16,11 +19,13 @@ import { isHeroUnlocked, isWeaponUnlocked, lockText } from '../../save/unlocks.j
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' };
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ESC[c]);
 const DOTS = '<i class="on-dots"><b></b><b></b><b></b></i>';
+export const HOST_GRACE_MS = 20000;
 
 /** One seat as HTML. `seat` is a room.js seat or null (nobody there: waiting for a friend, or the host has gone). */
 function seatHtml(seat, mine, hostLeft) {
   if (!seat) {
-    return `<div class="on-seat empty"><div class="on-seat-tag">RIVAL</div>${hostLeft ? '<div class="on-wait">NOBODY HERE</div>'
+    return `<div class="on-seat empty"><div class="on-seat-tag">RIVAL</div>${hostLeft === 'gone' ? '<div class="on-wait">NOBODY HERE</div>'
+      : hostLeft ? `<div class="on-wait">WAITING FOR THE HOST${DOTS}</div>`
       : `<div class="on-wait">WAITING FOR A FRIEND${DOTS}</div><div class="on-seat-skin">Send them the code!</div>`}</div>`;
   }
   const h = heroDef(seat.he), w = weaponDef(seat.we);
@@ -83,9 +88,10 @@ export function createLobbyView(ui, flow) {
   const $ = (s) => root.querySelector(s);
   const tiles = $('.on-tiles'), seatsEl = $('.on-seats'), banner = $('.on-banner'), picker = $('.on-picker'), foot = $('.on-foot');
   const readyBtn = $('.on-ready'), changeBtn = $('.on-change'), status = $('.on-status'), lockLine = $('.on-lockline');
-  const copyBtn = $('[data-act="copy"]'), shareBtn = $('.on-share'), linkTxt = $('.on-linktxt');
+  const copyBtn = $('[data-act="copy"]'), shareBtn = $('.on-share'), linkTxt = $('.on-linktxt'), shareRow = $('.on-sharerow');
   const heroesRow = $('.on-heroes'), weaponsRow = $('.on-weapons');
   let picking = false, lastSeats = '', lastCode = '', copyT = 0, lastChips = '';
+  let awayAt = 0, awayT = 0; // when the host's seat went empty (0: it is not), and the timer that ends the grace
   shareBtn.hidden = typeof navigator.share !== 'function';
 
   function renderChips() {
@@ -123,18 +129,24 @@ export function createLobbyView(ui, flow) {
 
   const view = {
     el: root, title: 'FRIEND ROOM',
-    enter() { picking = false; lastSeats = ''; lastCode = ''; linkTxt.hidden = true; copyBtn.textContent = 'COPY LINK'; },
-    leave() { clearTimeout(copyT); picking = false; },
+    graceMs: HOST_GRACE_MS,
+    enter() { picking = false; lastSeats = ''; lastCode = ''; awayAt = 0; linkTxt.hidden = true; copyBtn.textContent = 'COPY LINK'; },
+    leave() { clearTimeout(copyT); clearTimeout(awayT); awayAt = 0; picking = false; },
     sync() {
       const room = flow.room, st = room && room.state;
       if (!st) return;
       if (st.code !== lastCode) { lastCode = st.code; tiles.innerHTML = [...st.code].map((c) => `<span class="on-tile">${esc(c)}</span>`).join(''); }
       const me = st.me, mine = me !== null ? st.seats[me] : null;
+      // the host's seat is empty: first a wait (a dropped connection comes back), then THE HOST LEFT
+      if (!st.hostLeft) { awayAt = 0; clearTimeout(awayT); }
+      else if (!awayAt) { awayAt = Date.now(); clearTimeout(awayT); awayT = setTimeout(() => view.sync(), view.graceMs + 50); }
+      const hostGone = !!st.hostLeft && Date.now() - awayAt >= view.graceMs;
+      const hostState = hostGone ? 'gone' : st.hostLeft ? 'away' : '';
       const rivals = st.seats.filter((s, i) => i !== me);
       const rival = rivals.find(Boolean) || null;
       // my seat first, then the others (a seat I do not hold right now shows as "getting it back")
       const html = (mine ? seatHtml(mine, true) : `<div class="on-seat me empty"><div class="on-seat-tag">YOU</div><div class="on-wait">GETTING YOUR SEAT BACK${DOTS}</div></div>`)
-        + '<div class="on-vs ol">VS</div>' + rivals.map((s) => seatHtml(s, false, st.hostLeft)).join('');
+        + '<div class="on-vs ol">VS</div>' + rivals.map((s) => seatHtml(s, false, hostState)).join('');
       if (html !== lastSeats) { lastSeats = html; seatsEl.innerHTML = html; }
       const who = ((rival && rival.n) || 'your friend').toUpperCase();
       const ready = !!(mine && mine.rdy), all = !!(mine && rival) && st.seats.filter(Boolean).every((s) => s.rdy);
@@ -143,18 +155,21 @@ export function createLobbyView(ui, flow) {
       if (picking) renderChips();
       // banner: the things that stop a match from starting
       const lost = flow.net !== 'on';
-      const text = st.hostLeft ? ['THE HOST LEFT', 'This room is closed. Leave and make a new one.']
-        : lost ? ['RECONNECTING', 'Hold on, your seat is kept for a moment.'] : null;
+      const text = hostGone ? ['THE HOST LEFT', 'They are not coming back. Leave and make a new room.']
+        : lost ? ['RECONNECTING', 'Hold on, your seat is kept for a moment.']
+          : st.hostLeft ? ['WAITING FOR THE HOST', 'Their internet dropped. Your seat and READY are kept.'] : null;
       banner.hidden = !text;
       if (text) banner.innerHTML = `<b>${text[0]}</b><span>${text[1]}</span>`;
-      const blocked = !mine || st.hostLeft || lost;
+      const blocked = !mine || hostGone || lost;
+      shareRow.hidden = !!st.hostLeft || !mine; // nobody could get into this room right now
+      if (shareRow.hidden) linkTxt.hidden = true;
       readyBtn.textContent = ready ? 'NOT READY' : 'READY';
       readyBtn.classList.toggle('btn-gold', !ready); readyBtn.classList.toggle('btn-grey', ready);
       readyBtn.classList.toggle('is-disabled', blocked);
       changeBtn.classList.toggle('is-disabled', blocked || ready);
       changeBtn.hidden = picking; readyBtn.hidden = picking;
       foot.classList.toggle('picking', picking); root.classList.toggle('picking', picking);
-      foot.classList.toggle('closed', !!st.hostLeft && !picking);
+      foot.classList.toggle('closed', hostGone && !picking);
       status.textContent = picking ? 'Pick a hero and a weapon you own.'
         : st.hostLeft ? '' : !mine ? 'One moment...'
           : all ? 'STARTING...'

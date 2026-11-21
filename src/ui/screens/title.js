@@ -41,7 +41,7 @@ export function createTitle(ui) {
       <button type="button" class="btn btn-gold btn-xl btn-play" data-act="play">
         <span class="play-ico">${icon('play')}</span><span class="col"><span class="big">PLAY</span><span class="sub wl lvl">WORLD 1 · LEVEL 1</span></span>
       </button>
-      <button type="button" class="btn btn-red btn-online" data-act="online">${icon('globe')}<span class="on-lbl">ONLINE</span></button>
+      <button type="button" class="btn btn-red btn-online" data-act="online">${icon('globe')}<span class="btn-online-lbl">ONLINE</span></button>
       <div class="title-row">
         <button type="button" class="tbtn btn-purple" data-act="modes">${icon('star')}<span>MODES</span></button>
         <button type="button" class="tbtn btn-green" data-act="shop">${icon('cart')}<span>SHOP</span></button>
@@ -56,7 +56,7 @@ export function createTitle(ui) {
   const dots = { armory: el.querySelector('[data-act="armory"] .tdot'), heroes: el.querySelector('[data-act="heroes"] .tdot') };
   const sfxBtn = el.querySelector('[data-act="sfx"]');
   const achDot = el.querySelector('.ach-dot');
-  const onBtn = el.querySelector('.btn-online'), onLbl = onBtn.querySelector('.on-lbl');
+  const onBtn = el.querySelector('.btn-online'), onLbl = onBtn.querySelector('.btn-online-lbl');
   function refreshOnline() {
     const st = ui.online ? ui.online.state : 'idle';
     onLbl.textContent = ui.online ? ui.online.label() : 'ONLINE';

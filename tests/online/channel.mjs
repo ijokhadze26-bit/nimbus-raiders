@@ -35,7 +35,13 @@ test('the first tab hosts the hub, the second finds it, and they share a room', 
   await sleep(50);
   eq(ra.state.seed, s.seed);
   ok(s.t0 > a.now() && s.t0 - a.now() < 4100, 'GO is about 4 s away');
-  a.close(); b.close();
+  // a guest tab that closes says bye: its seat goes at once and the hub forgets that client
+  const before = one.hub.clients();
+  b.close();
+  await sleep(50);
+  eq(one.hub.admin.get(`rooms/${ra.code}/sl/1`), null, 'the closed tab still holds its seat');
+  eq(one.hub.clients(), before - 1, 'the closed tab still has a hub connection');
+  a.close();
   await sleep(30); // closing drops both seats (a seat is presence): let the hub say so before the tabs go
   eq(one.hub.admin.get(`rooms/${ra.code}/sl`), null, 'both seats were freed when the tabs closed');
   tab1.close(); tab2.close();

@@ -44,6 +44,11 @@ try {
   for (const k of ['a', 'd', 'w', 'A', 'ArrowLeft', 'ArrowRight']) { const r = key(box, k); ok(!r.prevented && !r.left && !r.right, `"${k}" typed in the name box was taken by the game`); }
   const steer = key(document.body, 'a'), steer2 = key(document.body, 'ArrowRight');
   ok(steer.prevented && steer.left && steer2.prevented && steer2.right, 'a / ArrowRight outside a text box no longer steer');
+  // a volume slider (the only input single-player has) is not a text box: the game keeps its keys there, as before
+  const slider = document.createElement('input'); slider.type = 'range'; document.body.appendChild(slider);
+  const sl = key(slider, 'ArrowRight'), sl2 = key(slider, 'd');
+  slider.remove();
+  ok(sl.prevented && sl.right && sl2.right, `keys on a focused slider are no longer the game's: ${JSON.stringify([sl, sl2])}`);
   ok(getComputedStyle(box).userSelect !== 'none' && getComputedStyle(box).touchAction !== 'none', 'the text box cannot be selected / touched');
   P.type('.on-nameinput', '  Sky   Rider ');
   await NV.submit();

@@ -1,5 +1,6 @@
 // Two real pages, the screens before a match (SPEC4 §12 stage 1): the ONLINE button, the name, CREATE ROOM, a code
-// typed by hand, a friend's ?room= link, a connection blip in the lobby, and the game without the online chunk.
+// typed by hand, a friend's ?room= link, a connection blip in the lobby (mine, then the host's), the host closing the
+// room, and the game without the online chunk (also with a friend's link: the next tap still joins that room).
 // Run with `node scripts/duo.mjs rooms`.
 
 export const scenarios = [
@@ -73,10 +74,41 @@ export const scenarios = [
       await duo.until(async () => { const v = await B.view(); return v.net === 'on' && !v.banner && v.room && v.room.me === 1 && v.room.seats[1] && v.room.seats[1].rdy; }, 'B: seat and READY back after the blip');
       await duo.until(async () => { const v = await A.view(); return v.room.seats[1] && v.room.seats[1].n === 'Ben' && v.room.seats[1].rdy; }, 'A still sees Ben, ready');
       await duo.until(() => duo.hub.admin.get(`rooms/${code}/sl/1`) === 'B' && !!duo.hub.admin.get(`rooms/${code}/p/1`), 'the seat to be B\'s on the hub again');
+      // now the HOST's connection drops for longer than the hub keeps a dead seat (5 s): B waits for the host, READY kept
+      await A.offline(true);
+      await duo.until(async () => /WAITING FOR THE HOST/.test((await B.view()).banner || ''), 'B: WAITING FOR THE HOST');
+      const bw = await B.view();
+      ok(!/HOST LEFT/.test(bw.banner) && bw.room.seats[1].rdy && !(await B.ev(() => document.querySelector('.on-ready').classList.contains('is-disabled'))), `B while the host is away: ${bw.banner}`);
+      ok(await B.ev(() => document.querySelector('.on-sharerow').hidden), 'B can still share a link to a room nobody can join');
+      await B.shot('host-away');
+      await A.offline(false);
+      await duo.until(async () => { const v = await B.view(); return !v.banner && !v.room.hostLeft && v.room.seats[0] && v.room.seats[1].rdy; }, 'B: the host is back');
       // and the room still works: the host readies, the match starts
       await duo.ready(A);
       const [a, b] = await duo.go(A, B);
-      ok(a.seed === b.seed && a.seed > 0, `one road after the blip: ${a.seed} / ${b.seed}`);
+      ok(a.seed === b.seed && a.seed > 0, `one road after the blips: ${a.seed} / ${b.seed}`);
+    },
+  },
+  {
+    name: 'the host leaves the lobby: the room is closed for everyone, and its old code says ROOM CLOSED',
+    async run(duo, { ok, eq }) {
+      const A = await duo.page('A'), B = await duo.page('B');
+      const code = await duo.lobby(A, B);
+      await duo.ready(B);
+      await A.click('[data-act="leave"]');
+      await duo.until(async () => { const v = await B.view(); return v.view === 'hub' && v.notice === 'closed'; }, 'B: ROOM CLOSED on the hub');
+      ok(/ROOM CLOSED/.test(await B.text('.on-hub .on-msg')), 'B reads ROOM CLOSED');
+      eq(duo.hub.admin.get(`rooms/${code}`), null, 'the room is gone from the hub');
+      // a host whose tab closed while waiting alone: a friend with that code is told ROOM CLOSED (not a dead lobby)
+      const code2 = await duo.create(A);
+      await A.offline(true);
+      await duo.until(() => !duo.hub.admin.get(`rooms/${code2}/sl`), 'the host seat to be freed');
+      await B.type('.on-code', code2);
+      await B.key('Enter');
+      await duo.until(async () => (await B.view()).notice === 'closed', 'B: ROOM CLOSED for the dead room');
+      eq((await B.view()).view, 'hub', 'B stays on the hub');
+      await A.offline(false);
+      A.errors.length = 0;
     },
   },
   {
@@ -100,6 +132,23 @@ export const scenarios = [
       ok(r.mode !== 'versus' && r.n > 0, `a single-player run is going: ${JSON.stringify({ mode: r.mode, n: r.n, dist: r.dist })}`);
       ok(!(await A.ev(() => !!window.__game.versus)), 'nothing of the online code was loaded');
       A.errors.length = 0; // (the blocked download itself is logged by the browser)
+    },
+  },
+  {
+    name: 'a friend\'s link while the online code cannot load: the next tap still joins that room',
+    async run(duo, { ok, eq }) {
+      const A = await duo.page('A');
+      await duo.signIn(A, 'Ann');
+      const code = await duo.create(A);
+      let block = true;
+      const B = await duo.page('B', { room: code, before: (page) => page.route(/\/src\/online\/index\.js|\/assets\/online-[^/]*\.js/, (r) => (block ? r.abort() : r.continue())) });
+      await B.page.waitForFunction(() => window.__game.ui.online.state === 'unavailable', null, { timeout: 15000 });
+      ok(!(await B.ev(() => location.search)).includes('room='), 'the room left the address');
+      block = false;
+      await duo.signIn(B, 'Ben'); // (taps ONLINE again: the chunk loads now)
+      await duo.until(async () => (await B.view()).view === 'lobby', 'B: the lobby of the linked room');
+      eq([(await B.view()).room.code, (await B.view()).room.me], [code, 1], 'B sits in A\'s room');
+      B.errors.length = 0; // (the first, blocked download is logged by the browser)
     },
   },
 ];

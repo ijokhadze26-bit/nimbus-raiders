@@ -39,7 +39,7 @@ try {
   ok(g.versus === undefined && !ui.screens.online, 'game.versus / the online screen exist before the chunk');
   performance.clearResourceTimings(); performance.setResourceTimingBufferSize(4000);
   // ---- 2. layout ----
-  const T = ui.screens.title.el, btn = T.querySelector('.btn-online'), lbl = btn.querySelector('.on-lbl');
+  const T = ui.screens.title.el, btn = T.querySelector('.btn-online'), lbl = btn.querySelector('.btn-online-lbl');
   const label = () => lbl.textContent;
   const fits = (what) => { const b = btn.getBoundingClientRect(), l = lbl.getBoundingClientRect(); ok(l.left >= b.left + 20 && l.right <= b.right - 8 && btn.scrollWidth <= btn.clientWidth + 1, `"${label()}" does not fit the button (${what}): ${Math.round(l.left)}..${Math.round(l.right)} in ${Math.round(b.left)}..${Math.round(b.right)}`); };
   K.layout(T, ['.btn-play', '.btn-online', '.title-menu .title-row'], fails, 'title');
@@ -47,6 +47,9 @@ try {
   ok(label() === 'ONLINE' && btn.dataset.state === 'idle' && br.height >= 42 && br.width >= 250, `button: "${label()}" ${btn.dataset.state} ${Math.round(br.width)}x${Math.round(br.height)}`);
   for (const t of T.querySelectorAll('.title-menu .title-row .tbtn')) ok(t.getBoundingClientRect().height >= 64, 'a bottom tile is too small to tap');
   fits('idle');
+  // (the online page's stylesheet arrives with the chunk: it must not restyle the title's label)
+  const look = () => { const cs = getComputedStyle(lbl); return `${cs.fontSize} ${cs.color}`; };
+  const look0 = look();
   // ---- 3. no service yet ----
   btn.click(); // a real tap through the UI's click handler
   ok(label() === 'ONLINE · LOADING' && btn.dataset.state === 'loading', `while loading: "${label()}"`);
@@ -56,6 +59,7 @@ try {
   ok(g.state === 'title' && ui.current === 'title' && !ui.screens.online, 'COMING SOON left the title');
   ok(loaded().some((n) => n.includes('/src/online/index.js')) && !loaded().some((n) => /firebase/.test(n)), 'the chunk did not load on the tap, or firebase loaded without a config');
   fits('soon');
+  ok(look() === look0, `the label changed look once the online styles loaded: ${look0} -> ${look()}`);
   ok(g.startLevel(1) && g.state === 'playing', 'single-player does not start after COMING SOON');
   ui.nav('title');
   ok(label() === 'ONLINE · COMING SOON', 'the label is lost when the title comes back');
@@ -65,6 +69,14 @@ try {
   r = await ui.openOnline();
   ok(r.ok === false && label() === 'ONLINE · UNAVAILABLE' && btn.dataset.state === 'unavailable' && g.state === 'title', `chunk failed: ${JSON.stringify(r)} "${label()}"`);
   fits('unavailable');
+  // a friend's link that fails the first time: the address has dropped ?room= already, so the next tap still joins it
+  let seen = null;
+  ui.online.importer = () => Promise.resolve({ installOnline: async (g2, u2, o) => { seen = o; return { ok: false, reason: 'offline' }; } });
+  await ui.openOnline({ room: 'ABCD' });
+  seen = null;
+  await ui.openOnline();
+  ok(seen && seen.room === 'ABCD' && ui.online.pending && ui.online.pending.room === 'ABCD', `the room code was lost after a failed open: ${JSON.stringify(seen)}`);
+  ui.online.pending = null;
   ui.online.importer = () => new Promise(() => {}); // never answers
   ui.online.timeoutMs = 250;
   const t0 = performance.now();
@@ -107,5 +119,6 @@ try {
   r = await ui.openOnline({});
   ok(r.ok && g.state === 'online' && label() === 'ONLINE', 'tap again after UNAVAILABLE did not get in');
   ui.nav('title');
+  ok(look() === look0, `back on the title after the online pages the label looks different: ${look0} -> ${look()}`);
 } catch (e) { fails.push('threw: ' + (e.stack || e)); }
 return { pass: fails.length === 0, fails, info };

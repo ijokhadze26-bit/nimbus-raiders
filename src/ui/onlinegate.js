@@ -20,12 +20,17 @@ export function createOnlineGate(ui) {
     reason: null,
     busy: null,
     timeoutMs: 8000,
+    /** A friend's room code from the page address, kept until an open succeeds (the address no longer has it). */
+    pending: null,
     /** The lazy chunk (tests swap this to imitate a download that fails or hangs). */
     importer: () => import('../online/index.js'),
     label: () => ONLINE_LABEL[gate.state],
     /** opts: { room, watch } from a share link; { net, pid, nettest, hub } pick a local test network. -> { ok, reason } */
     open(opts = {}) {
-      if (!gate.busy) gate.busy = run(opts || {}).finally(() => { gate.busy = null; });
+      const o = { ...(opts || {}) };
+      if (o.room) gate.pending = { room: o.room, watch: !!o.watch };
+      else if (gate.pending) Object.assign(o, gate.pending); // the first try failed: the next tap still joins that room
+      if (!gate.busy) gate.busy = run(o).finally(() => { gate.busy = null; });
       return gate.busy;
     },
   };
@@ -52,6 +57,7 @@ export function createOnlineGate(ui) {
       return { ok: false, reason };
     }
     set('idle');
+    gate.pending = null;
     // the player may have walked on while it loaded: only someone still on the title is taken to the ONLINE page
     if (ui.game.state === 'title' || ui.game.state === 'online') ui.nav('online', { room: opts.room || null, watch: !!opts.watch });
     return { ok: true, reason: null };

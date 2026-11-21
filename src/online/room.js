@@ -24,7 +24,11 @@
 //   state are plain booleans for the current round.
 // - The lowest seat starts the match when everyone seated (2 or more) is ready, and turns the room back
 //   to the lobby (rn + 1) when everyone still seated asked for a rematch (the rules allow that once the
-//   match is over). rematch({ ready: true }) also readies me for the new round.
+//   match is over). rematch({ ready: true }) also readies me for the new round. (A player left alone on the
+//   result screen is kept from being started on by a newcomer in flow.js, not here.)
+// - The host leaving a lobby removes the whole room (the guests read `gone`): `hostLeft` therefore means the
+//   host's seat is empty for another reason, usually a dropped connection (they may come back). Joining a
+//   lobby whose host is not seated is refused: 'closed' when nobody sits there (it is removed), else 'hostaway'.
 // - createRoom first reserves the code under host/{uid} (the rules allow one hosted room per account).
 
 import { NET, CODE_RE } from './config.js';
@@ -273,7 +277,9 @@ function makeRoom(tp, code, uid, { clock = realClock, autoStart = true } = {}) {
       if (me !== null) {
         const seat = { [`${R}/p/${me}`]: null, [`${R}/sl/${me}`]: null };
         // the last one out also removes the room (the rules let anyone clear a room nobody sits in)
-        write = tp.update(seat).then(() => tp.get(`${R}/sl`)).then((sl) => (sl ? null : tp.remove(R)));
+        const free = () => tp.update(seat).then(() => tp.get(`${R}/sl`)).then((sl) => (sl ? null : tp.remove(R)));
+        // the host leaving a lobby closes it for everyone (refused when it went live meanwhile: then only my seat goes)
+        write = raw.h === uid && raw.st === 'lobby' ? tp.remove(R).catch(free) : free();
       } else if (watching) {
         write = tp.remove(`${R}/sp/${uid}`);
       }
@@ -378,6 +384,11 @@ export async function joinRoom({ transport: tp, uid = tp.uid, code, profile, pic
   try {
     await room._load();
     if (!raw.h || raw.st === null) throw netError('not-found', 'no such room');
+    if (room._slot() === null && raw.st === 'lobby' && raw.h !== uid && !Object.values(raw.sl).includes(raw.h)) {
+      // the host is not in their lobby: a room nobody sits in is dead (tidied away); else the host's link dropped
+      if (!Object.keys(raw.sl).length) { quiet(tp.remove(R)); throw netError('closed', 'the room is closed'); }
+      throw netError('hostaway', 'the host is away');
+    }
     if (room._slot() === null) {
       let seated = false;
       if (!watch && raw.st === 'lobby') {

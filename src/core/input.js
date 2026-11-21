@@ -6,8 +6,11 @@ import { MOVE, TARGET_CLAMP } from '../config.js';
 
 const UI_SELECTOR = 'button, a, input, select, [data-ui]';
 export const SWIPE = { dist: 60, time: 380, ratio: 1.4 };
-/** True when the key event comes from a text box. */
-const typing = (e) => { const t = e.target, tag = t && t.tagName; return tag === 'INPUT' || tag === 'TEXTAREA'; };
+/** True for a box you type text into (online name / room code). A slider or a checkbox is not one: it keeps the
+ *  game's own key handling exactly as before. */
+export const isTextBox = (t) => !!t && (t.tagName === 'TEXTAREA'
+  || (t.tagName === 'INPUT' && /^(text|search|email|url|tel|password|number)$/i.test(t.type || 'text')));
+const typing = (e) => isTextBox(e.target);
 
 export class Input {
   constructor(surface) {

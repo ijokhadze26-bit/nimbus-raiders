@@ -190,7 +190,7 @@ test('rematch after the rival closed the tab: the seat is free, the room goes ba
   }
 });
 
-test('leaving frees the seat; the host leaving shows as host-left; an empty room is removed', async () => {
+test('leaving frees the seat; the host leaving a lobby removes the room; an empty room is removed', async () => {
   const w = world();
   const { a, ra, rb } = await pair(w);
   await w.settle(rb.leave());
@@ -202,14 +202,41 @@ test('leaving frees the seat; the host leaving shows as host-left; an empty room
   eq(rc.state.me, 1);
   await w.settle(ra.leave());
   await w.clock.advance(10);
-  eq([rc.state.hostLeft, rc.state.seats[0], rc.state.host], [true, null, 'uidA']);
+  eq([rc.state.gone, w.hub.admin.get(`rooms/${ra.code}`)], [true, null], 'the host leaving the lobby closes it for everyone');
   await w.settle(rc.leave());
   await w.clock.advance(10);
-  eq(w.hub.admin.get(`rooms/${ra.code}`), null, 'the last one out takes the room with them');
+  eq(w.hub.admin.get(`rooms/${ra.code}`), null);
+  // a guest is the last one out: they take the room with them
+  const e = await w.player('uidE', 'Echo', {}); // (with a network that can drop)
+  const two = await w.settle(createRoom({ transport: e.tp, profile: e.profile, clock: w.clock }));
+  const rc2 = await w.settle(joinRoom({ transport: b2.tp, code: two.code, profile: b2.profile, clock: w.clock }));
+  await w.clock.advance(10);
+  e.tp.net.offline(true);                     // the host's link drops: the hub frees the seat
+  await w.clock.advance(6000);
+  eq([rc2.state.hostLeft, rc2.state.seats[0]], [true, null], 'a dropped host shows as host-left');
+  // nobody new gets in meanwhile: the host may be on the way back
+  const d = await w.player('uidD', 'Delta');
+  let err = null;
+  try { await w.settle(joinRoom({ transport: d.tp, code: two.code, profile: d.profile, clock: w.clock })); } catch (e) { err = e; }
+  eq(err && err.code, 'hostaway', 'joining a lobby whose host is away');
+  await w.settle(rc2.leave());
+  await w.clock.advance(10);
+  eq(w.hub.admin.get(`rooms/${two.code}`), null, 'the last one out takes the room with them');
+  two.close();
+  e.tp.net.offline(false);
+  await w.clock.advance(10);
   const solo = await w.settle(createRoom({ transport: a.tp, profile: a.profile, clock: w.clock }));
   await w.settle(solo.leave());
   eq(w.hub.admin.get(`rooms/${solo.code}`), null);
   eq(w.denials.length, 0, 'no write was refused along the way');
+  // an old code of a lobby nobody sits in any more (the host closed the tab): ROOM CLOSED, and it is tidied away
+  const dead = await w.settle(createRoom({ transport: a.tp, profile: a.profile, clock: w.clock }));
+  dead.close(); a.tp.close();
+  await w.clock.advance(10);
+  err = null;
+  try { await w.settle(joinRoom({ transport: d.tp, code: dead.code, profile: d.profile, clock: w.clock })); } catch (e) { err = e; }
+  await w.clock.advance(10);
+  eq([err && err.code, w.hub.admin.get(`rooms/${dead.code}`)], ['closed', null], 'joining a dead lobby');
 });
 
 test('leaving and creating while offline never hang; a left room stays quiet', async () => {
@@ -351,7 +378,7 @@ test('4 seats: lowest empty seat first, the lowest seated player starts', async 
   await w.clock.advance(10);
   eq(rooms.map((r) => r.state.me), [0, 1, 2, 3]);
   eq(rooms[3].state.max, 4);
-  await w.settle(rooms[0].leave());           // the host goes: seat 1 is now the lowest
+  rooms[0].close(); ps[0].tp.close();          // the host's tab closes: seat 1 is now the lowest
   await w.clock.advance(10);
   await w.settle(Promise.all(rooms.slice(1).map((r) => r.ready(true))));
   await w.clock.advance(100);

@@ -49,7 +49,14 @@ async function pickTransport(opts) {
     ]);
     const id = tabId(opts.pid);
     const { port } = await joinChannel({ channel: new BroadcastChannel('nimbus-net'), id, makeHub: () => createHub({ rules: createRules(rules.default || rules) }) });
-    return createTransport('local', { port, uid: id, nettest });
+    const made = await createTransport('local', { port, uid: id, nettest });
+    // a closed tab lets go of its seat at once (the real service does that through onDisconnect); a tab the browser
+    // brings back from its page cache has said goodbye already, so it starts over
+    if (made.transport) {
+      addEventListener('pagehide', () => made.transport.close());
+      addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
+    }
+    return made;
   }
   if (opts.net === 'bridge') {
     for (let i = 0; i < 80 && !window.__netPort; i++) await wait(100); // the harness injects it right after load

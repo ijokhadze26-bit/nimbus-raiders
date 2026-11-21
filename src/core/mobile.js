@@ -1,9 +1,11 @@
 // Mobile browser robustness: viewport height on iOS Safari (no 100dvh before 15.4, URL bar resizes),
 // no rubber-band / pinch / double-tap zoom / long-press menus outside the scrollable menu lists, pause on
 // page hide / freeze, and a WebGL context-loss overlay (pause, wait for the browser to restore, else reload).
+import { isTextBox } from './input.js';
+
 const SCROLLERS = '.map-scroll, .shop-body, .info-scroll, .chip-row, .on-scroll';
 /** Text boxes (online name / room code) keep the browser's own selecting and long-press behaviour. */
-const inField = (t) => !!(t && t.closest && t.closest('input, textarea'));
+const inField = (t) => isTextBox(t && t.closest ? t.closest('input, textarea') : null);
 
 export function installMobile(game, engine) {
   const root = document.documentElement;

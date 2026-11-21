@@ -83,7 +83,7 @@
 
 /* ---------- lobby: code ---------- */
 .on-roomcard { gap: 8px; padding-top: 10px; }
-.on-lbl, .on-sub { font: 400 13px/1 var(--font-display); letter-spacing: 2px; color: #3a5aa6; }
+.screen-online .on-lbl, .screen-online .on-sub { font: 400 13px/1 var(--font-display); letter-spacing: 2px; color: #3a5aa6; }
 .on-tiles { display: flex; gap: 8px; }
 .on-tile {
   width: 52px; height: 58px; border-radius: 14px; display: grid; place-items: center; font: 400 38px/1 var(--font-display); color: #7a3a00;

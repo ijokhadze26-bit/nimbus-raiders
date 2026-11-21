@@ -1,6 +1,7 @@
 // Two-tab play on one computer with no account (?net=local): one tab hosts a local hub and the
 // other tabs reach it over a BroadcastChannel. Manual testing only; the first tab to open is the host,
-// and if that tab closes the others lose the "server".
+// and if that tab closes the others lose the "server". A client tab that closes says 'bye' (index.js
+// closes its transport on pagehide), which frees its seat.
 //
 //   const { port, hosting, hub } = await joinChannel({ channel: new BroadcastChannel('nimbus-net'), id, makeHub });
 //   const transport = createLocalTransport({ port, uid: id });
@@ -24,17 +25,22 @@ export function channelPort(channel, id) {
   return port;
 }
 
-/** Hub side: answer "is a hub here?" and give every client id that speaks its own hub connection. */
+/** Hub side: answer "is a hub here?" and give every client id that speaks its own hub connection. A client's
+ *  'bye' (its tab is closing) detaches that connection, so its seat goes the way a closed tab's seat does online. */
 export function serveChannel(hub, channel) {
   const ports = new Map();
   return listen(channel, (d) => {
     if (d.who) { send(channel, { hub: 1 }); return; }
     if (typeof d.c !== 'string' || !d.up) return;
     let p = ports.get(d.c);
+    if (d.up.op === 'bye') {
+      if (p) { ports.delete(d.c); p.handle.detach(); }
+      return;
+    }
     if (!p) {
       p = { onmessage: null, post: (m) => send(channel, { c: d.c, down: m }) };
       ports.set(d.c, p);
-      hub.attach(p);
+      p.handle = hub.attach(p);
     }
     if (p.onmessage) p.onmessage(d.up);
   });

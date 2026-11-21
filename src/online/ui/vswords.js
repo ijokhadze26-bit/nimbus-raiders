@@ -71,7 +71,12 @@ export function rematchWords(rs) {
   if (!rs) return { label: 'REMATCH', note: '', off: true, hot: false, waiting: false, hide: true };
   const others = rs.others || [];
   if (rs.lost) return { label: 'REMATCH', note: 'YOU LOST YOUR SEAT', off: true, hot: false, waiting: false };
-  if (!rs.can) return { label: 'REMATCH', note: others.length > 1 ? 'RIVALS LEFT' : 'RIVAL LEFT', off: true, hot: false, waiting: false };
+  if (!rs.can) {
+    // offline is not gone: the button turns gold again if they come back
+    const away = others.filter((o) => !o.here), off = away.length > 0 && away.every((o) => o.offline);
+    const note = off ? (away.length > 1 ? 'RIVALS ARE OFFLINE' : 'RIVAL IS OFFLINE') : others.length > 1 ? 'RIVALS LEFT' : 'RIVAL LEFT';
+    return { label: 'REMATCH', note, off: true, hot: false, waiting: false };
+  }
   if (rs.mine) {
     const who = rs.waitingFor || (others.find((o) => o.here && !o.wants) || {}).name;
     return { label: 'REMATCH', note: who ? `WAITING FOR ${up(who)}` : 'STARTING...', off: true, hot: false, waiting: true };

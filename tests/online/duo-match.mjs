@@ -175,6 +175,42 @@ export const scenarios = [
     },
   },
   {
+    name: 'I asked for a rematch and my rival left: a newcomer with the code cannot start a match on my result screen',
+    async run(duo, { ok, eq }) {
+      const A = await duo.page('A'), B = await duo.page('B');
+      const code = await duo.lobby(A, B);
+      await bots(A, B);
+      await duo.ready(A, B);
+      await duo.go(A, B);
+      await duo.play(8, async () => (await A.view()).t >= 4);
+      await wipe(B);
+      await toResults(duo, A, B);
+      await A.click('.vsr-rematch');
+      await duo.tick(300);
+      await B.click('[data-screen="vsresult"] [data-act="leave"], .screen-vsresult [data-act="leave"]');
+      await duo.until(async () => (await B.view()).view === 'hub', 'B on the hub');
+      await duo.until(async () => (await A.view()).rematchNote === 'RIVAL LEFT', 'A: RIVAL LEFT');
+      await duo.tick(1500);
+      ok(!(await A.view()).room.seats[0].rdy, 'A is still READY alone in the reopened room');
+      const C = await duo.page('C');
+      await duo.signIn(C, 'Cyd');
+      await C.type('.on-code', code);
+      await C.key('Enter');
+      await duo.until(async () => (await C.view()).view === 'lobby', 'C in the lobby');
+      // A is shown the newcomer in the lobby (not READY); C's READY alone starts nothing
+      await duo.until(async () => (await A.view()).view === 'lobby', 'A taken to the lobby');
+      await C.click('.on-ready');
+      await duo.tick(3000);
+      const [a, c] = [await A.view(), await C.view()];
+      eq([a.live, c.live, a.view, a.room.seats.map((s) => s && s.n)], [false, false, 'lobby', ['Ann', 'Cyd']], 'no match started on A');
+      // when A taps READY too, the two of them play
+      await duo.ready(A);
+      const [a2, c2] = await duo.go(A, C);
+      ok(a2.seed === c2.seed && a2.peers[0].name === 'Cyd', `A and Cyd play: ${a2.peers.map((p) => p.name)}`);
+      eq(duo.denials.length, 0, `rule refusals: ${JSON.stringify(duo.denials.slice(0, 3))}`);
+    },
+  },
+  {
     name: 'leaving in the middle of a match: the rival wins',
     async run(duo, { ok, eq }) {
       const A = await duo.page('A'), B = await duo.page('B');
