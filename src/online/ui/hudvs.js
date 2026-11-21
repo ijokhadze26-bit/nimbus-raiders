@@ -8,11 +8,16 @@
 //   - chips under the bar: "RIVAL LOST CONNECTION · WIN IN n" (the link's countdown), "RECONNECTING" (my own
 //     connection), "WAITING FOR THE RESULT" (I fell and the verdict is not in yet).
 // My own danger shows as a red frame around the screen and a red squad bubble.
+// Stage 2: a rival's sabotage flags (codec.js FLAG, sent in its state): purple bolt while it is being sabotaged,
+// snowflake while frozen, gold star while it holds a big one. One rival: all three on the card's corner; two or three
+// rivals: only one small icon after the seat dot (frozen > big > sabotaged).
 // The one-off SUDDEN DEATH / STORM / RIVAL DOWN lines stay with versus.js (hazard:hint): the tag here is the state.
 // DOM writes only when a value changes, and the numbers are read 8 times a second, not every frame.
 import { icon } from '../../ui/icons.js';
 import { SLOT_COLORS } from '../game/vsdata.js';
 import { clock, esc, up, nameFit } from './vswords.js';
+import { flagIcon } from './sabwords.js';
+import { FLAG } from '../codec.js';
 
 const STEP = 0.125;        // s between reads of versus.view()
 const DANGER = 5;          // danger 0..9 from this value on pulses
@@ -51,9 +56,9 @@ export function mountVsHud(ctx) {
     hud.el.classList.remove('vs-ph');
     rivalsEl.className = `vs-rivals n${n}`;
     rivalsEl.innerHTML = peers.slice(0, 3).map((p) => `<div class="vs-r" style="--sc:${SLOT_COLORS[p.slot % SLOT_COLORS.length]}">`
-      + `<span class="vs-n"><i class="vs-dot"></i><span class="vs-name${nameFit(p.name)}">${esc(up(p.name))}</span></span>`
-      + `<span class="vs-v">${n === 1 ? icon('squad') : ''}<b class="vs-cnt num">0</b><span class="vs-d"></span></span></div>`).join('');
-    rows = [...rivalsEl.children].map((el, i) => ({ el, slot: peers[i].slot, cntEl: el.querySelector('.vs-cnt'), dEl: el.querySelector('.vs-d'), state: '', n: 0, d: '' }));
+      + `<span class="vs-n"><i class="vs-dot"></i>${n === 1 ? '' : '<span class="vs-fl"></span>'}<span class="vs-name${nameFit(p.name)}">${esc(up(p.name))}</span></span>`
+      + `<span class="vs-v">${n === 1 ? icon('squad') : ''}<b class="vs-cnt num">0</b><span class="vs-d"></span></span>${n === 1 ? '<span class="vs-fl"></span>' : ''}</div>`).join('');
+    rows = [...rivalsEl.children].map((el, i) => ({ el, slot: peers[i].slot, cntEl: el.querySelector('.vs-cnt'), dEl: el.querySelector('.vs-d'), flEl: el.querySelector('.vs-fl'), state: '', n: 0, d: '', fl: '' }));
     for (const r of rows) setRow(r, 'pre', one(n) ? 'GET READY' : '');
     Object.assign(S, { sec: 0, phase: '', me: false, dc: '', net: false, wait: false, chips: false });
     setMe(false);
@@ -80,6 +85,18 @@ export function mountVsHud(ctx) {
   }
 
   const one = (n) => n === 1;
+
+  /** The sabotage flags a rival row shows, as a key ('' = none): all three with one rival, else the strongest one. */
+  function flagKey(p, single) {
+    const f = p.alive && p.countdown == null ? p.flags | 0 : 0;
+    const on = [(f & FLAG.frozen) && 'frozen', (f & FLAG.bigReady) && 'bigReady', (f & FLAG.sabotaged) && 'sabotaged'].filter(Boolean);
+    return (single ? on : on.slice(0, 1)).join(' ');
+  }
+  function setFlags(r, key) {
+    if (key === r.fl || !r.flEl) return;
+    r.fl = key;
+    r.flEl.innerHTML = key ? key.split(' ').map(flagIcon).join('') : '';
+  }
 
   /** What the small text of a rival row says. */
   function gapText(p, rel, single) {
@@ -135,6 +152,7 @@ export function mountVsHud(ctx) {
       const silent = p.alive && p.countdown != null;
       if (silent) { dcCount++; if (dcN === null || p.countdown < dcN) { dcN = p.countdown; dcName = p.name; } }
       if (p.n !== r.n) { r.n = p.n; r.cntEl.textContent = String(p.n); }
+      setFlags(r, v.go ? flagKey(p, single) : '');
       // before GO (and until a rival's first numbers are in) there is nothing to compare yet
       if (p.alive && !silent && (!v.go || (p.n === 0 && p.dist === 0))) { setRow(r, 'pre', single ? 'GET READY' : ''); continue; }
       const g = vs.ghost.peer(r.slot);

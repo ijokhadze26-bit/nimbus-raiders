@@ -1,7 +1,9 @@
 // What a player sees from the VS card to the result screen of an online match (STAGE1b "Builder MATCHUI").
 // src/online/index.js calls installMatchUi(game, ui, flow) once, after game.versus exists:
-//   - vscard.js   the VS card with every player's picks, 3-2-1-GO, and the YOU WIN! / YOU LOSE moment at the end
-//   - hudvs.js    the versus bar in the HUD (time, rivals, danger, DOWN) and its chips
+//   - vscard.js   the VS card with every player's picks, 3-2-1-GO
+//   - vsmoment.js the big moment at the end: SQUAD DOWN! / RIVAL DOWN!, letterbox, camera push, YOU WIN! / YOU LOSE
+//   - hudvs.js    the versus bar in the HUD (time, rivals, danger, DOWN, sabotage flags) and its chips
+//   - sabbtn.js   the SABOTAGE button; sabwarn.js the incoming warnings, the frozen frame and the match feed (stage 2)
 //   - vsresult.js the 'vsresult' screen (REMATCH / LEAVE)
 //   - here        the glue: LEAVE MATCH? instead of pause, the way out of a match, the route to the result screen
 // `flow` is the one object of src/online/flow.js this UI talks to: { session, room, link, picks, rematchState(),
@@ -16,8 +18,12 @@
 // (The game's event bus calls the NEWEST listener first: nothing here relies on running after the HUD's or the
 // UI's own listeners of the same event.)
 import './match.css';
+import './sab.css';
 import { mountVsHud } from './hudvs.js';
 import { mountVsCard } from './vscard.js';
+import { mountVsMoment } from './vsmoment.js';
+import { mountSabButton } from './sabbtn.js';
+import { mountSabWarn } from './sabwarn.js';
 import { createVsResult } from './vsresult.js';
 
 export function installMatchUi(game, ui, flow) {
@@ -57,6 +63,9 @@ export function installMatchUi(game, ui, flow) {
 
   const bar = mountVsHud(ctx);
   const card = mountVsCard(ctx);
+  const moment = mountVsMoment(ctx);
+  const sabBtn = mountSabButton(ctx);
+  const sabWarn = mountSabWarn(ctx);
   const screen = createVsResult(ctx);
   if (typeof ui.addScreen === 'function') ui.addScreen('vsresult', screen);
   else ui.screens.vsresult = screen; // (a ui.js without addScreen: same thing its constructor does)
@@ -67,6 +76,9 @@ export function installMatchUi(game, ui, flow) {
     hudUpdate.call(this, dt);
     bar.update(dt || 0);
     card.update();
+    sabBtn.update(dt || 0);
+    sabWarn.update(dt || 0);
+    moment.update();
   };
 
   // ---- no pause in a match: the pause button and Esc / P ask to leave ----
@@ -98,6 +110,6 @@ export function installMatchUi(game, ui, flow) {
     askLeave();
   });
 
-  ui.matchUi = { ctx, bar, card, screen, askLeave, leave, update(dt) { bar.update(dt || 0); card.update(); } };
+  ui.matchUi = { ctx, bar, card, moment, sabBtn, sabWarn, screen, askLeave, leave, update(dt) { bar.update(dt || 0); card.update(); sabBtn.update(dt || 0); sabWarn.update(dt || 0); moment.update(); } };
   return ui.matchUi;
 }
