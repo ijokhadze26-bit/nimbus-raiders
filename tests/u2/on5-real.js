@@ -6,6 +6,7 @@
 // 2. My meter fills from kills (the ring grows), a charge makes the button ready, a tap (pointerdown) sends: the feed
 //    says "<KIND> SENT TO ANN", link.test.events has k 's', a = code + 100 x tenths(clock), to = Ann's slot.
 // 3. A boss kill gives a BIG one: BIG on the button (gold), the BIG! chip and the feed line; a tap sends it to -1.
+//    The BOSS n DOWN! banner promises no coins (a match pays none). The fog layer shows only while the fog runs.
 // 4. A rival's flags (frozen / big) show in the bar.
 const g = window.__game, d = g.debug;
 const fails = [], info = {};
@@ -51,6 +52,7 @@ try {
   ok(l && l.code === 2 && l.id === w.id && l.t - w.t >= 1 - 1e-6 && l.t - w.t <= 1 + STEP + 1e-6, 'FOG did not land 1.0 s after receipt: ' + JSON.stringify(info.fog));
   k.frame();
   ok(versus.sab.view().fog > 5.5 && g.hazards.mods.fogMul <= 0.4 + 1e-9, `fog on me: ${versus.sab.view().fog} s, fogMul ${g.hazards.mods.fogMul}`);
+  ok(k.q('.sab-air.fog').classList.contains('on'), 'the fog layer does not show while the fog runs');
   k.frames(0.6, () => { keep(); return false; });
   ok(!k.q('.sab-warns .sab-warn'), 'the FOG card stays after it landed');
   k.frames(0.5, () => { keep(); return false; });
@@ -86,8 +88,13 @@ try {
   k.frames(20, () => { keep(); return g.run.phase === 'boss' && g.boss && g.boss.state === 'fight'; });
   ok(g.run.phase === 'boss' && g.boss && g.boss.state === 'fight', 'never reached the boss arena');
   const zone = g.endless.zone;
+  ok(!k.q('.sab-air.fog').classList.contains('on'), 'the fog layer stays after the fog');
   d.killBoss();
   k.frames(20, () => { keep(); return g.endless.zone > zone && g.run.phase === 'run'; });
+  // the BOSS n DOWN! banner of endless: an online match pays no coins, so it promises none
+  const bannerText = ui.hud.banner.textContent;
+  info.banner = bannerText;
+  ok(/BOSS \d+ DOWN!/.test(bannerText) && !/COIN/.test(bannerText), 'the boss banner in a match: ' + bannerText);
   k.frames(0.2, () => { keep(); return false; });
   const b = versus.sab.view(), ch = of('sab:charge').filter((x) => x.source === 'boss');
   info.big = { zone: g.endless.zone, big: b.big, charge: ch.length, chip: k.text('.sab-btn .sb-chip'), cls: btn().className };

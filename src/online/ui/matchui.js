@@ -12,6 +12,7 @@
 //
 // Hooks into the single-player UI, all of them inert outside a match (src/ui/** is not edited):
 //   - ui.hud.update is wrapped so the bar and the card get their per-frame update from ui.update;
+//   - ui.hud.onEndlessBoss is wrapped: in a versus run its banner drops the "+100 COINS" (a match pays nothing);
 //   - a click on the HUD pause button and Esc / P ask LEAVE MATCH? while a match is live (game.pause() is already a
 //     no-op then, game.js).
 // The route to the result screen is ui.js's own: on game state 'result' after a 'versus' run it goes to 'vsresult'.
@@ -79,6 +80,15 @@ export function installMatchUi(game, ui, flow) {
     sabBtn.update(dt || 0);
     sabWarn.update(dt || 0);
     moment.update();
+  };
+
+  // ---- the endless BOSS n DOWN! banner promises coins; an online match pays none: that part goes in a versus run ----
+  const onBoss = hud.onEndlessBoss;
+  hud.onEndlessBoss = function onEndlessBoss(p) {
+    onBoss.call(this, p);
+    if (!game.run || game.run.mode !== 'versus') return;
+    const subs = this.banner.querySelectorAll('.sub'), last = subs[subs.length - 1];
+    if (last && /COINS/.test(last.textContent)) { if (p && p.drone) last.textContent = '+1 DRONE'; else last.remove(); }
   };
 
   // ---- no pause in a match: the pause button and Esc / P ask to leave ----

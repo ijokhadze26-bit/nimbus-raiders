@@ -117,6 +117,19 @@
 @keyframes sw-in { from { transform: translateY(-10px) scale(0.6); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes sw-hit { 0% { transform: scale(1); } 30% { transform: scale(1.12); } 100% { transform: scale(0.9); opacity: 0; } }
 
+/* ================= fog and blackout on my screen ================= */
+/* world.js thins the far road a little; these plain-opacity layers (they work on Low) make it plain to see: a thick
+   white haze over the road ahead for FOG (the squad stays clear), a dark night with a small lit patch round the
+   squad for BLACKOUT. Under the HUD (z-index 1 in #ui; the HUD is 4). */
+.sab-air { position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: 0; transition: opacity 0.6s ease; }
+.sab-air.on { opacity: 1; }
+.sab-air.fog {
+  background: linear-gradient(180deg, rgba(236, 240, 248, 0.97) 0%, rgba(236, 240, 248, 0.95) 34%, rgba(236, 240, 248, 0.78) 46%, rgba(236, 240, 248, 0.3) 58%, rgba(236, 240, 248, 0) 68%);
+}
+.sab-air.dark {
+  background: radial-gradient(70% 34% at 50% 76%, rgba(4, 6, 24, 0.05) 0%, rgba(4, 6, 24, 0.55) 55%, rgba(4, 6, 24, 0.9) 100%), linear-gradient(180deg, rgba(4, 6, 24, 0.55), rgba(4, 6, 24, 0) 60%);
+}
+
 /* ================= frozen steering ================= */
 .sab-ice {
   position: absolute; inset: 0; z-index: 3; pointer-events: none;
@@ -133,26 +146,30 @@
 .sab-ice .si-n { font-size: 26px; line-height: 1; color: #fff; -webkit-text-stroke: 5px #0a2850; paint-order: stroke fill; }
 
 /* ================= the feed ================= */
-/* top-left under the bar and above the hazard line (3 lines end at ~117 px, the line starts at 118; while it shows only
-   the 2 newest lines do); beside the power pills when there are any; in an arena under the boss bar, the hazard line
-   and the combo meter (the warnings step down under it) */
+/* top-left under the bar, left of the combo meter (it starts 154 px or more from the right edge: the feed keeps
+   176 px clear) and above the hazard line; a long line wraps to two lines, never cut. While the hazard line shows,
+   only the newest line does (it starts at 118 px). Beside the power pills when there are any. In an arena under the
+   boss bar, the hazard line and the combo meter (the warnings step down under it). For the 0.9 s the boss bar stays
+   up after the kill (the run is back on the road, the BOSS DOWN! banner is up under it) the feed waits unseen: its
+   lines (BIG SABOTAGE READY!) show when the bar has gone */
 .sab-feed {
   position: absolute; left: calc(var(--safe-l, 0px) + 10px); top: calc(var(--safe-t, 0px) + 64px); z-index: 4; pointer-events: none;
-  max-width: calc(100% - 140px); display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  max-width: calc(100% - 176px); display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
 }
-.hazard-hint:not(.hidden) ~ .sab-feed .sf-line:nth-last-child(n+3) { display: none; }
-.hud.boss-phase ~ .hazard-hint ~ .sab-feed .sf-line { display: block; }
-.hud.vs-tall ~ .sab-feed { max-width: calc(100% - 150px); }
-.hud:has(.hud-powers > .pw:not(.out)) ~ .sab-feed { left: calc(var(--safe-l, 0px) + 66px); max-width: calc(100% - 196px); }
+.hazard-hint:not(.hidden) ~ .sab-feed .sf-line:nth-last-child(n+2) { display: none; }
+.hud:has(.hud-powers > .pw:not(.out)) ~ .sab-feed { left: calc(var(--safe-l, 0px) + 66px); max-width: calc(100% - 232px); }
 .hud.boss-phase ~ .sab-feed { top: calc(var(--safe-t, 0px) + 184px); left: calc(var(--safe-l, 0px) + 66px); max-width: calc(100% - 76px); }
+.hud.boss-phase:has(.hud-powers > .pw:not(.out)) ~ .sab-feed { max-width: calc(100% - 76px); }
+.hud.boss-phase ~ .hazard-hint ~ .sab-feed .sf-line { display: -webkit-box; }
 .hud.boss-phase ~ .hazard-hint:not(.hidden) ~ .sab-feed { top: calc(var(--safe-t, 0px) + 206px); }
-.hud.boss-phase:has(.hud-powers > .pw:not(.out)) ~ .sab-feed { left: calc(var(--safe-l, 0px) + 66px); }
+.hud:not(.boss-phase) ~ .boss-bar:not(.hidden) ~ .sab-feed { visibility: hidden; }
 .sab-feed:empty { display: none; }
 .sf-line {
   --fc: #b49dff;
   max-width: 100%; padding: 1px 7px 2px; border-radius: 8px; font-size: 12px; line-height: 1.1; letter-spacing: 0.4px; color: #fff;
   background: rgba(20, 10, 46, 0.72); border-left: 4px solid var(--fc); box-shadow: 0 2px 0 rgba(10, 6, 30, 0.45);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; -webkit-text-stroke: 3px #1a0838; paint-order: stroke fill;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; white-space: normal; overflow-wrap: anywhere;
+  -webkit-text-stroke: 3px #1a0838; paint-order: stroke fill;
   animation: sf-in 0.25s ease-out both;
 }
 @keyframes sf-in { from { transform: translateX(-12px); opacity: 0; } to { transform: none; opacity: 1; } }

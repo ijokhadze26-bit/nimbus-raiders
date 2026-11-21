@@ -5,9 +5,11 @@
 //    over `lands` on the played clock; on sab:land a second flash + the kind's sound, then the card goes.
 // 2. Up to 3 warnings stack, newest on top (the older ones one line); none covers the boss bar, the combo meter or
 //    the hazard line. sab:wait takes the card off and says so in the feed; a rival's out drops its cards.
-// 3. Frozen: an icy frame + FROZEN! with the seconds left while view().frozen > 0, gone after.
+// 3. Frozen: an icy frame + FROZEN! with the seconds left while view().frozen > 0, gone after. A warning parked in
+//    the same step (sab:wait) makes no alarm. Fog / blackout layers show while view().fog / blackout > 0.
 // 4. Feed: FOG SENT TO ANN, SABOTAGE CRATE! +1, BIG SABOTAGE READY!, ANN IS IN DANGER! (once per episode, 10 s apart),
-//    ANN IS OUT! 3 LEFT; 3 lines at most, ~3 s each; never over the power pills.
+//    ANN IS OUT! 3 LEFT; 3 lines at most, ~3 s each; never over the power pills; long lines wrap, never under the
+//    combo meter; unseen while the boss bar is still up after a kill (never over it).
 // 5. Rival flags: purple bolt / snowflake / gold star with one rival (all three), one icon per row with three rivals,
 //    inside the bar, names not crushed; DOM writes only when a flag changes.
 // 6. Everything is cleared on my fall and in the next match.
@@ -119,6 +121,24 @@ try {
   k.frames(1, () => { keep(); return false; });
   ok(!k.shown('.sab-ice'), 'the frozen frame stays after the freeze');
 
+  // ---- 3b. a warning parked in the same step (sab:wait right after sab:warn): no alarm, the feed says it ----
+  sfx.length = 0;
+  if (g.fx) g.fx.screen.f = 0;
+  const pw = stub.warn(3, 'Ann'); stub.hold(pw); k.frame();
+  ok(!sfx.includes('warn') && flashF() < 0.2 && cards().length === 0 && feed().at(-1) === 'RED GATE COMES AFTER THE BOSS', `a parked warning: sfx ${sfx}, flash ${flashF()}, cards ${cards().length}, feed ${JSON.stringify(feed())}`);
+  k.frames(3.2, () => { keep(); return false; });
+
+  // ---- 3c. fog and blackout show on the screen (plain-opacity layers under the HUD) ----
+  const air = (c) => k.q('.sab-air.' + c).classList.contains('on');
+  stub.set({ fog: 4 }); k.frame(); await k.wait(700);
+  ok(air('fog') && !air('dark') && getComputedStyle(k.q('.sab-air.fog')).opacity === '1', 'fog layer: ' + k.q('.sab-air.fog').className);
+  ok(Number(getComputedStyle(k.q('.sab-air.fog')).zIndex) < Number(getComputedStyle(hud.el).zIndex), 'the fog layer is over the HUD');
+  stub.set({ fog: 0, blackout: 3 }); k.frame();
+  ok(!air('fog') && air('dark'), 'blackout layer: ' + k.q('.sab-air.dark').className);
+  stub.set({ blackout: 0 }); k.frame();
+  ok(!air('fog') && !air('dark'), 'the layers stay after the effects');
+  stub.unset('fog', 'blackout');
+
   // ---- 4. feed ----
   stub.sent(2, ['Ann']); k.frame();
   ok(feed().at(-1) === 'FOG SENT TO ANN' && sfx.includes('tierUp'), 'sent line: ' + JSON.stringify(feed()));
@@ -134,7 +154,7 @@ try {
   g.events.emit('hazard:hint', { kind: 'sudden', text: 'SUDDEN DEATH! The horde keeps growing', color: '#ff5a4d' });
   hud.hazardHint.dodge(false);
   await k.wait(450);
-  ok(!overlap(rect(k.q('.sab-feed')), rect(k.q('.hazard-hint'))) && k.qa('.sab-feed .sf-line').filter((e) => getComputedStyle(e).display !== 'none').length === 2, 'the feed is over the hazard line');
+  ok(!overlap(rect(k.q('.sab-feed')), rect(k.q('.hazard-hint'))) && k.qa('.sab-feed .sf-line').filter((e) => getComputedStyle(e).display !== 'none').length === 1, 'the feed is over the hazard line');
   // in an arena: under the boss bar, the warnings under the feed
   hud.el.classList.add('boss-phase'); hud.bossBar.classList.remove('hidden');
   const aw = stub.warn(2, 'Ann'); k.frame();
@@ -143,6 +163,26 @@ try {
   info.arenaFeed = { feed: af && [Math.round(af.top), Math.round(af.bottom)], warns: aws && [Math.round(aws.top), Math.round(aws.bottom)], hint: ah && Math.round(ah.bottom) };
   ok(af && aws && !overlap(af, aws) && !overlap(af, abb) && !overlap(af, ah) && !overlap(af, acm) && !overlap(aws, ah) && aws.bottom <= app.bottom - 200, 'arena feed / warnings overlap: ' + JSON.stringify(info.arenaFeed));
   stub.land(aw); hud.el.classList.remove('boss-phase'); hud.bossBar.classList.add('hidden'); hud.hazardHint.hide(); k.frames(0.6);
+  // long lines wrap (never cut) and stay left of the combo meter; with the boss bar still up after a kill (the run
+  // is back on the road) the feed sits under it
+  k.frames(3.2, () => { keep(); return false; });
+  const cmL = k.q('.combo-meter'); if (cmL) cmL.classList.add('on');
+  stub.sent(12, ['Wolfgang Max']); const lw = stub.warn(3, 'Wolfgang Max'); stub.hold(lw); k.frame();
+  await k.wait(450);
+  const long = k.qa('.sab-feed .sf-line'), cmR = rect(cmL);
+  info.long = long.map((e) => { const r = rect(e); return [e.textContent, r && Math.round(r.right), r && Math.round(r.bottom), e.scrollHeight, e.clientHeight]; });
+  ok(cmR && long.length === 2 && feed().includes('BLACKOUT SENT TO WOLFGANG MAX') && feed().includes('RED GATE COMES AFTER THE BOSS'), 'long lines: ' + JSON.stringify(feed()));
+  ok(long.every((e) => !overlap(rect(e), cmR) && e.scrollHeight <= e.clientHeight + 1), `a long line is cut or under the combo meter (combo left ${cmR && Math.round(cmR.left)}): ${JSON.stringify(info.long)}`);
+  hud.bossBar.classList.remove('hidden');
+  stub.charge('boss', { code: 11 }); const bw = stub.warn(2, 'Ann'); k.frame();
+  await k.wait(450);
+  const pf = rect(k.q('.sab-feed')), pbb = rect(hud.bossBar), pw2 = rect(k.q('.sab-warns'));
+  const unseen = getComputedStyle(k.q('.sab-feed')).visibility === 'hidden';
+  info.afterKill = { feed: pf && [Math.round(pf.top), Math.round(pf.bottom)], unseen, bar: pbb && Math.round(pbb.bottom), warns: pw2 && Math.round(pw2.top) };
+  ok(pbb && pw2 && (unseen || !overlap(pf, pbb)) && !overlap(pw2, pbb), 'after the kill the feed / warnings are on the boss bar: ' + JSON.stringify(info.afterKill));
+  hud.bossBar.classList.add('hidden'); k.frame();
+  ok(getComputedStyle(k.q('.sab-feed')).visibility === 'visible' && feed().at(-1) === 'BIG SABOTAGE READY!', 'the feed does not come back when the boss bar goes');
+  stub.land(bw); if (cmL) cmL.classList.remove('on'); k.frames(0.6, () => { keep(); return false; });
   // never over the power pills
   g.events.emit('power:start', { kind: 'testpill', duration: 6 });
   k.frame(); await k.wait(450);

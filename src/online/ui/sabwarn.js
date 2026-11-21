@@ -1,10 +1,13 @@
 // What an incoming sabotage looks and sounds like, and the small match feed (STAGE2 "Builder SABUI" points 3, 4, 7).
 //   - Warning (sab:warn): big, centred under the versus bar: the kind's icon + head ("FOG!") + "FROM ANN" + a bar
 //     that drains over `lands` seconds of the played clock (versus.t, the same clock the landing runs on); a flash and
-//     the 'warn' sound at once. sab:land: a second flash, the kind's own sound, the card pops and goes. Up to 3 stack,
-//     newest on top (the older ones shrink to one line). sab:wait (needs the road): the card goes and the feed says
-//     "RED GATE COMES AFTER THE BOSS"; `again` warns afresh. A rival's out drops its waiting cards ('gone').
+//     the 'warn' sound on the next frame (a warning that has to wait for the road gets its sab:wait in the same step:
+//     then no alarm at all, only the feed line). sab:land: a second flash, the kind's own sound, the card pops and goes.
+//     Up to 3 stack, newest on top (the older ones shrink to one line). sab:wait (needs the road): the card goes and the
+//     feed says "RED GATE COMES AFTER THE BOSS"; `again` warns afresh. A rival's out drops its waiting cards ('gone').
 //   - Frozen steering: while `sab.view().frozen > 0` an icy frame round the screen + "FROZEN!" with the seconds left.
+//   - Fog / blackout: while `view().fog` / `view().blackout` > 0 a white haze over the road ahead / a dark night round
+//     the squad (plain-opacity layers under the HUD, sab.css; world.js alone shows them too faintly).
 //   - Feed (top-left under the bar, clear of the power pills, 3 lines, ~3 s each): FOG SENT TO ANN, SABOTAGE CRATE! +1,
 //     BIG SABOTAGE READY!, ANN IS OUT! 2 LEFT (a rival that is not the last one), ANN IS IN DANGER! (once per danger
 //     episode and at most once per 10 s per rival; no sound).
@@ -30,14 +33,17 @@ export function mountSabWarn(ctx) {
   const warnsEl = div('sab-warns');
   const feedEl = div('sab-feed');
   const iceEl = div('sab-ice hidden', '<div class="si-txt"><b>FROZEN!</b><span class="si-n num"></span></div>');
+  const fogEl = div('sab-air fog'), darkEl = div('sab-air dark');
+  root.appendChild(fogEl); root.appendChild(darkEl);
   root.appendChild(iceEl); root.appendChild(feedEl); root.appendChild(warnsEl); // (feed first: sab.css moves the warnings under it in an arena)
   const iceN = iceEl.querySelector('.si-n');
 
   let on = false, clock = 0, readT = 0;
   let warns = [];      // { id, code, from, el, barEl, t0, lands, hitAt, bar }
   let feed = [];       // { el, until }
+  let alarms = [];     // { id, color }: warnings whose flash + sound go off on the next frame (unless they wait)
   const danger = new Map(); // slot -> { hot, at }
-  const S = { ice: false, iceN: '' };
+  const S = { ice: false, iceN: '', fog: false, dark: false };
 
   const vs = () => game.versus;
   const played = () => { const v = vs(); return v && Number.isFinite(v.t) ? v.t : clock; };
@@ -77,8 +83,12 @@ export function mountSabWarn(ctx) {
     warns.push(w);
     warnsEl.prepend(el); // (newest on top)
     restack();
-    flash(k.color, 0.3, 2.5);
-    sfx('warn', { duration: 0.6 });
+    alarms.push({ id: p.id, color: k.color });
+  }
+  function ring() {
+    for (const a of alarms) flash(a.color, 0.3, 2.5);
+    if (alarms.length) sfx('warn', { duration: 0.6 });
+    alarms = [];
   }
 
   function land(p) {
@@ -95,10 +105,15 @@ export function mountSabWarn(ctx) {
     if (!live() || !p) return;
     const w = warns.find((x) => x.id === p.id);
     if (w) dropWarn(w);
+    alarms = alarms.filter((a) => a.id !== p.id); // (warned and parked in the same step: no alarm, the line says it)
     line(waitWords(p.code), (sabKind(p.code) || {}).color);
   }
 
-  function clearWarns() { for (const w of warns) w.el.remove(); warns = []; }
+  function clearWarns() { for (const w of warns) w.el.remove(); warns = []; alarms = []; }
+  function air(fog, dark) {
+    if (fog !== S.fog) { S.fog = fog; fogEl.classList.toggle('on', fog); }
+    if (dark !== S.dark) { S.dark = dark; darkEl.classList.toggle('on', dark); }
+  }
 
   // ---------------- feed ----------------
   function line(text, color = SAB_COLOR) {
@@ -147,16 +162,18 @@ export function mountSabWarn(ctx) {
     danger.clear();
     if (S.ice) { S.ice = false; iceEl.classList.add('hidden'); }
     S.iceN = ''; iceN.textContent = '';
+    air(false, false);
   }
   ev.on('versus:start', () => { reset(); on = true; clock = 0; readT = 0; });
   ev.on('run:start', (p) => { if (p.mode !== 'versus') { reset(); on = false; } });
-  ev.on('run:lose', (p) => { if (p && p.mode === 'versus') { clearWarns(); if (S.ice) { S.ice = false; iceEl.classList.add('hidden'); } } });
+  ev.on('run:lose', (p) => { if (p && p.mode === 'versus') { clearWarns(); air(false, false); if (S.ice) { S.ice = false; iceEl.classList.add('hidden'); } } });
   ev.on('game:state', ({ state }) => { if (state !== 'playing' && state !== 'paused') { reset(); on = false; } });
 
   // ---------------- per frame ----------------
   function update(dt) {
     if (!on) return;
     clock += dt || 0;
+    if (alarms.length) { if (live()) ring(); else alarms = []; }
     const t = played();
     for (const w of warns.slice()) {
       if (w.hitAt) { if (clock - w.hitAt >= HIT_S) dropWarn(w); continue; }
@@ -174,6 +191,7 @@ export function mountSabWarn(ctx) {
     if (ice !== S.ice) { S.ice = ice; iceEl.classList.toggle('hidden', !ice); }
     const n = ice ? String(Math.ceil(fr)) : '';
     if (n !== S.iceN) { S.iceN = n; iceN.textContent = n; }
+    air(!!sv && sv.fog > 0, !!sv && sv.blackout > 0);
 
     readT += dt || 0;
     if (readT < READ_S) return;
@@ -191,5 +209,5 @@ export function mountSabWarn(ctx) {
     }
   }
 
-  return { update, warnsEl, feedEl, iceEl, get warns() { return warns.map((w) => ({ id: w.id, code: w.code, small: !!w.small, bar: w.bar, hit: !!w.hitAt })); }, get feed() { return feed.map((f) => f.el.textContent); } };
+  return { update, warnsEl, feedEl, iceEl, fogEl, darkEl, get warns() { return warns.map((w) => ({ id: w.id, code: w.code, small: !!w.small, bar: w.bar, hit: !!w.hitAt })); }, get feed() { return feed.map((f) => f.el.textContent); } };
 }
