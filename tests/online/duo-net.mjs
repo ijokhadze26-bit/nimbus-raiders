@@ -55,6 +55,49 @@ export const scenarios = [
     },
   },
   {
+    name: 'a fall while offline: both screens first guess, then show the result that counts (RESULT UPDATED)',
+    async run(duo, { ok, eq, note }) {
+      const A = await duo.page('A'), B = await duo.page('B');
+      await duo.lobby(A, B);
+      await bots(A, B);
+      await duo.ready(A, B);
+      await duo.go(A, B);
+      await duo.play(12, async () => (await A.view()).t >= 5);
+      // B's internet drops, then B's squad falls: nobody can know yet
+      await B.offline(true);
+      await duo.play(1);
+      await B.ev(() => window.__game.squad.setCount(0, 'horde'));
+      // A plays on for 2.5 s and falls too (well outside the 1 s tie window): A really outlasted B
+      await duo.play(2.5);
+      await A.ev(() => window.__game.squad.setCount(0, 'horde'));
+      // both pages can only guess: B has no connection, A cannot see B's fall
+      const guess = await duo.play(30, async () => { const vs = [await A.view(), await B.view()]; return shown(vs[0]) && shown(vs[1]) ? vs : null; });
+      ok(guess, `both pages show a first result: A ${JSON.stringify((await A.view()).result)} B ${JSON.stringify((await B.view()).result)}`);
+      const [a1, b1] = guess;
+      note(`first: A ${JSON.stringify(a1.result)} "${a1.why}"; B ${JSON.stringify(b1.result)} "${b1.why}"`);
+      eq([a1.result.result, a1.result.provisional, a1.ribbon], ['lose', true, 'YOU LOSE'], 'A\'s first screen (B is taken to be still running)');
+      eq([b1.result.result, b1.result.reason, b1.result.provisional, b1.why], ['lose', 'offline', true, 'CONNECTION LOST'], 'B\'s first screen');
+      ok(/Checking the result/.test(await A.text('.vsr .vsr-why')) && /will update/.test(await B.text('.vsr .vsr-why')), 'both say the result is still being checked');
+      await A.shot('guess'); await B.shot('guess');
+      // B is back: its fall record lands, and both screens are corrected
+      await B.offline(false);
+      const fixed = await duo.play(15, async () => { const vs = [await A.view(), await B.view()]; return vs[0].result.revised && vs[1].result.revised ? vs : null; }, 1);
+      ok(fixed, `both pages get the corrected result: A ${JSON.stringify((await A.view()).result)} B ${JSON.stringify((await B.view()).result)}`);
+      const [a2, b2] = [await A.view(), await B.view()];
+      note(`then: A ${JSON.stringify(a2.result)} "${a2.why}"; B ${JSON.stringify(b2.result)} "${b2.why}"`);
+      eq([a2.result.result, a2.result.reason, a2.result.provisional, a2.ribbon, a2.why], ['win', 'standing', false, 'YOU WIN!', 'LAST SQUAD STANDING'], 'A\'s corrected screen');
+      eq([b2.result.result, b2.result.reason, b2.result.provisional, b2.ribbon, b2.why], ['lose', 'fell', false, 'YOU LOSE', 'SQUAD DOWN'], 'B\'s corrected screen');
+      ok(/RESULT UPDATED/.test(await A.text('.vsr')) && /RESULT UPDATED/.test(await B.text('.vsr')), 'both screens say RESULT UPDATED');
+      eq(await A.ev(() => window.__game.save.data.online.hist.map((h) => h.r).join('')), 'w', 'A\'s history holds the corrected result, once');
+      eq(await B.ev(() => window.__game.save.data.online.hist.map((h) => h.r).join('')), 'l', 'B\'s history holds one loss');
+      await A.shot('updated'); await B.shot('updated');
+      // and a rematch still works from here
+      await A.click('.vsr-rematch'); await B.click('.vsr-rematch');
+      const [a3, b3] = await duo.go(A, B);
+      ok(a3.seed === b3.seed && a3.seed !== a1.seed, `rematch after the correction: ${a3.seed}`);
+    },
+  },
+  {
     name: 'phone size, 400 ms delay + jitter + loss on both: same result on both screens, the ghost never jumps',
     async run(duo, { ok, eq, note }) {
       const net = 'lat400,jit300,loss5';
@@ -66,9 +109,14 @@ export const scenarios = [
       await duo.ready(A, B);
       const [a0, b0] = await duo.go(A, B);
       ok(a0.seed === b0.seed, `one road: ${a0.seed} / ${b0.seed}`);
-      await duo.play(30, async () => (await A.view()).t >= 20 && (await B.view()).t >= 20);
+      const chips = []; // (looked at twice a second, from the countdown on: a slow link is not a lost one)
+      await duo.play(30, async () => {
+        const [a, b] = [await A.view(), await B.view()];
+        if (a.chipDc || b.chipDc) chips.push(`${a.clock}: ${a.chipDc} / ${b.chipDc}`);
+        return a.t >= 20 && b.t >= 20;
+      });
       const [a1, b1] = [await A.view(), await B.view()];
-      ok(a1.live && b1.live && !a1.chipDc && !b1.chipDc, `no false "lost connection" chip on a slow link: ${a1.chipDc} / ${b1.chipDc}`);
+      ok(a1.live && b1.live && !chips.length, `no false "lost connection" chip on a slow link: ${chips.slice(0, 3).join('; ')}`);
       ok(Math.abs(a1.peers[0].dist - b1.dist) < 40 && Math.abs(b1.peers[0].dist - a1.dist) < 40, `rival distances follow: A sees ${a1.peers[0].dist} (B at ${b1.dist}), B sees ${b1.peers[0].dist} (A at ${a1.dist})`);
       await A.shot('slow-mid');
       const ghosts = [await A.ev(() => window.__duo.ghost), await B.ev(() => window.__duo.ghost)];

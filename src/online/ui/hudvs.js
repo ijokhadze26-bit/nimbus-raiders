@@ -126,6 +126,7 @@ export function mountVsHud(ctx) {
     const me = v.go && !vs.fallen && v.me.danger >= DANGER;
     if (me !== S.me) setMe(me);
 
+    const blind = v.net === 'lost'; // my own connection is away: what I know about the rivals is getting old
     let dcN = null, dcName = '', dcCount = 0, standing = 0;
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i], p = vs.peer(r.slot);
@@ -138,6 +139,7 @@ export function mountVsHud(ctx) {
       if (p.alive && !silent && (!v.go || (p.n === 0 && p.dist === 0))) { setRow(r, 'pre', single ? 'GET READY' : ''); continue; }
       const g = vs.ghost.peer(r.slot);
       const rel = !p.alive ? 0 : g && Number.isFinite(g.rel) ? g.rel : p.dist - v.me.dist;
+      if (blind && p.alive && !silent) { setRow(r, 'silent', '?'); continue; } // (no made-up lead while RECONNECTING shows)
       setRow(r, !p.alive ? 'down' : silent ? 'silent' : p.danger >= DANGER ? 'danger' : '', gapText(p, rel, single));
     }
 

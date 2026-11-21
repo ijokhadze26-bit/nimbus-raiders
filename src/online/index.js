@@ -25,9 +25,7 @@ import { createTransport } from './transport.js';
 import { createSession } from './session.js';
 import { createFlow } from './flow.js';
 import { createOnlineScreen } from './ui/hub.js';
-
-// The match screens (VS card, versus bar, result) are their own module; a build without it still opens the lobby.
-const MATCH_UI = import.meta.glob('./ui/matchui.js', { eager: true });
+import { installMatchUi } from './ui/matchui.js'; // the match screens: VS card, versus bar, LEAVE MATCH?, the 'vsresult' screen
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -58,7 +56,8 @@ async function pickTransport(opts) {
     const port = window.__netPort;
     if (!port) return { transport: null, reason: 'no-bridge' };
     // the harness owns the clock (a virtual one): this page's "now" is whatever the hub last said
-    return createTransport('local', { port, uid: tabId(opts.pid), follow: port.follow !== false, nettest });
+    // (port.echo: the adapter shows my own writes to my listeners at once, the way the real service's SDK does)
+    return createTransport('local', { port, uid: tabId(opts.pid), follow: port.follow !== false, echo: port.echo === true, nettest });
   }
   return createTransport('fire', { nettest });
 }
@@ -85,8 +84,7 @@ export async function installOnline(game, ui, opts = {}) {
       const flow = createFlow(game, ui, { transport: made.transport, session });
       on = game.online = { flow };
       ui.addScreen('online', createOnlineScreen(ui, flow));
-      const mu = MATCH_UI['./ui/matchui.js'];
-      if (mu && typeof mu.installMatchUi === 'function') mu.installMatchUi(game, ui, flow);
+      installMatchUi(game, ui, flow);
     }
   }
   const res = await on.flow.connect();

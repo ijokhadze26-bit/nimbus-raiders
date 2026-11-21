@@ -9,6 +9,7 @@
 //   --shots <dir>    where screenshots go (default shots/duo)
 //   --verbose        print each scenario's notes (seeds, times, measured numbers)
 //   --headed         show the browser windows
+//   --echo           the pages' network adapter imitates the real SDK: my own writes show at once, before the answer
 //
 // A scenario file exports `scenarios = [{ name, run(duo, T), real }]`:
 //   run(duo, T)  duo = a fresh hub + clock + helpers (duokit.mjs Duo); T = { ok, eq, browser, base, shots, note }
@@ -51,7 +52,7 @@ for (const f of files) {
   for (const [i, sc] of scenarios.entries()) {
     if (filters.length && !filters.some((k) => file.includes(k) || sc.name.includes(k))) continue;
     const label = `${file.replace(/^duo-/, '')}${i + 1}`; // screenshots: <label>-<page>-<name>.png
-    const duo = sc.real ? null : new Duo({ browser, base, shots, label, verbose });
+    const duo = sc.real ? null : new Duo({ browser, base, shots, label, verbose, echo: flag('echo') });
     const notes = duo ? duo.notes : [];
     const T = { ok, eq, browser, base, shots, label, note: (t) => { notes.push(t); if (verbose) console.log('     ·', t); } };
     const t0 = Date.now();
@@ -74,5 +75,5 @@ for (const f of files) {
 
 await browser.close();
 if (server.close) await server.close(); else await new Promise((r) => server.httpServer.close(r));
-console.log(failed ? `\nFAILED: ${failed} of ${passed + failed} duo scenario(s) failed` : `\nALL DUO SCENARIOS PASSED (${passed})`);
+console.log(failed ? `\nFAILED: ${failed} of ${passed + failed} duo scenario(s) failed` : `\nALL DUO SCENARIOS PASSED (${passed}${flag('echo') ? ', echo' : ''}${flag('preview') ? ', production build' : ''})`);
 process.exit(failed || !passed ? 1 : 0);

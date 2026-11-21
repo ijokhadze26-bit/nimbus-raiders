@@ -38,10 +38,11 @@ export function eq(a, b, msg) {
 }
 
 // Runs inside every page before the game boots.
-const INIT = () => {
+const INIT = ({ echo }) => {
   let seq = 0;
   window.__netPort = {
     follow: true, // this page's clock is the hub's (virtual) clock
+    echo,         // --echo: my own writes show at once, before the hub has answered (what the real SDK does)
     onmessage: null,
     post(msg) { window.__duo.sent++; window.__netSend(JSON.stringify([seq++, msg])); },
   };
@@ -206,8 +207,8 @@ class Player {
 }
 
 export class Duo {
-  constructor({ browser, base, shots = null, label = 'duo', verbose = false }) {
-    Object.assign(this, { browser, base, shots, label, verbose, players: [], notes: [] });
+  constructor({ browser, base, shots = null, label = 'duo', verbose = false, echo = false }) {
+    Object.assign(this, { browser, base, shots, label, verbose, echo, players: [], notes: [] });
     this.clock = createClock();
     this.hub = createHub({ clock: this.clock, rules: createRules(RULES) });
     this.denials = [];
@@ -231,7 +232,7 @@ export class Duo {
     });
     page.on('pageerror', (e) => p.errors.push(`[pageerror] ${e.stack || e.message}`));
     await page.exposeBinding('__netSend', (src, text) => p.recv(text));
-    await page.addInitScript(INIT);
+    await page.addInitScript(INIT, { echo: !!this.echo });
     if (opts.before) await opts.before(page);
     const q = new URLSearchParams({ test: '1', quality: opts.quality || 'low', ...(opts.bridge === false ? {} : { net: 'bridge', pid }), ...(opts.room ? { room: opts.room } : {}), ...(opts.query || {}) });
     await page.goto(`${this.base}/?${q}`, { waitUntil: 'load', timeout: 120000 });

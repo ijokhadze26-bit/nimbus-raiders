@@ -68,7 +68,7 @@ function createHubView(ui, flow, page) {
   onEnter(code, join);
   const view = {
     el: root, title: 'ONLINE',
-    enter() { local = ''; },
+    enter() { local = ''; if (!flow.notice) code.value = ''; }, // (the code of a room I just left is not offered again)
     sync() {
       nameEl.textContent = flow.name;
       const away = flow.net !== 'on'; // my connection dropped: nothing can be asked of the service right now

@@ -139,6 +139,38 @@ export const scenarios = [
       await A.click('.screen-vsresult [data-act="leave"], [data-screen="vsresult"] [data-act="leave"]');
       await duo.until(async () => { const v = await A.view(); return v.state === 'online' && v.view === 'hub' && !v.room; }, 'A on the hub after LEAVE');
       await duo.until(() => duo.hub.admin.get(`rooms/${code}/sl`) === null, 'both seats to be free on the hub');
+      // the same two pages meet again in a NEW room: a third match starts clean
+      const code2 = await duo.create(B);
+      await duo.join(A, code2);
+      await duo.ready(A, B);
+      const [a3, b3] = await duo.go(A, B);
+      ok(code2 !== code && a3.seed === b3.seed && a3.seed !== a0.seed, `a new room and a new road: ${code} -> ${code2}, seed ${a3.seed}`);
+      eq([a3.t, a3.result, a3.peers.length, a3.peers[0].name], [0, null, 1, 'Ben'], 'match 3 on A starts clean');
+      await duo.play(8, async () => (await A.view()).t >= 3);
+      // ... and A walks out to the title and plays a normal level: the single-player HUD is back as it was
+      await A.click('.hud-pause');
+      await duo.until(async () => (await A.view()).top === 'confirm', 'A: LEAVE MATCH?');
+      await A.click('[data-screen="confirm"] [data-act="yes"]');
+      await duo.until(async () => (await A.view()).view === 'hub', 'A on the hub');
+      await A.click('.screen-online [data-act="back"], [data-screen="online"] [data-act="back"]');
+      await duo.until(async () => (await A.view()).state === 'title', 'A on the title');
+      const solo = await A.ev(() => {
+        const g = window.__game, hud = g.ui.hud.el;
+        g.debug.startLevel(1);
+        g.debug.simulate(2);
+        g.ui.update(0.1);
+        const seen = (sel) => { const n = document.querySelector(sel); return !!n && n.getClientRects().length > 0 && getComputedStyle(n).visibility !== 'hidden'; };
+        const out = { mode: g.run.mode, vs: hud.classList.contains('vs'), rivals: seen('.vs-rivals'), level: g.ui.hud.levelEl.textContent.trim(), live: g.versus.live };
+        g.pause();
+        out.paused = g.state === 'paused';
+        g.resume();
+        g.debug.toTitle();
+        return out;
+      });
+      eq([solo.mode, solo.vs, solo.rivals, solo.live, solo.paused], ['level', false, false, false, true], `single-player after online (HUD label "${solo.level}")`);
+      ok(/^LV\s*1|1/.test(solo.level) && !/ONLINE|:/.test(solo.level), `the HUD shows the level again: "${solo.level}"`);
+      const b4 = await duo.play(20, async () => { const v = await B.view(); return shown(v) ? v : null; });
+      eq([b4 && b4.result.result, b4 && b4.result.reason], ['win', 'quit'], 'B wins match 3 when A walks out');
       eq(duo.denials.length, 0, `rule refusals: ${JSON.stringify(duo.denials.slice(0, 3))}`);
     },
   },
