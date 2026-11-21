@@ -10,7 +10,7 @@
 import { screenEl, bump } from '../../ui/ui.js';
 import { icon } from '../../ui/icons.js';
 import { SLOT_COLORS } from '../game/vsdata.js';
-import { verdictWords, rematchWords, leftWords, clockTenths, metres, esc, up } from './vswords.js';
+import { verdictWords, rematchWords, leftWords, clockTenths, metres, esc, up, nameFit } from './vswords.js';
 
 const RIBBON = { win: 'ribbon-gold', lose: 'ribbon-red', draw: 'ribbon-blue' };
 const ICON = {
@@ -69,7 +69,7 @@ export function createVsResult(ctx) {
         : `<span class="vsr-tm num">${clockTenths(r.T)}</span><span class="vsr-ds num">${metres(r.d)}</span>`;
       return `<li class="${r.me ? 'me' : ''}" data-slot="${r.slot}" style="--sc:${SLOT_COLORS[r.slot % SLOT_COLORS.length]}">`
         + `<span class="vsr-pl">${draw && i < 2 ? '=' : i + 1}</span>`
-        + `<span class="vsr-nm"><i class="vs-dot"></i><span class="vsr-name">${r.me ? 'YOU' : esc(up(r.name))}</span>${tag ? `<em>${tag}</em>` : ''}</span>${nums}</li>`;
+        + `<span class="vsr-nm"><i class="vs-dot"></i><span class="vsr-name${r.me ? '' : nameFit(r.name)}">${r.me ? 'YOU' : esc(up(r.name))}</span>${tag ? `<em>${tag}</em>` : ''}</span>${nums}</li>`;
     }).join('')}</ol>`;
   }
 

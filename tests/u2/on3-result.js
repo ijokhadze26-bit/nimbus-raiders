@@ -77,6 +77,9 @@ try {
   ok(note() === 'RIVAL LEFT' && btn('rematch').classList.contains('is-disabled') && btn('rematch').classList.contains('btn-grey'), `rival left: "${note()}"`);
   btn('rematch').click();
   ok(flow.calls.rematch === 1, 'REMATCH worked with nobody left');
+  // the rival's connection dropped (not a real leave): the note says so; offline is not gone for good
+  flow.rs = { ...flow.rs, others: [{ slot: 1, name: 'Mika', here: false, wants: false, offline: true }] }; flow.emit('change');
+  ok(note() === 'RIVAL IS OFFLINE' && btn('rematch').classList.contains('is-disabled'), `rival offline: "${note()}"`);
   flow.rs = { can: false, mine: false, others: [], waitingFor: null, lost: true, hostLeft: false }; flow.emit('change');
   ok(note() === 'YOU LOST YOUR SEAT' && btn('rematch').classList.contains('is-disabled'), `lost seat: "${note()}"`);
   ok(flow.listeners.change.length === 1, `${flow.listeners.change.length} flow listeners while the result is up (want 1)`);

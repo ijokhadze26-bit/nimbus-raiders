@@ -4,7 +4,9 @@
 // used to cheat. It is kept small (well under 4 KB) so an older cached tab, which keeps unknown save keys up to that
 // size, does not drop it. Every write also stores ONLINE_KEY; a load prefers that copy (an older tab never writes it,
 // so it is never staler than the main save) and takes the union of both match lists. reset() removes the key; the
-// online account itself lives on the server and stays.
+// online account itself lives on the server and stays. Known and accepted: RESET PROGRESS in an OLDER tab (a build
+// from before update 5, still open after the update) cannot know this key, so the next load brings the online name
+// and match list back. That is only a cache of the server profile, which the server keeps anyway.
 import { HERO_BY_ID, WEAPON_SKIN_BY_ID } from '../data/skins.js';
 
 export const ONLINE_KEY = 'nimbusRaiders.online.v4';

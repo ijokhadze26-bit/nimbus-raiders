@@ -128,6 +128,14 @@ try {
   k.frames(3.2);
   ok(rowText().n === '20' && k.text('.vs-clock') === '0:03', 'second match bar does not run: ' + JSON.stringify(rowText()) + ' ' + k.text('.vs-clock'));
   k.end();
+  // a default name ("Raider-NNNN") and the longest allowed names are shown whole in the one-rival pill, not cut
+  for (const nm of ['Raider-4762', 'SkyRaider-99', 'DragonMaster']) {
+    k.start({ referee: false, rivals: [rival({ name: nm })] });
+    k.frame();
+    const n = k.q('.vs-rivals .vs-name');
+    ok(n && n.textContent === nm.toUpperCase() && n.scrollWidth <= n.clientWidth + 1, `"${nm}" is cut in the pill: ${n && n.scrollWidth}/${n && n.clientWidth}`);
+    k.end();
+  }
 
   // ---- 7. two and three rivals on 360 px ----
   const c2 = () => ({ dist: Math.max(0, g.run.dist - 140), n: 7, x: 2.5, form: 0, boss: 0, zone: 1, flags: 0, danger: 7 });

@@ -7,6 +7,8 @@
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ESC[c]);
 export const up = (s) => String(s ?? '').toUpperCase();
+/** A class for a long name (a smaller letter size, match.css): "RAIDER-4762" fits on a 360 px phone. */
+export const nameFit = (s) => { const l = String(s ?? '').length; return l > 10 ? ' nl-l' : l > 8 ? ' nl-m' : ''; };
 
 export function clock(s) {
   const t = Math.max(0, Math.floor(s || 0));

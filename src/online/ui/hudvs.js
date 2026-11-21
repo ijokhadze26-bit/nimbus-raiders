@@ -12,7 +12,7 @@
 // DOM writes only when a value changes, and the numbers are read 8 times a second, not every frame.
 import { icon } from '../../ui/icons.js';
 import { SLOT_COLORS } from '../game/vsdata.js';
-import { clock, esc, up } from './vswords.js';
+import { clock, esc, up, nameFit } from './vswords.js';
 
 const STEP = 0.125;        // s between reads of versus.view()
 const DANGER = 5;          // danger 0..9 from this value on pulses
@@ -51,7 +51,7 @@ export function mountVsHud(ctx) {
     hud.el.classList.remove('vs-ph');
     rivalsEl.className = `vs-rivals n${n}`;
     rivalsEl.innerHTML = peers.slice(0, 3).map((p) => `<div class="vs-r" style="--sc:${SLOT_COLORS[p.slot % SLOT_COLORS.length]}">`
-      + `<span class="vs-n"><i class="vs-dot"></i><span class="vs-name">${esc(up(p.name))}</span></span>`
+      + `<span class="vs-n"><i class="vs-dot"></i><span class="vs-name${nameFit(p.name)}">${esc(up(p.name))}</span></span>`
       + `<span class="vs-v">${n === 1 ? icon('squad') : ''}<b class="vs-cnt num">0</b><span class="vs-d"></span></span></div>`).join('');
     rows = [...rivalsEl.children].map((el, i) => ({ el, slot: peers[i].slot, cntEl: el.querySelector('.vs-cnt'), dEl: el.querySelector('.vs-d'), state: '', n: 0, d: '' }));
     for (const r of rows) setRow(r, 'pre', one(n) ? 'GET READY' : '');

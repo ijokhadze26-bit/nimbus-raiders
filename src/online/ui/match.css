@@ -39,6 +39,12 @@
 .n1 .vs-n { font-size: 14px; line-height: 1.15; }
 .n1 .vs-cnt { font-size: 19px; line-height: 1; font-weight: normal; }
 .n1 .vs-d { font-size: 12px; }
+/* a long name (hudvs.js nameFit): smaller letters and a slightly wider pill, so 12 letters fit on a 360 px phone */
+.vs-rivals.n1 { width: clamp(112px, 32.2cqw, 140px); } /* (any wider and SUDDEN DEATH no longer fits beside the clock) */
+.n1 .vs-name.nl-m { font-size: 12px; }
+.n1 .vs-name.nl-l { font-size: 10.5px; letter-spacing: -0.3px; }
+.n1 .vs-n:has(.nl-l) { gap: 3px; }
+.n2 .vs-name.nl-l, .n3 .vs-name.nl-l { font-size: 10.5px; }
 /* two or three rivals: one slim line each (name, squad, gap) */
 .n2 .vs-r, .n3 .vs-r { align-items: center; gap: 5px; padding: 1px 7px 2px; border-width: 2px; border-radius: 10px; box-shadow: 0 2px 0 rgba(10, 28, 80, 0.45); }
 .n2 .vs-n, .n3 .vs-n { flex: 1 1 auto; font-size: 11.5px; gap: 4px; }
@@ -100,7 +106,8 @@
 .vs-chip.c-net { --cc: #ffb21f; }
 .vs-chip.c-wait { --cc: #9fd8ff; }
 @keyframes vs-chip-in { from { transform: translateY(-8px) scale(0.85); opacity: 0; } to { transform: none; opacity: 1; } }
-@container (max-height: 700px) { .vs-chips { top: calc(var(--safe-t, 0px) + 156px); } }
+/* (short screens: a hazard line that wraps to two lines ends near 160 px, so the chips start just under it) */
+@container (max-height: 700px) { .vs-chips { top: calc(var(--safe-t, 0px) + 166px); } }
 /* in a boss arena the combo meter and the power timers sit lower (under the boss bar): the chips step under them */
 .hud.boss-phase ~ .vs-chips { top: calc(var(--safe-t, 0px) + 184px); }
 .hud.vs-tall.boss-phase ~ .vs-chips { top: calc(var(--safe-t, 0px) + 192px); }
@@ -196,7 +203,7 @@
 .vsr.win .vsr-why b { color: #c26a00; }
 .vsr.lose .vsr-why b { color: #d01d3a; }
 .vsr-why span { font-family: var(--font-body); font-weight: 800; font-size: 13.5px; line-height: 1.3; color: #4a6aa8; }
-.vsr-upd { display: inline-block; margin-left: 4px; padding: 1px 7px 3px; border-radius: 8px; font-size: 11px; letter-spacing: 0.5px; color: #fff; background: #2fbf4f; vertical-align: middle; }
+.vsr-upd { display: inline-block; margin-left: 4px; padding: 2px 7px 3px; line-height: 1; vertical-align: 2px; border-radius: 8px; font-size: 11px; letter-spacing: 0.5px; color: #fff; background: #2fbf4f; }
 .vsr-places { list-style: none; width: 100%; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .vsr-places li {
   --sc: #19bfff;
@@ -208,10 +215,13 @@
 .vsr-places li.vsr-h span:nth-child(3) { text-align: right; }
 .vsr-places li.vsr-h span:nth-child(4), .vsr-ds { text-align: right; }
 .vsr-pl { text-align: center; color: #7036e0; font-size: 18px; }
-.vsr-nm { display: flex; align-items: center; gap: 6px; min-width: 0; }
+/* name column: dot + name; a LEFT / OFFLINE / TIME UP tag goes on a small line under the name, never beside it */
+.vsr-nm { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 6px; min-width: 0; }
 .vsr-nm .vs-dot { box-shadow: none; border-color: var(--outline); }
 .vsr-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.vsr-nm em { flex: none; font-style: normal; font-size: 9.5px; letter-spacing: 0.5px; padding: 1px 5px 2px; border-radius: 6px; color: #fff; background: #ff4f6a; }
+.vsr-name.nl-m { font-size: 0.9em; }
+.vsr-name.nl-l { font-size: 0.82em; letter-spacing: -0.2px; }
+.vsr-nm em { grid-column: 2; justify-self: start; margin-top: 2px; font-style: normal; font-size: 9.5px; line-height: 1.2; letter-spacing: 0.5px; padding: 0 5px 1px; border-radius: 6px; color: #fff; background: #ff4f6a; }
 .vsr-tm { text-align: right; }
 .vsr-note { grid-column: 3 / 5; text-align: right; font-size: 12px; letter-spacing: 0.5px; color: #17702d; }
 .vsr .res-btns { gap: 8px; margin-top: 4px; }
@@ -222,6 +232,7 @@
 .vsr .btn-row { margin-top: 2px; }
 @container (max-height: 700px) {
   .screen-vsresult .panel.vsr { gap: 6px; }
+  .vsr .res-level { margin-top: 5px; } /* clear of the ribbon tails, also when the wider RESULT UPDATED line sits under them */
   .vsr-ico { height: 58px; font-size: 56px; }
   .vsr-ico .lose-ico { font-size: 54px; }
   .vsr-eq { font-size: 60px; }

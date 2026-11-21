@@ -89,10 +89,13 @@ try {
   ok(cs[3] && txt(cs[3]).includes('ZOE') && txt(cs[3]).includes('Titan Vex') && txt(cs[3]).includes('Void Siphon'), 'fourth card: ' + (cs[3] && txt(cs[3])));
   ok(cs[2] && txt(cs[2]).includes('Prism paint'), 'third card paint: ' + (cs[2] && txt(cs[2])));
   ok(k.qa('.vs-rivals .vs-r').length === 3, 'three rival rows in the bar');
-  // every card inside the frame (once the cards have slid in)
-  await k.wait(650);
+  // every card inside the frame (once the cards have slid in: measured after their slide-in animations have ended,
+  // not after a fixed time, so a busy machine cannot catch a card still on its way in)
+  await Promise.race([Promise.all(cs.flatMap((e) => e.getAnimations()).map((a) => a.finished.catch(() => {}))), k.wait(5000)]);
+  await k.wait(50);
+  info.cardAnims = cs.flatMap((e) => e.getAnimations()).map((a) => a.playState).join(',');
   const app = document.getElementById('app').getBoundingClientRect();
-  ok(cs.every((e) => { const r = e.getBoundingClientRect(); return r.left >= app.left - 1 && r.right <= app.right + 1 && r.top >= 60 && r.bottom <= app.bottom - 60 && r.width > 100; }), 'a card of four is off the frame');
+  ok(cs.every((e) => { const r = e.getBoundingClientRect(); return r.left >= app.left - 1 && r.right <= app.right + 1 && r.top >= 60 && r.bottom <= app.bottom - 60 && r.width > 100; }), 'a card of four is off the frame: ' + JSON.stringify(cs.map((e) => { const r = e.getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom].map(Math.round); })) + ' in ' + JSON.stringify([app.left, app.top, app.right, app.bottom].map(Math.round)));
 
   // ---- 6. leaving during the countdown ----
   ui.matchUi.leave();
