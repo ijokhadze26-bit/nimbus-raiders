@@ -19,6 +19,7 @@
 //   picks                          my own { hero, weapon, heroSkin, weaponSkin } of this match (for the VS card)
 //   stop()                         leaves the match (my fall is reported as 'quit' when I was alive)
 //   simulate(seconds, dt)          tests / calibration: pump without rendering
+//   sab                            the sabotage of this match (sabotage.js: view(), send(), test; sab:* events)
 // Game bus: versus:start { seed, peers }, versus:go, versus:sudden, versus:storm, versus:peerdown { slot, name, by },
 // versus:end { result, ... }, versus:revised { result, ... }; run:lose / run:win carry mode 'versus'. Nothing of a versus run reaches the save
 // (save/progress.js pays 'level' and 'endless' only; achievements skip 'versus').
@@ -27,8 +28,9 @@ import { FORMATIONS } from '../../game/formation.js';
 import { Ramp } from './ramp.js';
 import { Ghost } from './ghost.js';
 import { VS, vsBossHp, vsBossTier } from './vsdata.js';
+import { Sabotage } from './sabotage.js';
 
-const HINT = { sudden: ['SUDDEN DEATH! The horde keeps growing', '#ff5a4d'], storm: ['STORM! Hold on as long as you can', '#b49dff'], down: ['RIVAL DOWN! Stay alive', '#7dffb0'] };
+const HINT = { sudden: ['SUDDEN DEATH! The horde keeps growing', '#ff5a4d'], storm: ['STORM! Hold on as long as you can', '#b49dff'] }; // (RIVAL DOWN! is the UI's big moment)
 
 export class Versus {
   constructor(game) {
@@ -39,6 +41,7 @@ export class Versus {
     this.t = 0; this.simT = 0;
     this.ramp = new Ramp(game);
     this.ghost = new Ghost(game);
+    this.sab = new Sabotage(game, this); // sabotage: meter, sending, the receive queue (sabotage.js)
     this.offs = [];
     this.v = { t: 0, sudden: false, storm: false, go: false, net: 'on', me: { n: 0, dist: 0, danger: 0 }, peers: [] };
     this.counts = new Float32Array(Math.round(VS.danger.window / VS.sample));
@@ -76,12 +79,13 @@ export class Versus {
     const v = this.v;
     v.t = 0; v.sudden = false; v.storm = false; v.go = false; v.net = 'on';
     v.me.n = 0; v.me.dist = 0; v.me.danger = 0; // (danger is only rewritten by the first sample after GO)
-    v.peers = (link.peers || []).map((p) => ({ slot: p.slot, name: p.name, hero: p.hero, weapon: p.weapon, heroSkin: p.heroSkin || null, weaponSkin: p.weaponSkin || null, bot: !!p.bot, n: 0, dist: 0, danger: 0, x: 0, form: 0, flags: 0, boss: 0, zone: 1, alive: true, silent: 0, countdown: null, place: null, T: null, d: null, by: null }));
+    v.peers = (link.peers || []).map((p) => ({ slot: p.slot, name: p.name, hero: p.hero, weapon: p.weapon, heroSkin: p.heroSkin || null, weaponSkin: p.weaponSkin || null, bot: !!p.bot, n: 0, dist: 0, danger: 0, x: 0, form: 0, flags: 0, charge: 0, boss: 0, zone: 1, alive: true, silent: 0, countdown: null, place: null, T: null, d: null, by: null }));
     this.offs = [
       link.on('state', (slot, s) => this.onPeerState(slot, s)),
       link.on('out', (slot, o) => this.onPeerOut(slot, o)),
       link.on('peer', (slot, o) => { const p = this.peer(slot); if (p) { p.silent = o.silent || 0; p.countdown = o.countdown ?? null; } }),
       link.on('status', (s) => { v.net = s; }),
+      link.on('event', (e) => this.sab.onEvent(e)),
     ];
     this.offVerdict = link.on('verdict', (o) => this.onVerdict(o));
     this.live = true;
@@ -91,6 +95,7 @@ export class Versus {
     for (const m of g.squad.members) { m.type = 0; m.shield = false; }
     this.bossHp();
     this.ramp.begin(this.seed);
+    this.sab.start(link, this.seed);
     this.ghost.begin(link.peers);
     g.events.emit('versus:start', { seed: this.seed, peers: link.peers || [] });
   }
@@ -114,6 +119,7 @@ export class Versus {
     for (const off of this.offs) if (typeof off === 'function') off();
     this.offs = [];
     this.ramp.end();
+    this.sab.end();
     this.ghost.clear();
     // the link kept for the result screen still delivers a revised verdict; a link that is left delivers nothing more
     if (leave || !this.link) { if (typeof this.offVerdict === 'function') this.offVerdict(); this.offVerdict = null; }
@@ -164,6 +170,7 @@ export class Versus {
       this.t += raw;
       const began = this.ramp.step(dt, raw, this.t);
       if (began) this.phase(began);
+      this.sab.step(raw); // after ramp.step: the hazards reset the mods earlier in this step
       this.sampleT += raw;
       if (run.active && this.sampleT >= VS.sample) { this.sampleT = Math.min(this.sampleT - VS.sample, VS.sample); this.sample(); }
       return;
@@ -213,15 +220,15 @@ export class Versus {
     this.metres(); // keeps dNow fresh for a fall reported after the run is gone
     this.link.push({
       t: this.t, dist: run.dist, n: g.squad.count, form: Math.max(0, FORMATIONS.indexOf(g.formation.mode)),
-      flags: (run.phase === 'boss' ? 1 : 0) | (g.shielded() ? 2 : 0),
-      boss: b ? Math.max(0, Math.min(1, b.hp / b.maxHp)) : 0, zone: g.endless.zone, charge: 0, danger, x: g.squad.leader.x,
+      flags: (run.phase === 'boss' ? 1 : 0) | (g.shielded() ? 2 : 0) | this.sab.flags(),
+      boss: b ? Math.max(0, Math.min(1, b.hp / b.maxHp)) : 0, zone: g.endless.zone, charge: this.sab.charge(), danger, x: g.squad.leader.x,
     });
   }
 
   bossHp() { const run = this.game.run, n = this.game.endless.zone; if (run && run.boss) run.boss = { ...run.boss, hp: vsBossHp(n), tier: vsBossTier(n) }; }
 
   /** A boss fell and the next zone exists: its boss gets the versus hp, its gate rows their red sides. */
-  onZone() { if (!this.live) return; this.bossHp(); this.ramp.redden(); }
+  onZone() { if (!this.live) return; this.bossHp(); this.ramp.redden(); this.sab.onZone(); }
 
   /** Same opening attacks for every player: the boss dice restart from the match seed and the arena number. */
   onBossSpawn() { if (this.live && this.game.run && this.game.run.mode === 'versus') this.game.rng.seed((this.seed ^ (this.game.endless.zone * 0x9E37)) >>> 0); }
@@ -239,6 +246,7 @@ export class Versus {
     this.myT = this.t;
     this.myD = (p.dist || 0) + (p.bossMax ? Math.floor(30 * (1 - p.bossHp / p.bossMax)) : 0);
     if (!this.reported && !this.verdict) { this.reported = true; this.link.fall({ t: this.t, d: this.myD, by: 'dead' }); }
+    this.sab.end();
     g.events.emit('fx:slowmo', VS.end.loseSlow);
   }
 
@@ -257,7 +265,7 @@ export class Versus {
   onPeerState(slot, s) {
     const p = this.peer(slot);
     if (!p || !s || !p.alive) return;
-    p.n = s.n | 0; p.dist = s.dist || 0; p.danger = s.danger | 0; p.x = s.x || 0; p.form = s.form | 0; p.flags = s.flags | 0; p.boss = s.boss || 0; p.zone = s.zone || 1;
+    p.n = s.n | 0; p.dist = s.dist || 0; p.danger = s.danger | 0; p.x = s.x || 0; p.form = s.form | 0; p.flags = s.flags | 0; p.charge = s.charge | 0; p.boss = s.boss || 0; p.zone = s.zone || 1;
     p.silent = 0;
     this.ghost.feed(slot, s, this.link.clock());
   }
@@ -271,12 +279,12 @@ export class Versus {
     p.T = o ? o.T : null; p.d = o ? o.d : null; p.by = o ? o.by : null;
     p.place = alive + (this.fallen ? 0 : 1) + 1; // provisional: the verdict has the final places
     this.ghost.fall(slot);
+    this.sab.dropFrom(slot);
     g.events.emit('versus:peerdown', { slot, name: p.name, by: p.by });
     if (!alive && !this.fallen && g.run && g.run.active && !this.rivalSlow) {
       // the last rival is down: slow motion while the 1 s tie window runs (I must not fall inside it)
       this.rivalSlow = true;
       g.events.emit('fx:slowmo', VS.end.rivalSlow);
-      g.events.emit('hazard:hint', { kind: 'down', text: HINT.down[0], color: HINT.down[1] });
     }
   }
 
@@ -321,6 +329,7 @@ export class Versus {
     const g = this.game, run = g.run, E = VS.end;
     this.myT = this.t; this.myD = this.metres();
     const squad = g.squad.count;
+    this.sab.end();
     run.setPhase('won');
     g.heroes.invulnT = Math.max(g.heroes.invulnT, E.winHold + 3); // nothing may thin the squad during the cheer
     g.horde.skipAll();

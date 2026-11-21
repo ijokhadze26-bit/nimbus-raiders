@@ -19,6 +19,8 @@ const WU = 0.985, WV = 0.04; // white texel block (canvas bottom-right corner) i
 let frameGeo = null, shellGeo = null;
 const gunGeos = new Map();
 const _c = new THREE.Color();
+// 'sabotage' (online versus only): a purple frame, the Void Siphon gun and the label SABOTAGE
+const SAB_C = '#b49dff', wid = (id) => (id === 'sabotage' ? 'voidsiphon' : id);
 
 function setUv(g, u, v) { const a = g.attributes.uv; for (let i = 0; i < a.count; i++) a.setXY(i, u, v); return g; }
 
@@ -56,8 +58,8 @@ function gunGeo(id) {
 }
 
 function drawName(label, id) {
-  const def = weaponDef(id);
-  drawLabel(label, def.short || def.name, {
+  const def = weaponDef(wid(id));
+  drawLabel(label, id === 'sabotage' ? 'SABOTAGE' : def.short || def.name, {
     fill: '#ffffff', stroke: '#0e2a66', size: 74, strokeWidth: 13, y: 0.46, maxWidth: 0.9, shadow: false,
     after: (ctx, w, h) => { ctx.fillStyle = '#ffffff'; ctx.fillRect(w - 16, h - 16, 16, 16); },
   });
@@ -72,7 +74,7 @@ export function buildCrate(weaponId) {
   const shellMat = new THREE.MeshBasicMaterial({ map: label.texture, vertexColors: true, transparent: true, depthWrite: false, toneMapped: false, side: THREE.DoubleSide });
   const frame = new THREE.Mesh(frameGeo, frameMat);
   frame.castShadow = true;
-  const gun = new THREE.Mesh(gunGeo(weaponId), gunMat);
+  const gun = new THREE.Mesh(gunGeo(wid(weaponId)), gunMat);
   gun.position.y = 0.95;
   gun.scale.setScalar(4.2);
   const shell = new THREE.Mesh(shellGeo, shellMat);
@@ -83,12 +85,12 @@ export function buildCrate(weaponId) {
     setWeapon(id) {
       if (id === crate.weapon) return;
       crate.weapon = id;
-      const def = weaponDef(id);
-      const c = def.look.mk[0].color, tint = (def.gunTint && def.gunTint[0]) || c;
+      const def = weaponDef(wid(id));
+      const c = id === 'sabotage' ? SAB_C : def.look.mk[0].color, tint = (def.gunTint && def.gunTint[0]) || c;
       frameMat.color.set(c).lerp(_c.set('#ffffff'), 0.15); frameMat.emissive.set(c);
       gunMat.color.set(tint); gunMat.emissive.set(tint);
       shellMat.color.set(c);
-      gun.geometry = gunGeo(id);
+      gun.geometry = gunGeo(wid(id));
       drawName(label, id);
     },
     update(t, c) {

@@ -11,10 +11,16 @@
 //   rivals: [{ slot, name, hero, weapon, heroSkin, weaponSkin, tr, bot, fallAt (s, Infinity = never), lag (0.12 s),
 //             flush (0.25 s), curve(t) -> { dist, n, x, form, boss, zone, flags, danger } }]
 //           default curve: a plausible run (9.3 u/s, a squad that grows, weaving lanes, collapsing before fallAt)
+//   mirror: true = every sendEvent of mine comes back as an event from rivals[0] after its `lag` (calibration: a
+//           rival of equal skill sends what I earn)
 //   referee: true (default) = decide the verdict here with the rules of SPEC4 §5.6 (ranking time, 1 s tie window,
 //            further distance wins a tie, equal distance = draw); false = only link.test.verdict() ends a match.
 // A scripted rival is sampled 10 times a second on the match clock and delivered in bundles like the real thing
 // (newest sample + `xs`), `lag` seconds late.
+// Sabotage (STAGE2): test.sab(slot, code, { lag, sent, to }) = that rival sends one now, delivered as 'event' from
+// tick() once clock() >= sent + lag; test.dupe(e) re-delivers a delivered event (a replay); test.events records mine.
+import { sabEncode, sabBig } from './sabdata.js';
+
 const TIE = 1.0, SAMPLE = 0.1;
 
 export function defaultCurve(fallAt = Infinity, phase = 0) {
@@ -42,9 +48,10 @@ export function createTestLink(opts = {}) {
     heroSkin: r.heroSkin || null, weaponSkin: r.weaponSkin || null, tr: r.tr | 0, bot: r.bot !== false,
     fallAt: r.fallAt ?? Infinity, lag: r.lag ?? 0.12, flush: r.flush ?? 0.25,
     curve: r.curve || defaultCurve(r.fallAt ?? Infinity, i * 1.7),
-    next: 0, lastFlush: 0, xs: [], out: null, silent: false, last: null,
+    next: 0, lastFlush: 0, q: 0, xs: [], out: null, silent: false, last: null,
   }));
-  const test = { sent: [], pushed: 0, lastT: 0, falls: [], events: [], verdicts: [], ticks: 0, left: false, mine: null, done: false };
+  const outbox = [], delivered = [];
+  const test = { delivered, sent: [], pushed: 0, lastT: 0, falls: [], events: [], verdicts: [], ticks: 0, left: false, mine: null, done: false };
   const mySlot = opts.slot | 0;
 
   function decide() {
@@ -105,7 +112,11 @@ export function createTestLink(opts = {}) {
       if (!test.mine) test.mine = { T: out.t, d: out.d, by: out.by };
       decide();
     },
-    sendEvent(e) { test.events.push(e); },
+    sendEvent(e) {
+      test.events.push(e);
+      const r = rivals[0];
+      if (opts.mirror && r && !r.out && e) outbox.push({ at: clock() + r.lag, e: { k: e.k, a: e.a, to: e.to === -1 ? -1 : mySlot, f: r.slot, q: ++r.q } });
+    },
     on(type, cb) {
       if (!listeners[type]) throw new Error('testlink: unknown event ' + type);
       listeners[type].push(cb);
@@ -133,6 +144,13 @@ export function createTestLink(opts = {}) {
         }
         if (now - r.lag >= r.fallAt) rivalOut(r, { T: r.fallAt, d: r.curve(r.fallAt).dist, by: 'dead' });
       }
+      for (let i = 0; i < outbox.length; i++) {
+        if (outbox[i].at > now + 1e-9) continue;
+        const { e } = outbox.splice(i--, 1)[0];
+        delivered.push(e);
+        emit('event', { ...e });
+        if (test.left) return;
+      }
       decide();
     },
     test,
@@ -157,5 +175,15 @@ export function createTestLink(opts = {}) {
   /** 'sim' clock only: freeze the match clock at a value (null = follow the game again). */
   test.setClock = (v) => { manual = v; };
   test.rivals = rivals;
+  /** Rival `slot` sends sabotage `code` now (sent = its match clock at send; big ones go to -1). Returns the event. */
+  test.sab = (slot, code, o = {}) => {
+    const r = rivals.find((x) => x.slot === slot) || rivals[0];
+    const sent = o.sent ?? clock();
+    const e = { k: 's', a: sabEncode(code, sent), to: o.to ?? (sabBig(code) ? -1 : mySlot), f: r ? r.slot : slot, q: r ? ++r.q : 0 };
+    outbox.push({ at: sent + (o.lag || 0), e });
+    return e;
+  };
+  /** Re-delivers a delivered event (default: the last one), as a re-attached listener would replay it. */
+  test.dupe = (e = delivered[delivered.length - 1]) => { if (e) emit('event', { ...e }); };
   return link;
 }

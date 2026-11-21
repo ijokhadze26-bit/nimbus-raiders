@@ -45,11 +45,12 @@ export const VS = {
 
   // the end of a match (real seconds)
   end: {
-    loseSlow: { scale: 0.25, duration: 1.2 },  // my squad is down
-    loseHold: 2.6,        // result screen this long after my fall (or minHold after the verdict, whichever is later)
+    // (stage 2: longer than stage 1's 1.2 / 2.6 / 1.0 / 2.2 so the big SQUAD DOWN! / RIVAL DOWN! moment can be read)
+    loseSlow: { scale: 0.25, duration: 1.6 },  // my squad is down
+    loseHold: 3.2,        // result screen this long after my fall (or minHold after the verdict, whichever is later)
     minHold: 0.6,
-    rivalSlow: { scale: 0.3, duration: 1.0 },  // the last rival fell: slow motion through the 1 s tie window
-    winHold: 2.2,         // result screen this long after the win
+    rivalSlow: { scale: 0.3, duration: 1.2 },  // the last rival fell: slow motion through the 1 s tie window
+    winHold: 3.0,         // result screen this long after the win
     // fallen and still no verdict this long after (match clock): the run ends as a loss. A LAST RESORT, far past the
     // network side's slowest verdict (silent rival 3 + 10 s, stalled rival ~20 s, me offline 8 s: src/online/config.js)
     verdictWait: 30,

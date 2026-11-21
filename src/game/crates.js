@@ -59,8 +59,8 @@ export class Crates {
     const ev = this.events;
     while (this.cursor < ev.length && ev[this.cursor].at - dist < SPAWN_AHEAD) {
       const e = ev[this.cursor++];
-      const c = { at: e.at, lane: e.lane, x: e.x ?? 0, z: -e.at, weapon: e.weapon, state: 'live', t: 0, v: null };
-      if (this.live.length < MAX_ALIVE) c.v = this.visual(e.weapon);
+      const c = { at: e.at, lane: e.lane, x: e.x ?? 0, z: -e.at, weapon: e.weapon, kind: e.kind, state: 'live', t: 0, v: null };
+      if (this.live.length < MAX_ALIVE) c.v = this.visual(e.kind === 'sabotage' ? 'sabotage' : e.weapon);
       this.live.push(c);
     }
     for (let i = this.live.length - 1; i >= 0; i--) {
@@ -81,6 +81,7 @@ export class Crates {
     c.state = 'taken'; c.t = 0;
     this.taken++;
     const pos = { x: c.x, y: 1, z: c.z };
+    if (c.kind === 'sabotage') { game.events.emit('crate:take', { kind: 'sabotage', weapon: c.weapon, pos }); return; } // online only
     if (c.weapon !== w.id) w.setWeapon(c.weapon);
     else if (w.mk < MAX_MK) w.upgrade(1);
     else { game.run.coins += 25; game.events.emit('coin:collect', { amount: 25, pos }); }

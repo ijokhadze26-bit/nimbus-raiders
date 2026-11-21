@@ -8,6 +8,7 @@
 // - Sudden Death (180 s): growing waves that never stop, also in a boss arena, and a darker sky;
 // - Storm wall (270 s): the squad shrinks every second until it is gone.
 // Nothing here reads the graphics quality, the wall clock or the generator's Rng (the road stays seed-only).
+// A red gate row a sabotage splices in (`sab: true`) is skipped by redden() and shifts its index (spliced()).
 import { Rng } from '../../core/rng.js';
 import { GATE } from '../../config.js';
 import { endlessTough } from '../../data/endless.js';
@@ -62,7 +63,7 @@ export class Ramp {
       const at = ev[i].at;
       let j = i;
       while (j < ev.length && ev[j].at === at) j++;
-      if (at > R.from) {
+      if (at > R.from && !ev[i].sab) { // (a red gate a sabotage added is not a road row: no draw)
         this.stats.rows++;
         if (this.redRng.next() < Math.min(R.max, R.base + R.per700 * at / 700)) {
           const E = g.endless.gen.knobs(at).E;
@@ -76,6 +77,9 @@ export class Ramp {
     }
     this.gateIdx = i;
   }
+
+  /** A sabotage spliced n gate events at index i (sabeffects.js): rows already walked keep their place. */
+  spliced(i, n = 1) { if (i <= this.gateIdx) this.gateIdx += n; }
 
   /** Enemy mix by distance (the generator's unlock distances, fixed shares: no Rng draw). */
   mix(d) {
