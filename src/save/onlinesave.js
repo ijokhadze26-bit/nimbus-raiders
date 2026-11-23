@@ -23,12 +23,18 @@ export function defaultOnline() {
   return { name: '', tr: 0, pk: 0, bt: 0, st: 0, bs: 0, w: 0, hist: [] };
 }
 
-/** One match row: a = when (seconds since 1970), r = w / l / d, t = seconds survived, d = metres, n = rival, k = kind. */
+/** One match row: a = when (seconds since 1970), r = w / l / d, t = seconds survived, d = metres, n = rival, k = kind;
+ *  optional (stage 4, only when not zero): g = my trophy change (-100..100), c = coins paid (0..1000). */
 function histRow(v) {
   if (!isObj(v) || !RESULTS.includes(v.r)) return null;
   const a = int(v.a, 0, 1e11);
   if (!a) return null;
-  return { a, r: v.r, t: Math.round(Math.max(0, Math.min(330, Number(v.t) || 0)) * 10) / 10, d: int(v.d, 0, 1e6), n: name(v.n), k: KINDS.includes(v.k) ? v.k : 'f' };
+  const row = { a, r: v.r, t: Math.round(Math.max(0, Math.min(330, Number(v.t) || 0)) * 10) / 10, d: int(v.d, 0, 1e6), n: name(v.n), k: KINDS.includes(v.k) ? v.k : 'f' };
+  const g = Number.isFinite(Number(v.g)) ? Math.max(-100, Math.min(100, Math.round(Number(v.g)))) : 0;
+  const c = Number.isFinite(Number(v.c)) ? Math.max(0, Math.min(1000, Math.round(Number(v.c)))) : 0;
+  if (g) row.g = g;
+  if (c) row.c = c;
+  return row;
 }
 
 /** Newest first, one row per moment, at most HIST_MAX. */

@@ -15,8 +15,10 @@
 //   no person: a bot (pickBot / createBotLink of bot.js): RIVAL FOUND! for pick.readyIn s, then the match starts on
 //     the bot's LINK (no database traffic at all) with the same VS card.
 //   PLAY AGAIN on the result screen (flow.rematch() in quick mode) leaves the room and starts a NEW search.
-// Stage 4 hooks: session.stake(flow.quick.match) on versus:go and session.claim(flow.quick.match, result) on
-// versus:end, quick matches only (both are stubs today: nothing is written). link.ranked stays false.
+// Stage 4 (trophies, src/online/ranked.js through the session): session.prepare(match) on versus:start,
+// session.stake(match) on versus:go, session.claim(match, result) on versus:end and versus:revised (a provisional
+// verdict is skipped there), session.close(match) when a quick match is left before its verdict. Quick matches only:
+// a friend room never changes trophies. link.ranked stays false (the link knows nothing of trophies).
 import { NET } from './config.js';
 import { hash32, realClock } from './transport.js';
 import { createQuick, countMatch, matchCfg, quitIfLive, QUICK } from './quick.js';
@@ -100,6 +102,7 @@ export function installQuick(flow, inner, { clock = realClock } = {}) {
   /** Out of Quick Match for good (LEAVE, CANCEL, another menu): the search and anything it holds go. */
   function stop() {
     stopTimer();
+    if (quick.match) session.close(quick.match).catch(() => {}); // (a match with a verdict is not touched)
     found = null;
     let p = Promise.resolve();
     if (q) { for (const off of qOffs.splice(0)) off(); p = q.cancel(); q = quick.q = null; }
@@ -127,9 +130,13 @@ export function installQuick(flow, inner, { clock = realClock } = {}) {
     return { phase: 'search', secs, name: '', hero: '', weapon: '' };
   };
 
-  // ---- stage 4 hooks (stubs today: nothing is written) ----
-  game.events.on('versus:go', () => { if (flow.mode === 'quick' && quick.match) session.stake(quick.match).catch(() => {}); });
-  game.events.on('versus:end', (r) => { if (flow.mode === 'quick' && quick.match) session.claim(quick.match, r).catch(() => {}); });
+  // ---- stage 4: the ranked writes (ranked.js) ----
+  const mine = () => flow.mode === 'quick' && quick.match && flow.link && game.versus && game.versus.link === flow.link;
+  game.events.on('versus:start', () => { if (mine()) session.prepare(quick.match).catch(() => {}); });
+  game.events.on('versus:go', () => { if (mine()) session.stake(quick.match).catch(() => {}); });
+  const verdict = (r) => { if (flow.mode === 'quick' && quick.match) session.claim(quick.match, r).catch(() => {}); };
+  game.events.on('versus:end', verdict);
+  game.events.on('versus:revised', verdict);
 
   // ---- the hooks flow.js calls ----
   return {

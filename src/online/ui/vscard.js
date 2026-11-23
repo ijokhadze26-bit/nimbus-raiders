@@ -5,12 +5,15 @@
 //   A player who arrives after GO (late start, SPEC4 §5.2) gets no card, only the GO!.
 // Pure DOM in the UI root, above the HUD and below the screens (so the LEAVE MATCH? dialog covers it); it never
 // takes a tap. The countdown number is written only when it changes.
+// Stage 4: under each name the league badge and the trophies: mine as my profile had them at 'versus:start' (before
+// the stake), a rival's from their seat (a friend room too).
 import { heroIcon, weaponIcon } from '../../ui/icons2.js';
 import { heroDef } from '../../data/heroes.js';
 import { weaponDef } from '../../data/weapons.js';
 import { HERO_BY_ID, WEAPON_SKIN_BY_ID } from '../../data/skins.js';
 import { SLOT_COLORS } from '../game/vsdata.js';
 import { esc, up } from './vswords.js';
+import { badgeHtml } from '../leagues.js';
 
 const GO_MS = 800;        // how long GO! stays
 const LATE = -0.3;        // a start this close to GO (or after it) skips the card
@@ -18,14 +21,14 @@ const LATE = -0.3;        // a start this close to GO (or after it) skips the ca
 const div = (cls, html) => { const e = document.createElement('div'); e.className = cls; if (html != null) e.innerHTML = html; return e; };
 
 /** One player's card: seat colour head with the name, then the hero and the weapon with their looks. */
-export function playerCardHtml(p, me) {
+export function playerCardHtml(p, me, tr = p.tr) {
   const hero = heroDef(p.hero), weapon = weaponDef(p.weapon);
   // Pip outfits recolour Pip only (game/loadout.js): another hero wears its own colours whatever is equipped
   const outfit = hero.id === 'pip' && p.heroSkin && p.heroSkin !== 'classic' ? HERO_BY_ID[p.heroSkin] : null;
   const paint = p.weaponSkin && p.weaponSkin !== 'factory' ? WEAPON_SKIN_BY_ID[p.weaponSkin] : null;
   const look = (name, color) => `<i class="vc-look"><u style="background:${color}"></u>${esc(name)}</i>`;
   return `<div class="vc-p${me ? ' me' : ''}" data-slot="${p.slot}" style="--sc:${SLOT_COLORS[p.slot % SLOT_COLORS.length]}">
-      <div class="vc-head"><span class="vc-name">${esc(up(p.name))}</span>${me ? '<span class="vc-you">YOU</span>' : ''}</div>
+      <div class="vc-head"><span class="vc-nb"><span class="vc-name">${esc(up(p.name))}</span>${typeof tr === 'number' && Number.isFinite(tr) ? `<span class="vc-tr">${badgeHtml(tr, 'sm')}<b class="num">${Math.max(0, Math.round(tr))}</b></span>` : ''}</span>${me ? '<span class="vc-you">YOU</span>' : ''}</div>
       <div class="vc-picks">
         <div class="vc-pick"><span class="vc-ico">${heroIcon(hero.id)}</span><span class="vc-t"><small>HERO</small><b>${esc(hero.name)}</b>${outfit ? look(outfit.name, outfit.pip.suit) : ''}</span></div>
         <div class="vc-pick"><span class="vc-ico">${weaponIcon(weapon.id)}</span><span class="vc-t"><small>WEAPON</small><b>${esc(weapon.name)}</b>${paint ? look(`${paint.name} paint`, paint.tiers ? paint.tiers[2].color : '#fff') : ''}</span></div>
@@ -54,8 +57,9 @@ export function mountVsCard(ctx) {
     if (!link) return;
     const all = ctx.players(); // me first, then the rivals by seat
     const late = link.clock() >= LATE;
+    const prof = ctx.flow && ctx.flow.session && ctx.flow.session.profile, myTr = prof ? Number(prof.tr) : null;
     el.className = `vs-card n${Math.max(2, Math.min(4, all.length))}${late ? ' late' : ''}`;
-    el.innerHTML = `<div class="vc-players">${late ? '' : all.map((p, i) => playerCardHtml(p, i === 0)).join('')}<div class="vc-mid"><span class="vc-num vs">${late ? '' : 'VS'}</span></div></div>`;
+    el.innerHTML = `<div class="vc-players">${late ? '' : all.map((p, i) => playerCardHtml(p, i === 0, i === 0 ? myTr : Number(p.tr))).join('')}<div class="vc-mid"><span class="vc-num vs">${late ? '' : 'VS'}</span></div></div>`;
     midEl = el.querySelector('.vc-num');
     state = 'card'; shown = 'VS';
     update();

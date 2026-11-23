@@ -7,11 +7,18 @@
 //   After a QUICK MATCH the same button reads PLAY AGAIN (rematchWords(rs).label): a new search.
 // - A verdict the network side could not be sure of (provisional) may be replaced by a later one: 'versus:revised'
 //   redraws the screen with the result that counts and a RESULT UPDATED tag.
-// No coins, trophies or share button here (stage 4), and none of the single-player RETRY / NEXT / MAP buttons.
+// - Stage 4: under the places the trophies and coins of the match (rankline.js, from flow.reward.last; redrawn on
+//   every flow 'change': SAVING... then saved), the rival's trophy change in their row, the league-up moment, and a
+//   SHARE button beside LEAVE (share.js shareResult). None of the single-player RETRY / NEXT / MAP buttons.
 import { screenEl, bump } from '../../ui/ui.js';
 import { icon } from '../../ui/icons.js';
 import { SLOT_COLORS } from '../game/vsdata.js';
 import { verdictWords, rematchWords, leftWords, clockTenths, metres, esc, up, nameFit } from './vswords.js';
+import { mountRankLine } from './rankline.js';
+
+// share.js is the other stage-4 builder's: found when it exists, a quiet stub until the merge
+const SHARE = Object.values(import.meta.glob('../share.js', { eager: true }))[0] || {};
+const shareResult = SHARE.shareResult || (async () => ({ ok: false, via: 'none' }));
 
 const RIBBON = { win: 'ribbon-gold', lose: 'ribbon-red', draw: 'ribbon-blue' };
 const ICON = {
@@ -26,6 +33,7 @@ export function createVsResult(ctx) {
   root.innerHTML = '<div class="result-wrap vsr-wrap"></div>';
   const wrap = root.firstChild;
   let offFlow = null, up2 = false;
+  const rank = mountRankLine(ctx);
 
   /** The match result; a made-up loss if the screen is ever opened without one (never leaves it blank). */
   function result() {
@@ -84,15 +92,20 @@ export function createVsResult(ctx) {
         <div class="vsr-ico">${ICON[w.tone]()}</div>
         <div class="vsr-why"><b>${esc(w.head)}</b><span>${esc(w.text)}</span></div>
         ${placesHtml(res)}
+        <div class="vsr-rank" hidden></div>
         <div class="res-btns">
           <button type="button" class="btn btn-gold btn-lg vsr-rematch" data-act="rematch">${icon('retry')}<span>REMATCH</span></button>
           <div class="vsr-rm"></div>
-          <div class="btn-row"><button type="button" class="btn btn-md btn-blue" data-act="leave">${icon('home')}<span>LEAVE</span></button></div>
+          <div class="btn-row"><button type="button" class="btn btn-md btn-blue" data-act="leave">${icon('home')}<span>LEAVE</span></button><button type="button" class="btn btn-md btn-blue vsr-share" data-act="share"><span>SHARE</span></button></div>
         </div>
       </div>`;
     root.classList.toggle('is-win', w.tone === 'win');
+    rank.refresh(wrap, res, true);
     rematch();
   }
+
+  /** On every flow 'change': the REMATCH line and the trophies / coins (SAVING... -> saved). */
+  function refresh() { rank.refresh(wrap, result(), false); rematch(); }
 
   /** The REMATCH button and the line under it (redrawn on every flow 'change'). */
   function rematch() {
@@ -124,15 +137,17 @@ export function createVsResult(ctx) {
       up2 = !!result().revised;
       render();
       if (offFlow) offFlow();
-      offFlow = ctx.flow && ctx.flow.on ? ctx.flow.on('change', rematch) : null;
+      offFlow = ctx.flow && ctx.flow.on ? ctx.flow.on('change', refresh) : null;
       if (result().result === 'win') ui.sfx('star', { index: 2 });
     },
     hide() { if (typeof offFlow === 'function') offFlow(); offFlow = null; },
     onAct(act) {
       if (act === 'rematch') { try { ctx.flow.rematch(); } catch (e) { console.warn('[online] rematch failed', e); } rematch(); }
       else if (act === 'leave') ctx.leave();
+      else if (act === 'share') shareResult(rank.info(result())).catch((e) => console.warn('[online] share failed', e));
     },
     onBack() { ctx.leave(); },
-    refresh: rematch,
+    refresh,
+    rank,
   };
 }

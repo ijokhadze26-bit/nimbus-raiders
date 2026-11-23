@@ -142,6 +142,23 @@ test('plausibility: a stream that cannot be real', () => {
   eq(plausible(null, s(10, 5000), 10.2), 'distance');
 });
 
+test('plausibility: an honest rival on SPEED UP late in a match is never suspect, 32 u/s is', () => {
+  const s = (t, dist, n = 50) => ({ t, dist, n });
+  // 200 s in at an average 12 u/s, then 5 s of SPEED UP at 25 u/s with bundles 2 s apart (a slow phone network)
+  let prev = s(200, 2400), why = [];
+  for (let t = 202; t <= 206; t += 2) { const next = s(t, prev.dist + 25 * 2); why.push(plausible(prev, next, t + 0.2)); prev = next; }
+  eq(why, [null, null, null], '25 u/s in 2 s bundles');
+  // the same with the usual 0.25 s bundles
+  prev = s(200, 2400); why = [];
+  for (let k = 1; k <= 20; k++) { const next = s(200 + k * 0.25, prev.dist + 25 * 0.25); why.push(plausible(prev, next, next.t + 0.2)); prev = next; }
+  ok(why.every((w) => w === null), '25 u/s in 0.25 s bundles: ' + why.join());
+  // 32 u/s sustained: too fast from one bundle to the next, and over the whole run
+  prev = s(200, 2400); why = [];
+  for (let t = 202; t <= 206; t += 2) { const next = s(t, prev.dist + 32 * 2); why.push(plausible(prev, next, t + 0.2)); prev = next; }
+  eq(why, ['speed', 'speed', 'speed'], '32 u/s in 2 s bundles');
+  eq(plausible(s(99.75, 32 * 99.75), s(100, 3200), 100.2), 'distance', '32 u/s from the start');
+});
+
 test('trophy maths matches the table in the design', () => {
   eq([humanStake(0), humanStake(7), humanStake(10), humanStake(299), humanStake(300)], [0, 7, 10, 10, 20]);
   eq([botStake(100), botStake(300), botStake(700), botStake(1200)], [10, 20, 12, 6]);

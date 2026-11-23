@@ -23,16 +23,22 @@
 //   shareLink()                     the address a friend opens to land in my room
 //   mode / quickMatch() / quickCancel() / quickView() / quick   QUICK MATCH (src/online/quickflow.js); in quick mode
 //                                   rematchState() / rematch() mean PLAY AGAIN (a new search), never a REMATCH
+//   reward                          { last }: trophies, coins, online skins of the last match (src/online/rewards.js)
 // Leaving the online pages for any other menu also leaves the room; a tab that reloads in the middle of a match
-// has its fall written on the next visit (SPEC4 §5.7).
+// has its fall written on the next visit (SPEC4 §5.7) - unless its `live` stamp (renewed every 2 s by the page that
+// plays it) is fresh: then another tab of mine is playing that match right now.
+
 import { MENU_STATES } from '../game/states.js';
 import { selectHero, selectWeapon } from '../save/unlocks.js';
-import { setOnlineProfile, addOnlineMatch } from '../save/onlinesave.js';
+import { setOnlineProfile } from '../save/onlinesave.js';
 import { createRoom, joinRoom } from './room.js';
 import { createMatch, quitOut } from './match.js';
 import { NAME_HELP } from './names.js';
 import { NET } from './config.js';
 import { installQuick } from './quickflow.js';
+import { installRewards } from './rewards.js';
+import { TROPHY } from './leagues.js';
+import { realClock } from './transport.js';
 
 const PENDING_KEY = 'nimbusRaiders.online.pending';
 
@@ -58,6 +64,8 @@ export function createFlow(game, ui, { transport, session, clock }) {
   let parked = false;       // I was un-readied because my rematch partner went away (ready again when they are back)
   let queued = false;
   let quick = null;         // the QUICK MATCH hooks (quickflow.js)
+  let rewards = null;       // trophies / coins / skins of a finished match (rewards.js)
+  let stampOff = null;      // the live stamp of the pending match
 
   const emitNow = () => { queued = false; for (const cb of [...(handlers.get('change') || [])]) { try { cb(flow); } catch (e) { console.error(e); } } };
   /** Several things often change in one go (a room update): the screens are told once, a moment later. */
@@ -75,20 +83,28 @@ export function createFlow(game, ui, { transport, session, clock }) {
 
   // ---------------- a match left by a reload (SPEC4 §5.7) ----------------
   const pending = {
-    set(v) { try { localStorage.setItem(PENDING_KEY, JSON.stringify(v)); } catch { /* storage blocked */ } },
-    clear() { try { localStorage.removeItem(PENDING_KEY); } catch { /* storage blocked */ } },
+    set(v) {
+      try { localStorage.setItem(PENDING_KEY, JSON.stringify({ ...v, live: Date.now() })); } catch { /* storage blocked */ }
+      if (stampOff) stampOff();
+      stampOff = realClock.every(TROPHY.liveStampMs, () => { const p = pending.read(); if (p && p.mid === v.mid) { try { localStorage.setItem(PENDING_KEY, JSON.stringify({ ...p, live: Date.now() })); } catch { /* blocked */ } } });
+    },
+    read() { try { return JSON.parse(localStorage.getItem(PENDING_KEY) || 'null'); } catch { return null; } },
+    clear() { if (stampOff) { stampOff(); stampOff = null; } try { localStorage.removeItem(PENDING_KEY); } catch { /* storage blocked */ } },
     take() {
-      let v = null;
-      try { v = JSON.parse(localStorage.getItem(PENDING_KEY) || 'null'); } catch { /* unreadable */ }
+      const v = pending.read();
+      if (v && typeof v.live === 'number' && Date.now() - v.live < TROPHY.liveDeadMs) return null; // another tab plays it
       pending.clear();
       return v && typeof v.mid === 'string' && Number.isInteger(v.slot) && v.uid === session.uid ? v : null;
     },
   };
-  function settlePending() {
+  /** A match a closed page left: my fall record (SPEC4 §5.7), then the ranked side settles its stake. */
+  async function settlePending() {
     if (flow.link) return; // I am in a match right now: that one is not "left"
     const p = pending.take();
-    if (!p || transport.now() - p.ts0 > NET.capMs + 60000) return;
-    quitOut(transport, { mid: p.mid, slot: p.slot, t: 0, d: 0, ts0: p.ts0 }).then((ok) => { if (ok && !flow.room) { note('quit'); changed(); } });
+    let quit = false;
+    if (p && transport.now() - p.ts0 <= NET.capMs + 60000) quit = await quitOut(transport, { mid: p.mid, slot: p.slot, t: 0, d: 0, ts0: p.ts0 });
+    const r = await session.settle().catch(() => null);
+    if ((quit || (r && r.quit)) && !flow.room) { note('quit'); changed(); }
   }
 
   // ---------------- the room ----------------
@@ -190,7 +206,8 @@ export function createFlow(game, ui, { transport, session, clock }) {
       flow.net = transport.status();
       if (session.profile) setOnlineProfile(game.save, session.profile);
       syncPicks();
-      settlePending();
+      settlePending().then(() => rewards.connected(), () => {});
+      rewards.connected();
       changed();
       return { ok: true, reason: null, gate: flow.gate };
     },
@@ -313,18 +330,20 @@ export function createFlow(game, ui, { transport, session, clock }) {
     transport.idle();
   });
   // the result of a match: one row in the save's online history (a later, corrected verdict replaces the row)
+  // (and its trophies, coins and skins: rewards.js)
   const record = (r) => {
     const link = flow.link;
     if (!link || !r || !['win', 'lose', 'draw'].includes(r.result)) return;
     pending.clear();
-    const rival = players.find((p) => p.uid !== session.uid);
-    addOnlineMatch(game.save, { a: Math.floor(quick.t0(link) / 1000), r: r.result[0], t: r.t, d: r.d, n: rival ? rival.name : '', k: flow.mode === 'quick' ? 'q' : 'f' });
+    rewards.record(r, link, players);
     changed();
   };
   ev.on('versus:end', record);
   ev.on('versus:revised', record);
   ev.on('save:changed', () => { if (flow.room && !flow.link) syncPicks(); });
   quick = installQuick(flow, { game, ui, transport, session, adopt, dropRoom, syncPicks, seatPicks, changed, setPlayers: (list) => { players = list; } }, clock ? { clock } : undefined);
+  if (clock && session.setClock) session.setClock(clock);
+  rewards = installRewards(flow, { game, transport, session, changed, t0: (link) => quick.t0(link) });
   syncPicks();
   return flow;
 }

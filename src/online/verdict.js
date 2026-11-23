@@ -102,7 +102,10 @@ export function finalPlaces({ slots, outs, liveT10 = {}, tie10 = NET.tie10 }) {
   return [aliveRow(running[0]), ...sorted.map(row)];
 }
 
-const TOP_SPEED = 20; // u/s; the rules bound a fall record at 18 u/s, the stream gets a little slack
+const TOP_SPEED = 20; // u/s over the whole run; the rules bound a fall record at 18 u/s, the stream gets a little slack
+// u/s between two bundles: SPEED UP in Sudden Death runs 11.6 x 1.6 x 1.35 = 25.1 u/s for a while, so an honest rival
+// on it may outrun TOP_SPEED from one bundle to the next (the whole-run bound above still holds)
+const BURST_SPEED = 27;
 
 /**
  * plausible(prev, next, clockS) -> null when fine, else why not (SPEC4 section 10): a rival's decoded
@@ -115,7 +118,7 @@ export function plausible(prev, next, clockS) {
   if (next.dist > 40 + Math.max(0, next.t) * TOP_SPEED) return 'distance';
   if (prev) {
     if (next.t < prev.t - 0.05) return 'time-back';
-    if (next.dist - prev.dist > 5 + Math.max(0.1, next.t - prev.t) * TOP_SPEED) return 'speed';
+    if (next.dist - prev.dist > 5 + Math.max(0.1, next.t - prev.t) * BURST_SPEED) return 'speed';
   }
   return null;
 }

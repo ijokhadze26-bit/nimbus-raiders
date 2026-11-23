@@ -1,0 +1,53 @@
+/* Online stage 4 (PROG): league badges, the result screen's trophies + coins block, the league-up moment, the VS
+   card's trophies. Phone first (390 x 844 and 360 x 640); no backdrop-filter, no filter on the canvas (Low graphics). */
+.lg-badge { display: inline-block; flex: none; line-height: 0; vertical-align: middle; }
+.lg-badge svg { display: block; overflow: visible; }
+
+/* ---------- result screen ---------- */
+.vsr-rank { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.vsr-rank[hidden] { display: none; }
+.vsr-tr, .vsr-coins { width: 100%; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 3px 8px; text-align: center; }
+.vsr-tr { padding: 5px 10px 6px; border-radius: 14px; background: rgba(112, 54, 224, 0.1); }
+.vsr-tr small, .vsr-cnone { width: 100%; font-family: var(--font-body); font-weight: 800; font-size: 12.5px; line-height: 1.25; color: #4a6aa8; }
+.vsr-trrow { display: flex; align-items: center; gap: 7px; }
+.vsr-g { font-weight: normal; font-size: 26px; line-height: 1; letter-spacing: 0.5px; color: #fff; -webkit-text-stroke: 5px var(--outline); paint-order: stroke fill; }
+.vsr-g.up { color: #7dffb0; -webkit-text-stroke-color: #0b5a32; }
+.vsr-g.down { color: #ff8f8f; -webkit-text-stroke-color: #6a0d1d; }
+.vsr-g.even { color: #9fd8ff; font-size: 20px; }
+.vsr-total { font-size: 19px; color: var(--outline); }
+.vsr-st { font-style: normal; font-size: 12px; letter-spacing: 0.5px; padding: 2px 7px 3px; border-radius: 8px; color: #fff; background: #4a6aa8; animation: breathe 1s ease-in-out infinite; }
+.vsr-ok { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; font-size: 15px; color: #fff; background: #2fbf4f; box-shadow: 0 2px 0 #17702d; animation: vsr-okin 0.35s cubic-bezier(.2, 1.7, .4, 1) both; }
+@keyframes vsr-okin { from { transform: scale(0.2); opacity: 0; } to { transform: none; opacity: 1; } }
+.vsr-none { font-size: 17px; letter-spacing: 0.5px; color: #7036e0; }
+.vsr-cn { display: inline-flex; align-items: center; gap: 4px; font-size: 18px; color: var(--outline); }
+.vsr-cn .coin-ico { font-size: 24px; filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.25)); }
+.vsr-cn b { font-weight: normal; color: #c26a00; }
+.vsr-first { padding: 3px 9px 4px; border-radius: 10px; font-size: 13px; letter-spacing: 0.5px; color: #6a3a00; background: linear-gradient(180deg, #fff3b0, #ffd34d); box-shadow: 0 2px 0 #a14e00; }
+.vsr-cnone { width: auto; font-size: 12px; }
+.vsr-skin { width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 4px 8px; border-radius: 12px; font-size: 14px; line-height: 1.2; color: #7036e0; background: #f1e8ff; }
+.vsr-skin .ico { flex: none; font-size: 22px; }
+.vsr-skin small { font-family: var(--font-body); font-weight: 800; font-size: 11.5px; color: #4a6aa8; }
+.vsr-rg { grid-column: 2; justify-self: start; margin-top: 2px; font-weight: normal; font-size: 10px; line-height: 1.2; letter-spacing: 0.5px; padding: 0 5px 1px; border-radius: 6px; color: #fff; background: #7036e0; }
+.vsr-rg.up { background: #2fbf4f; }
+.vsr-rg.down { background: #d01d3a; }
+
+/* the league-up moment (over the result panel) */
+.vsr-lgup { position: absolute; inset: 0; z-index: 6; display: grid; place-items: center; overflow: hidden; border-radius: 26px; background: rgba(8, 18, 60, 0.72); animation: vsr-fade 0.3s ease-out both; }
+.vsr-lgup.out { animation: vsr-fadeout 0.3s ease-in both; }
+.vsr-lgup .rays { top: 50%; }
+.vsr-lg-in { position: relative; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; animation: vsr-lgpop 0.6s cubic-bezier(.2, 1.6, .4, 1) both; }
+.vsr-lg-in b { font-weight: normal; font-size: 30px; line-height: 1.1; letter-spacing: 1px; color: #ffd34d; -webkit-text-stroke: 7px #a85400; paint-order: stroke fill; text-shadow: 0 5px 0 #a85400; }
+@keyframes vsr-lgpop { 0% { transform: scale(2.4); opacity: 0; } 55% { transform: scale(0.92); opacity: 1; } 100% { transform: scale(1); } }
+@keyframes vsr-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes vsr-fadeout { to { opacity: 0; } }
+
+@container (max-height: 700px) {
+  .vsr-tr { padding: 3px 8px 4px; }
+  .vsr-g { font-size: 22px; }
+  .vsr-skin { font-size: 13px; padding: 3px 8px; }
+}
+
+/* ---------- the VS card: badge + trophies under each name ---------- */
+.vc-nb { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.vc-tr { display: flex; align-items: center; gap: 4px; font-size: 14px; line-height: 1; color: #fff; -webkit-text-stroke: 3px var(--outline); paint-order: stroke fill; }
+.n3 .vc-tr, .n4 .vc-tr { font-size: 12px; }

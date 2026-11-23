@@ -4,7 +4,7 @@
 import { screenEl, coinPill, el, bump, fmt } from '../ui.js';
 import { icon } from '../icons.js';
 import { UPGRADES, upgradeCost, upgradeLabel } from '../../data/shop.js';
-import { HERO_SKINS, WEAPON_SKINS } from '../../data/skins.js';
+import { HERO_SKINS, WEAPON_SKINS, ONLINE_SKINS } from '../../data/skins.js';
 import { weaponDef } from '../../data/weapons.js';
 import { buySkin, buyUpgrade, equipSkin, buySquadType, setSquadMix } from '../../save/progress.js';
 import { squadHtml } from './shopsquad.js';
@@ -104,7 +104,8 @@ function upgradesHtml(d) {
 }
 
 function skinsHtml(d, tab) {
-  const skins = tab === 'hero' ? HERO_SKINS : WEAPON_SKINS;
+  // the skins that can only be earned online come after the normal ones (never a price, never a buy button)
+  const skins = [...(tab === 'hero' ? HERO_SKINS : WEAPON_SKINS), ...ONLINE_SKINS.filter((s) => s.kind === (tab === 'hero' ? 'hero' : 'weapon'))];
   const equipped = tab === 'hero' ? d.skins.hero : d.skins.weapon;
   const threes = Object.values(d.stars).filter((n) => n >= 3).length;
   return skins.map((s) => {
@@ -113,8 +114,10 @@ function skinsHtml(d, tab) {
     let action;
     if (isEq) action = `<div class="equipped">${icon('check')}EQUIPPED</div>`;
     else if (owned) action = `<button type="button" class="btn btn-sm btn-blue" data-act="equip" data-id="${s.id}">EQUIP</button>`;
+    else if (s.online) action = `<div class="equipped sk-earn" style="color:#7a3dff;background:#f1e8ff;border-color:#a24dff;font-size:15px">${icon('lock')}EARN ONLINE</div>`;
     else action = costBtn('buy-skin', s.id, s.cost, d.coins);
-    const hint = !owned && s.unlock?.threeStars ? `<div class="skin-hint">${icon('star')}${icon('star')}${icon('star')} ${threes}/${s.unlock.threeStars} levels</div>` : '';
+    let hint = !owned && s.unlock?.threeStars ? `<div class="skin-hint">${icon('star')}${icon('star')}${icon('star')} ${threes}/${s.unlock.threeStars} levels</div>` : '';
+    if (!owned && s.online) hint = `<div class="skin-hint sk-online" style="text-align:center;justify-content:center;line-height:1.15">${s.earn.hint}${earnProgress(s, d.online)}</div>`;
     const preview = tab === 'hero' ? heroPreview(s) : weaponPreview(s, d.arsenal?.selected);
     return `<div class="card skin-card r-${s.rarity} ${isEq ? 'is-eq' : ''} ${owned ? 'owned' : ''}" data-id="${s.id}">
       <div class="rarity">${s.rarity.toUpperCase()}</div>
@@ -124,6 +127,12 @@ function skinsHtml(d, tab) {
       <div class="skin-act">${action}</div>
     </div>`;
   }).join('');
+}
+
+/** " 3/10" for a count-based online skin (from the cached online profile in the save); '' for a league one. */
+function earnProgress(s, on) {
+  if (!on || s.earn.field === 'pk') return '';
+  return ` (${Math.min(s.earn.min, Math.max(0, Number(on[s.earn.field]) || 0))}/${s.earn.min})`;
 }
 
 /** Chibi Pip drawn with the skin palette. */

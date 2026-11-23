@@ -11,13 +11,13 @@
 //   ... link 'verdict' -> result screen (one marked provisional may be followed by the real one: show the later);
 //   room.rematch({ ready: true })  or  link.leave(); room.leave();   room.state.lost -> "you lost your seat"
 //   transport.idle() when the online screens close.
-// Stage 1 uses: connect(), gate(), ensureProfile() / rename(). Stake / claim / close are stage 4:
-// the RULES for them are already in config/firebase/rules.src.mjs (the owner pastes rules once),
-// the client calls here are stubs that change nothing.
+// Stage 1 uses: connect(), gate(), ensureProfile() / rename(). Stage 4 (trophies): prepare / stake / claim / close /
+// settle and session.ranked are src/online/ranked.js (every profile write is one whole-profile set the rules accept).
 
 import { BUILD, DEFAULTS } from './config.js';
 import { isDenied } from './transport.js';
 import { checkName, defaultName } from './names.js';
+import { createRanked } from './ranked.js';
 
 const clampInt = (v, lo, hi, dflt) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(lo, Math.min(hi, Math.round(v))) : dflt);
 
@@ -42,9 +42,12 @@ export const newProfile = (name) => ({ n: name, tr: 0, pk: 0, w: 0, l: 0, st: 0,
  *   session.gate()                     -> null | 'paused' | 'update' | 'banned'
  *   await session.ensureProfile(name?) -> { ok, profile, reason }  create it on first use (default name when none given)
  *   await session.rename(name)         -> { ok, name, reason }     reason: 'short' | 'long' | 'chars' | 'rude' | 'denied' | 'offline'
- *   session.uid / .profile / .cfg      what is known now
+ *   session.uid / .profile / .cfg      what is known now (profile: the server's copy, a new object after every write)
+ *   session.prepare(match) / stake(match) / claim(match, result) / close(match) / settle()   ranked.js (stage 4)
+ *   session.ranked                     the current / last ranked match (ranked.js view); onRanked(cb) -> off
+ *   session.setClock(clock)            the timers of the ranked writes (the harness's virtual time in bridge mode)
  */
-export function createSession({ transport, build = BUILD, rand = Math.random }) {
+export function createSession({ transport, build = BUILD, rand = Math.random, clock, storage, wall }) {
   const s = {
     uid: null,
     profile: null,
@@ -113,10 +116,16 @@ export function createSession({ transport, build = BUILD, rand = Math.random }) 
       return { ok: true, name: check.name, reason: null };
     },
 
-    // ---- stage 4 (trophies). Rules exist; these do not write anything yet. ----
-    async stake() { return { ok: false, reason: 'stage4' }; },
-    async claim() { return { ok: false, reason: 'stage4' }; },
-    async close() { return { ok: false, reason: 'stage4' }; },
+    // ---- stage 4 (trophies): ranked.js ----
+    prepare: (m) => ranked.prepare(m),
+    stake: (m) => ranked.stake(m),
+    claim: (m, result) => ranked.claim(m, result),
+    close: (m) => ranked.close(m),
+    settle: () => ranked.settle(),
+    onRanked: (cb) => ranked.on(cb),
+    setClock: (c) => { ranked.clock = c; },
+    get ranked() { return ranked.view; },
   };
+  const ranked = createRanked({ transport, session: s, ...(clock ? { clock } : {}), ...(storage ? { storage } : {}), ...(wall ? { wall } : {}) });
   return s;
 }

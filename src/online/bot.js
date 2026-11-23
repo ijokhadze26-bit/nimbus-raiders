@@ -238,8 +238,9 @@ export function createBotLink({ seed = 1, pick, game, now, t0, clock, slot = 0 }
     const outs = {}, liveT10 = {};
     if (mine.out) outs[me] = mine.out; else liveT10[me] = mine.live;
     if (botOut) outs[bs] = botOut; else liveT10[bs] = deliv.t10;
-    const v = judge({ me, slots, outs, liveT10 });
-    if (!v) return;
+    const j = judge({ me, slots, outs, liveT10 });
+    if (!j) return;
+    const v = j.result === 'draw' ? { ...j, result: 'win', reason: 'distance' } : j; // no bot draws: the rules give only a human stake back (STAGE4 #7)
     given = v;
     queue.length = 0;
     emit('verdict', { ...v, void: false, provisional: false, revised: false });
