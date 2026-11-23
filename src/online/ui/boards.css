@@ -69,7 +69,8 @@
 .bd-mine-l { display: flex; flex-direction: column; align-items: center; gap: 1px; line-height: 1; }
 .bd-mine-l span { font: 400 7.5px/1 var(--font-display); letter-spacing: 0.3px; color: #a9d4ff; text-align: center; white-space: nowrap; }
 .bd-mine-l b { font: 400 15px/1 var(--font-display); color: #ffd34d; }
-.bd-mine.out { grid-template-columns: 0 28px minmax(0, 1fr) auto; }
+.bd-mine.out { grid-template-columns: 28px minmax(0, 1fr) auto; }
+.bd-mine.out .bd-mine-l span:empty { display: none; }
 .bd-mine.out .bd-mine-l { position: absolute; left: 50%; bottom: calc(100% + 4px); transform: translateX(-50%); }
 .bd-mine.out .bd-mine-l span { font-size: 11px; padding: 3px 8px 4px; border-radius: 8px; color: #fff; background: rgba(10, 28, 80, 0.8); }
 .bd .bd-mine .bd-v { color: #fff; }
@@ -137,30 +138,32 @@
 .emo-layer { position: absolute; inset: 0; z-index: 21; pointer-events: none; overflow: hidden; }
 .emo-dock { position: absolute; z-index: 20; display: flex; align-items: center; gap: 8px; pointer-events: none; touch-action: none; }
 .emo-dock > *, .emo-fan > * { pointer-events: auto; }
-.emo-dock.match { left: calc(var(--safe-l, 0px) + 19px); bottom: calc(var(--safe-b, 0px) + 164px); }
-.emo-dock.match.right { left: auto; right: calc(var(--safe-r, 0px) + 19px); flex-direction: row-reverse; }
-.emo-dock.result { top: calc(var(--safe-t, 0px) + 10px); right: calc(var(--safe-r, 0px) + 10px); flex-direction: row-reverse; }
+/* in a match: above the SABOTAGE button, the fan opening upward (clear of the ability and control buttons) */
+.emo-dock.match { left: calc(var(--safe-l, 0px) + 19px); bottom: calc(var(--safe-b, 0px) + 164px); flex-direction: column-reverse; }
+.emo-dock.match.right { left: auto; right: calc(var(--safe-r, 0px) + 19px); }
+/* on the result screen: the top right corner, the fan opening downward */
+.emo-dock.result { top: calc(var(--safe-t, 0px) + 10px); right: calc(var(--safe-r, 0px) + 10px); flex-direction: column; }
 .emo-btn, .emo-pick, .emo-mute { border: 0; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; user-select: none; touch-action: none; }
 .emo-btn {
-  width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  position: relative; width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; flex: none;
   background: radial-gradient(circle at 38% 30%, #9fdcff, #2f8cff 50%, #143f9a 92%); border: 3px solid #fff; box-shadow: 0 4px 0 rgba(10, 28, 80, 0.55);
 }
 .emo-btn .emo-svg { width: 30px; height: 30px; }
 .emo-dock.open .emo-btn { background: radial-gradient(circle at 38% 30%, #fff6c4, #ffc531 50%, #a85400 92%); }
 .emo-btn.deny { animation: emo-shake 0.36s ease-in-out; }
 @keyframes emo-shake { 20% { transform: translateX(-5px); } 40% { transform: translateX(5px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }
-.emo-fan { display: none; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 30px; background: rgba(10, 28, 80, 0.72); border: 2px solid rgba(255, 255, 255, 0.85); }
+.emo-fan { display: none; flex-direction: column-reverse; align-items: center; gap: 6px; padding: 6px 4px; border-radius: 30px; background: rgba(10, 28, 80, 0.72); border: 2px solid rgba(255, 255, 255, 0.85); }
 .emo-dock.open .emo-fan { display: flex; animation: emo-fan 0.18s cubic-bezier(.2, 1.4, .4, 1) both; }
-.emo-dock.right .emo-fan, .emo-dock.result .emo-fan { flex-direction: row-reverse; }
+.emo-dock.result .emo-fan { flex-direction: column; }
 @keyframes emo-fan { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: none; } }
 .emo-pick { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: #fff; box-shadow: 0 3px 0 #143f9a; }
 .emo-pick .emo-svg { width: 34px; height: 34px; }
 .emo-pick:active, .emo-btn:active { transform: scale(0.9); }
 .emo-dock.muted .emo-pick { opacity: 1; }
-.emo-mute { height: 44px; padding: 0 8px 0 5px; border-radius: 22px; display: flex; align-items: center; gap: 3px; background: #e3efff; box-shadow: 0 3px 0 #143f9a; }
-.emo-mute .emo-svg { width: 26px; height: 26px; }
-.emo-mute span { font: 400 11px/1 var(--font-display); color: #143f9a; letter-spacing: 0.3px; }
-.emo-dock.muted .emo-btn::after { content: ''; position: absolute; width: 14px; height: 14px; margin: 30px 0 0 30px; border-radius: 50%; background: #ff3b4e; border: 2px solid #fff; }
+.emo-mute { width: 44px; height: 50px; border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; background: #e3efff; box-shadow: 0 3px 0 #143f9a; }
+.emo-mute .emo-svg { width: 26px; height: 24px; }
+.emo-mute span { font: 400 8.5px/1 var(--font-display); color: #143f9a; letter-spacing: 0.2px; }
+.emo-dock.muted .emo-btn::after { content: ''; position: absolute; right: -3px; bottom: -3px; width: 14px; height: 14px; border-radius: 50%; background: #ff3b4e; border: 2px solid #fff; }
 .emo-bub {
   position: absolute; width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center; transform: translate(-50%, 0);
   background: #fff; border: 3px solid #14306e; box-shadow: 0 4px 0 rgba(10, 28, 80, 0.45); animation: emo-bub 2.2s ease-out both;

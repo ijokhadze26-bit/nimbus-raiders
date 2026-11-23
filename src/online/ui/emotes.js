@@ -38,6 +38,8 @@ const MUTE_SVG = (on) => `<svg viewBox="0 0 48 48" class="emo-svg" aria-hidden="
 export const emoteSvg = (a) => SVGS[a] || '';
 
 const readMute = () => { try { return localStorage.getItem(MUTE_KEY) === '1'; } catch { return false; } };
+/** What a fresh page (a reload) starts with: the stored MUTE. */
+export const mutedSaved = readMute;
 const writeMute = (on) => { try { if (on) localStorage.setItem(MUTE_KEY, '1'); else localStorage.removeItem(MUTE_KEY); } catch { /* storage blocked */ } };
 const isEmote = (a) => typeof a === 'number' && Number.isInteger(a) && a >= 0 && a <= 3;
 const rnd = (lo, hi) => lo + Math.random() * (hi - lo);
@@ -63,7 +65,7 @@ export function mountEmotes(ctx) {
   let recv = new Map();
   let muted = readMute();
   const S = { show: null, where: '', right: null, open: null, muted: null };
-  const test = { sent: [], shown: [], refused: 0, get muted() { return muted; }, get open() { return open; }, get T() { return T; } };
+  const test = { sent: [], shown: [], refused: 0, get muted() { return muted; }, get open() { return open; }, get T() { return T; }, get q() { return queue.length; } };
 
   const sfx = (name) => ev.emit('hazard:sfx', { sfx: name, opts: null }, true);
   const replay = (el, cls) => { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
@@ -95,23 +97,30 @@ export function mountEmotes(ctx) {
   }
 
   // ---------------- bubbles ----------------
-  function place(target, a, mine) {
-    const base = ui.root.getBoundingClientRect();
-    const b = document.createElement('div');
-    b.className = `emo-bub${mine ? ' mine' : ''}`;
-    b.innerHTML = SVGS[a];
+  // A bubble keeps to its row while it shows (the result panel pops in, a row may move): its spot is read again each
+  // frame and written only when it changed.
+  function spot(bb) {
+    const base = ui.root.getBoundingClientRect(), t = bb.target;
     let x = 0, y = 0;
-    if (target) {
-      const r = target.getBoundingClientRect();
-      if (target.matches('li')) { b.classList.add('side'); x = r.right - base.left - 30; y = r.top - base.top + r.height / 2; } // over its result row
-      else if (mine) { b.classList.add('up'); x = r.left - base.left + r.width / 2; y = r.top - base.top - 6; }
-      else { b.classList.add('down'); x = r.left - base.left + r.width / 2; y = r.bottom - base.top + 6; }
+    if (t && t.isConnected) {
+      const r = t.getBoundingClientRect();
+      if (bb.kind === 'side') { x = r.right - base.left - 30; y = r.top - base.top + r.height / 2; }   // over its result row
+      else if (bb.kind === 'up') { x = r.left - base.left + r.width / 2; y = r.top - base.top - 6; }   // above my button / row
+      else { x = r.left - base.left + r.width / 2; y = r.bottom - base.top + 6; }                     // under a rival's bar row
     }
-    x = Math.max(34, Math.min(base.width - 34, x));
-    b.style.left = `${Math.round(x)}px`;
-    b.style.top = `${Math.round(y)}px`;
+    x = Math.round(Math.max(34, Math.min(base.width - 34, x))); y = Math.round(y);
+    if (x !== bb.x) { bb.x = x; bb.el.style.left = `${x}px`; }
+    if (y !== bb.y) { bb.y = y; bb.el.style.top = `${y}px`; }
+  }
+  function place(target, a, mine) {
+    const b = document.createElement('div');
+    const kind = target && target.matches('li') ? 'side' : mine ? 'up' : 'down';
+    b.className = `emo-bub ${kind}${mine ? ' mine' : ''}`;
+    b.innerHTML = SVGS[a];
+    const bb = { el: b, target, kind, mine: !!mine, end: T + EMOTE.showMs / 1000, x: null, y: null };
+    spot(bb);
     layer.appendChild(b);
-    bubbles.push({ el: b, mine: !!mine, end: T + EMOTE.showMs / 1000 });
+    bubbles.push(bb);
     return b;
   }
   function showRival(slot, a) {
@@ -216,7 +225,7 @@ export function mountEmotes(ctx) {
       const due = queue.filter((q) => q.at <= T);
       if (due.length) { queue = queue.filter((q) => q.at > T); for (const q of due) showRival(q.slot, q.a); }
     }
-    if (bubbles.length) bubbles = bubbles.filter((b) => { if (b.end > T) return true; b.el.remove(); return false; });
+    if (bubbles.length) bubbles = bubbles.filter((b) => { if (b.end > T) { spot(b); return true; } b.el.remove(); return false; });
     sync();
   }
 

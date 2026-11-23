@@ -82,7 +82,7 @@ export function createBoardsView(ui, flow, page) {
       val = valueText(tab, v);
       const r = rows && rows.find((x) => x.me);
       place = r ? `#${r.rank}` : '';
-      sub = r ? 'YOUR PLACE' : 'NOT IN THE TOP 100 YET';
+      sub = r ? 'YOUR PLACE' : rows ? 'NOT IN THE TOP 100 YET' : ''; // (nothing to say while loading or after an error)
     }
     mineEl.className = `bd-mine${place ? '' : ' out'}`;
     mineEl.innerHTML = `<span class="bd-mine-l"><span>${sub}</span><b class="num">${place}</b></span>`
