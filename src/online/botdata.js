@@ -29,7 +29,7 @@ export const BOT = {
   fall: { min: 25, max: 300, collapse: [6, 8], keep: 7 },
   levels: { min: -3, max: 3, loseRun: 2, winRun: 3 },
   level: {         //   -3    -2    -1     0     1     2     3
-    median:      [0.70, 0.80, 0.90, 1.00, 1.10, 1.20, 1.30],    // x curves.casual.fall.median (the integrator tunes [3])
+    median:      [0.70, 0.80, 0.90, 1.00, 1.10, 1.20, 1.30],    // x curves.casual.fall.median ([3] checked 2026-11-23: 20/40 = 50 % on seeds 41-80)
     wrongGate:   [0.35, 0.30, 0.25, 0.20, 0.15, 0.10, 0.06],
     curve:       [0,    0,    0,    0,    0.5,  1,    1],       // squad / arena curves: 0 casual .. 1 pro
     slice:       [1.3,  1.2,  1.1,  1.0,  0.9,  0.8,  0.7],     // x the slice of T a landed sabotage takes
