@@ -65,6 +65,7 @@
 .on-create { width: min(280px, 100%); }
 .on-or { width: 100%; display: flex; align-items: center; gap: 10px; font: 400 13px/1 var(--font-display); letter-spacing: 1px; color: #3a5aa6; }
 .on-or::before, .on-or::after { content: ''; flex: 1; height: 3px; border-radius: 2px; background: rgba(27, 58, 138, 0.22); }
+.on-body.on-typing::after { content: ''; flex: none; height: 50vh; } /* room to scroll the code box above a keyboard */
 .on-join { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; }
 .on-me {
   display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px 10px 16px; border-radius: 20px;

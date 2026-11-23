@@ -32,6 +32,15 @@ export async function hubScenario(g) {
     ok(br.top >= 60 && br.bottom <= innerHeight * 0.6 && br.width >= 200 && br.height >= 50, `QUICK MATCH button at ${Math.round(br.top)}..${Math.round(br.bottom)}, ${Math.round(br.width)} wide`);
     info.button = [Math.round(br.left), Math.round(br.top), Math.round(br.width), Math.round(br.height)];
     await shot('hub');
+    // the code box, focused, comes up clear of a phone keyboard (QUICK MATCH sits above it)
+    const codeBox = P.q('.on-code');
+    codeBox.focus();
+    await wait(50);
+    info.codeBottom = Math.round(codeBox.getBoundingClientRect().bottom);
+    ok(info.codeBottom < innerHeight * 0.5, `the focused code box ends at ${info.codeBottom} (lower half: the keyboard covers it)`);
+    await shot('typing');
+    codeBox.blur();
+    body.scrollTop = 0;
     // ---- tap: the finding view ----
     btn.click();
     await until(() => P.view() === 'quick');

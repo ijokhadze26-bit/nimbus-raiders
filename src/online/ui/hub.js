@@ -73,9 +73,19 @@ function createHubView(ui, flow, page) {
     flow.joinRoom(c);
   };
   onEnter(code, join);
+  // QUICK MATCH sits above, so the code box starts in the lower half, where a phone keyboard opens: on focus it is
+  // scrolled up to the top third (room is added below the hub for that, and stays until the hub is left: no jump)
+  code.addEventListener('focus', () => {
+    const body = root.parentElement;
+    if (!body) return;
+    body.classList.add('on-typing');
+    const top = code.getBoundingClientRect().top, want = innerHeight * 0.28;
+    if (top > want) body.scrollTop += top - want;
+  });
   const view = {
     el: root, title: 'ONLINE',
     enter() { local = ''; if (!flow.notice) code.value = ''; }, // (the code of a room I just left is not offered again)
+    leave() { if (root.parentElement) root.parentElement.classList.remove('on-typing'); },
     sync() {
       nameEl.textContent = flow.name;
       const away = flow.net !== 'on'; // my connection dropped: nothing can be asked of the service right now
