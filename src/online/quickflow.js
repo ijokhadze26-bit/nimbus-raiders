@@ -67,7 +67,10 @@ export function installQuick(flow, inner, { clock = realClock } = {}) {
     const { pick, seed } = found;
     const t0 = tp.now() + NET.goMs, now = () => tp.now();
     const clockFn = quick.test.clockFor ? quick.test.clockFor({ t0, now }) : undefined;
-    const link = createBotLink({ seed, pick, game, now, t0, clock: clockFn, slot: 0 });
+    let link;
+    try { link = createBotLink({ seed, pick, game, now, t0, clock: clockFn, slot: 0 }); } catch (e) {
+      console.error(e); stop(); inner.changed(); return; // never stuck on RIVAL FOUND!: back to the hub
+    }
     found = null;
     flow.link = link;
     inner.setPlayers([{ slot: 1, uid: '', name: pick.name }]);
