@@ -65,6 +65,7 @@
 .on-create { width: min(280px, 100%); }
 .on-or { width: 100%; display: flex; align-items: center; gap: 10px; font: 400 13px/1 var(--font-display); letter-spacing: 1px; color: #3a5aa6; }
 .on-or::before, .on-or::after { content: ''; flex: 1; height: 3px; border-radius: 2px; background: rgba(27, 58, 138, 0.22); }
+.on-body.on-typing::after { content: ''; flex: none; height: 50vh; } /* room to scroll the code box above a keyboard */
 .on-join { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; }
 .on-me {
   display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px 10px 16px; border-radius: 20px;
@@ -165,4 +166,36 @@
   .on-card { padding-top: 10px; padding-bottom: 12px; gap: 8px; }
   .on-fine { font-size: 11.5px; }
   .on-how { display: none; }
+}
+
+/* ---------- QUICK MATCH: the hub card (the only gold button on the hub) and the finding view (ui/finding.js) ---------- */
+.on-quick { width: min(280px, 100%); gap: 8px; }
+.on-quick .ico { font-size: 26px; }
+.on-find { gap: 8px; padding-top: 18px; padding-bottom: 18px; }
+.on-globe { position: relative; width: 104px; height: 104px; display: grid; place-items: center; }
+.on-globe-in {
+  width: 84px; height: 84px; border-radius: 50%; display: grid; place-items: center; font-size: 58px; color: #fff;
+  background: radial-gradient(circle at 35% 30%, #8fd8ff, #2f8cff 62%, #1b4fb8); border: 4px solid #fff;
+  box-shadow: 0 0 0 3px var(--outline), 0 5px 0 3px var(--outline-dark); animation: on-turn 3.2s linear infinite;
+}
+.on-globe-ring { position: absolute; inset: 0; border-radius: 50%; border: 4px dashed #ffc531; animation: on-turn 7s linear infinite reverse; }
+@keyframes on-turn { to { transform: rotate(360deg); } }
+.on-find.found .on-globe-in { animation: none; background: radial-gradient(circle at 35% 30%, #b4ffc4, #2fbf4f 62%, #17702d); }
+.on-find.found .on-globe-ring { border-style: solid; border-color: #7dffb0; animation: none; }
+.on-find-secs { font: 400 40px/1 var(--font-display); letter-spacing: 1px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.on-find-net { font: 400 14px/1 var(--font-display); letter-spacing: 0.5px; color: #b0142a; }
+.on-find-net[hidden], .on-find-cancel[hidden] { display: none; }
+.on-find-line { min-height: 19px; }
+.on-find-who { display: none; flex-direction: column; align-items: center; gap: 6px; max-width: 100%; }
+.on-find.found .on-find-who { display: flex; }
+.on-find.found .on-find-secs, .on-find.found .on-find-line { display: none; }
+.on-find-name { max-width: 100%; font: 400 26px/1.1 var(--font-display); letter-spacing: 0.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.on-find-txt { display: flex; flex-direction: column; gap: 1px; font: 400 16px/1.15 var(--font-display); }
+.on-find-txt span { font-size: 13.5px; color: #3a5aa6; }
+.on-find-go { margin-top: 2px; font: 400 22px/1 var(--font-display); letter-spacing: 1px; color: #17702d; }
+@media (prefers-reduced-motion: reduce) { .on-globe-in, .on-globe-ring { animation: none; } }
+@container (max-height: 660px) {
+  .on-find { padding-top: 12px; padding-bottom: 14px; gap: 6px; }
+  .on-globe { width: 92px; height: 92px; }
+  .on-globe-in { width: 74px; height: 74px; font-size: 50px; }
 }

@@ -47,3 +47,35 @@ export function createClock(start = 1_800_000_000_000) {
     get size() { return timers.size; },
   };
 }
+
+/**
+ * A clock that follows someone else's time (the two-page harness, ?net=bridge: the page's "now" is the hub's
+ * virtual time, transport-local.js follow mode). Timers fire once now() has passed their time; a light real-time
+ * poll looks while any timer is waiting. Same shape: { now(), after(), every() }. Never used on the real service.
+ */
+export function createFollowClock(now, poll = 10) {
+  let seq = 0, handle = null;
+  const timers = new Map(); // id -> { at, fn, every }
+  const check = () => {
+    const t = now();
+    const due = [...timers].filter(([, tm]) => tm.at <= t).sort((a, b) => a[1].at - b[1].at || a[0] - b[0]);
+    for (const [id, tm] of due) {
+      if (!timers.has(id)) continue;
+      if (tm.every) tm.at = Math.max(tm.at + tm.every, t - tm.every + 1); else timers.delete(id);
+      try { tm.fn(); } catch (e) { console.error(e); }
+    }
+    if (!timers.size && handle) { clearInterval(handle); handle = null; }
+  };
+  const add = (ms, fn, every) => {
+    const id = ++seq;
+    timers.set(id, { at: now() + Math.max(0, ms), fn, every });
+    if (!handle) handle = setInterval(check, poll);
+    return () => { timers.delete(id); };
+  };
+  return {
+    now,
+    after: (ms, fn) => add(ms, fn, 0),
+    every: (ms, fn) => add(ms, fn, Math.max(1, ms)),
+    get size() { return timers.size; },
+  };
+}

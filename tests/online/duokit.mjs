@@ -18,6 +18,8 @@
 //   await duo.play(12, () => ...);                 // seconds of match (stops early when the callback is true)
 //   await duo.until(async () => ..., 'what');      // tick + exchange messages until it holds
 //   A.ev(fn, arg)  A.click(sel)  A.text(sel)  A.offline(bool)  A.shot(name)  A.view()
+//   QUICK MATCH:  await duo.quick(A);  const r = await duo.found(A);  await duo.cancel(A);  await duo.crash(A)
+//                 (the page's quick timers follow the hub's virtual clock: src/online/clock.js createFollowClock)
 import fs from 'node:fs';
 import path from 'node:path';
 import { createClock } from '../../src/online/clock.js';
@@ -332,6 +334,31 @@ export class Duo {
     await this.join(B, code);
     await this.until(async () => { const v = await A.view(); return v.room && v.room.seats.filter(Boolean).length === 2; }, 'both seats on the host page');
     return code;
+  }
+
+  // ---------------- QUICK MATCH ----------------
+  /** Taps QUICK MATCH on the hub (a gold button: it breathes, so the click is forced) -> the finding view. */
+  async quick(p) {
+    await p.click('.on-quick');
+    await this.until(async () => (await p.view()).view === 'quick', `${p.pid}: the finding view after QUICK MATCH`);
+  }
+  /** CANCEL on the finding view: back on the hub, my ticket gone from the hub. */
+  async cancel(p) {
+    await p.click('.on-find-cancel');
+    await this.until(async () => (await p.view()).view === 'hub' && !this.hub.admin.get(`queue/${p.pid}`), `${p.pid}: the hub again, no ticket`);
+  }
+  /** Waits for RIVAL FOUND! on the page -> flow.quickView() of that moment ({ phase, secs, name, hero, weapon }). */
+  async found(p, opts = {}) {
+    return this.until(() => p.ev(() => {
+      const f = window.__game.online.flow.quickView(), n = document.querySelector('.on-find.found .on-find-name');
+      return f && f.phase === 'found' && n && n.textContent === f.name ? { ...f, shown: n.textContent } : null;
+    }), `${p.pid}: RIVAL FOUND!`, { max: 16000, ...opts });
+  }
+  /** The page dies without a goodbye (a closed lid, a crashed tab): its line goes silent, the hub notices after dropMs. */
+  async crash(p) {
+    p.wire.offline(true);
+    this.players = this.players.filter((x) => x !== p);
+    await p.ctx.close().catch(() => {});
   }
 
   async close() {
