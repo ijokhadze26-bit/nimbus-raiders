@@ -33,15 +33,15 @@ export async function profileScenario(g) {
     await N.shotAt(P, 'profile-new', 0);
     await N.shotAt(P, 'profile-new-end', 1e5);
 
-    // ---------- a seasoned player: numbers, 20 matches, an open stake, two skins owned ----------
+    // ---------- a seasoned player: numbers, 20 matches, an open stake (fresh: settle() closes one over 360 s old),
+    // three skins earned (pk 512, w 31, bs 7: rewards.js grants them from the profile) ----------
     const WK = N.weekBase(flow.transport.now()), now = Math.floor(Date.now() / 1000);
     const rows = [];
     for (let i = 0; i < 20; i++) {
       rows.push({ a: now - 300 - i * 4000, r: i % 4 === 3 ? 'l' : i % 7 === 6 ? 'd' : 'w', t: 60 + i * 7.3, d: 200 + i * 31, n: i === 2 ? 'b1tch face' : `Rival ${i}`, k: i % 3 ? 'q' : 'f', ...(i % 3 ? { g: i % 4 === 3 ? -10 : 28, c: 90 } : { c: 20 }) });
     }
-    await N.setMine(hub, flow, 'me-1', N.prof('Sky Rider', { tr: 420, pk: 512, w: 31, l: 9, st: 0, bs: 7, bt: 2075, ws: WK + 56, sk: { a: 1, s: 10, st: 4, b: true } }));
-    // (after the visit: until PROG's onlinesave keeps g / c, a profile write cleans them off the cached rows)
-    save.update((d) => { d.online.hist = rows; d.skins.owned.push('on-silver', 'on-wins10'); });
+    await N.setMine(hub, flow, 'me-1', N.prof('Sky Rider', { tr: 420, pk: 512, w: 31, l: 9, st: 0, bs: 7, bt: 2075, ws: WK + 56, sk: { a: flow.transport.now() - 5000, s: 10, st: 4, b: true } }));
+    save.update((d) => { d.online.hist = rows; });
     N.views(P).profile.sync();
     await N.until(() => P.text('.pf-next') === '280 MORE TO GOLD', 3000);
     ok(/SILVER LEAGUE/.test(P.text('.pf-league')) && P.text('.pf-next') === '280 MORE TO GOLD', 'silver head: ' + P.text('.pf-head'));
@@ -59,8 +59,8 @@ export async function profileScenario(g) {
     ok(ms[2] && /RAIDER-\d{4}/.test(ms[2].textContent) && !/b1tch/i.test(P.el.textContent), 'the rude rival name: ' + (ms[2] && ms[2].textContent));
     ok(ms.filter((m) => m.classList.contains('r-d')).length === 2, 'draw rows');
     const owned = [...P.el.querySelectorAll('.pf-skin.owned')].map((t) => t.dataset.id);
-    ok(owned.join() === 'on-silver,on-wins10' && P.el.querySelectorAll('.pf-skin .pf-lock').length === 2, 'owned tiles: ' + owned);
-    ok(/YOURS/.test(P.text('.pf-skin[data-id="on-silver"]')) && /5 \/ 5/.test(P.text('.pf-skin[data-id="on-streak5"]')) && /512 \/ 1,800/.test(P.text('.pf-skin[data-id="on-champion"]')), 'tile words: ' + P.text('.pf-skins'));
+    ok(owned.join() === 'on-silver,on-wins10,on-streak5' && P.el.querySelectorAll('.pf-skin .pf-lock').length === 1, 'owned tiles: ' + owned);
+    ok(/YOURS/.test(P.text('.pf-skin[data-id="on-silver"]')) && /YOURS/.test(P.text('.pf-skin[data-id="on-streak5"]')) && /512 \/ 1,800/.test(P.text('.pf-skin[data-id="on-champion"]')), 'tile words: ' + P.text('.pf-skins'));
     fits('seasoned');
     await N.shotAt(P, 'profile-full', 0);
     await N.shotAt(P, 'profile-skins', P.q('.pf-skins').offsetTop - 10);
