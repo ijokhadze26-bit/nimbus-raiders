@@ -32,7 +32,7 @@
 .vsr-rg.down { background: #d01d3a; }
 
 /* the league-up moment (over the result panel) */
-.vsr-lgup { position: absolute; inset: 0; z-index: 6; display: grid; place-items: center; overflow: hidden; border-radius: 26px; background: rgba(8, 18, 60, 0.72); animation: vsr-fade 0.3s ease-out both; }
+.vsr-lgup { position: absolute; inset: -64px -6px -8px; z-index: 6; display: grid; place-items: center; overflow: hidden; border-radius: 26px; background: rgba(8, 18, 60, 0.72); animation: vsr-fade 0.3s ease-out both; }
 .vsr-lgup.out { animation: vsr-fadeout 0.3s ease-in both; }
 .vsr-lgup .rays { top: 50%; }
 .vsr-lg-in { position: relative; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; animation: vsr-lgpop 0.6s cubic-bezier(.2, 1.6, .4, 1) both; }

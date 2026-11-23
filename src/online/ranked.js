@@ -64,6 +64,8 @@ export function createRanked({ transport: tp, session, clock = realClock, storag
   const show = (c, patch) => { Object.assign(c.v, patch); if (cur === c) Object.assign(view, c.v); emit(c.v); };
   const uid = () => session.uid;
   const sleep = (ms) => new Promise((r) => clock.after(Math.max(0, ms), r));
+  /** Until the server-synced clock reaches `at` (in short steps: a corrected clock is followed at once). */
+  const sleepUntil = async (at) => { for (let d = at - tp.now(); d > 0; d = at - tp.now()) await sleep(Math.min(1000, d)); };
   const timed = (p, ms = 8000) => new Promise((res, rej) => {
     let done = false;
     const off = clock.after(ms, () => { if (!done) { done = true; rej(netError('timeout')); } });
@@ -237,11 +239,11 @@ export function createRanked({ transport: tp, session, clock = realClock, storag
 
   async function claimWin(c) {
     let tries = 0, again = false, alt = false;
-    await sleep(c.a1 + TROPHY.claimAfterMs - tp.now());
+    await sleepUntil(c.a1 + TROPHY.claimAfterMs);
     while (tries < TROPHY.claimTries) {
       const r = await serial(() => tryWin(c, { alt }));
       if (r.done) return r.done;
-      if (r.wait) { await sleep(r.wait); continue; }
+      if (r.wait) { await sleepUntil(tp.now() + r.wait); continue; }
       if (r.denied) {
         if (!alt && nearEdge(tp.now())) { alt = true; continue; }        // the other side of a UTC day / week edge
         if (!again) { again = true; continue; }                         // re-read and rebuild once

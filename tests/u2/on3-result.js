@@ -58,8 +58,8 @@ try {
   let rs = rows();
   ok(rs.length === 2 && rs[0].me && rs[0].pl === '1' && rs[0].text.includes('YOU') && rs[0].text.includes(W.clockTenths(versus.result.t)) && rs[0].text.includes(W.metres(versus.result.d)), 'my row: ' + JSON.stringify(rs));
   ok(rs[1] && !rs[1].me && rs[1].pl === '2' && rs[1].text.includes('MIKA') && rs[1].text.includes('0:05.0') && /\d+m$/.test(rs[1].text), 'rival row: ' + JSON.stringify(rs[1]));
-  ok(acts() === 'leave,rematch', 'buttons on the result: ' + acts());
-  ok(!k.q('.screen-vsresult .res-coins') && !k.q('.screen-vsresult .coin-ico') && !/COIN|TROPH|SHARE/i.test(panel().textContent), 'coins / trophies / share on the stage 1 result');
+  ok(acts() === 'leave,rematch,share', 'buttons on the result: ' + acts()); // (stage 4: SHARE)
+  ok(!k.q('.screen-vsresult .res-coins') && !k.q('.screen-vsresult .coin-ico') && !/COIN|TROPH/i.test(panel().textContent), 'coins / trophies on a result with no reward (stage 4 draws them from flow.reward, tests/u2/on8-*)');
   ok(btn('rematch') && !btn('rematch').classList.contains('is-disabled') && note() === '', `fresh REMATCH button: "${note()}"`);
   ok(JSON.stringify(g.save.data) === save0, 'a won match changed the save');
   info.win = { ribbon: ribbon(), head: head(), rows: rs };
@@ -166,7 +166,7 @@ try {
   rs = rows();
   ok(onResult() && ribbon() === 'YOU WIN!' && head() === 'RIVAL LOST CONNECTION' && k.text('.vsr-upd') === 'RESULT UPDATED' && rs[0].me && rs[1].text.includes('OFFLINE'), `the screen did not follow the revised verdict: ${ribbon()} / ${head()} / ${JSON.stringify(rs)}`);
   ok(g.lastResult && g.lastResult.win === true && versus.view().peers[0].place === 2, 'lastResult / places after the revision');
-  ok(acts() === 'leave,rematch' && k.qa('.screen-vsresult .panel').length === 1, 'the redrawn result lost its buttons or doubled');
+  ok(acts() === 'leave,rematch,share' && k.qa('.screen-vsresult .panel').length === 1, 'the redrawn result lost its buttons or doubled');
   link.test.verdict({ result: 'lose', place: 2, places: [], reason: 'fell', revised: true }); // one revision only
   ok(versus.result.result === 'win' && log.length === 2, 'a second revision was applied');
   const old = link;

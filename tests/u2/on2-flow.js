@@ -126,7 +126,7 @@ try {
   ok(g.state === 'result', 'no result screen after the win: ' + g.state);
   const row = g.save.data.online.hist[0];
   ok(row && row.r === 'w' && row.n === 'Buddy' && row.k === 'f' && g.save.data.online.hist.length === 1, 'history row: ' + JSON.stringify(g.save.data.online.hist));
-  ok(g.save.data.coins === 0 && g.save.data.stats.runs === 0, 'a friend match changed coins / stats');
+  ok(g.save.data.coins === 20 && g.save.data.stats.runs === 0, 'a friend match changed stats, or did not pay its 20 friend coins (stage 4): ' + g.save.data.coins);
   // ---- 7. rematch ----
   let rs = flow.rematchState();
   ok(rs.can && !rs.mine && rs.others.length === 1 && rs.others[0].name === 'Buddy' && rs.others[0].here && !rs.others[0].wants && rs.waitingFor === null && !rs.lost, 'rematchState after the match: ' + JSON.stringify(rs));

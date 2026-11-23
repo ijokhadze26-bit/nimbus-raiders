@@ -56,14 +56,17 @@ try {
   await Q.until(() => link.clock() >= 0, 6000, 50); // the real countdown
   frame();
   ok(g.versus.go, 'no GO after the countdown');
-  const writes0 = hub.stats.writes;
+  const writes0 = hub.stats.writes, ranked0 = flow.session.ranked.test.writes.filter((x) => x.ok).length;
   g.debug.setAutopilot('pro', 1);
   for (let i = 0; i < 70 && g.versus.live; i++) { g.versus.simulate(5); if (i === 6) { for (let k = 0; k < 20; k++) { g.frame(1 / 60, 1 / 60); ui.update(1 / 60); } look(); info.mid = { t: Math.round(g.versus.t), rival: g.versus.view().peers.map((p) => [Math.round(p.dist), p.n, p.alive]) }; await Q.shot('botlive'); } await K.wait(0); }
   await frames(30, () => ui.current === 'vsresult');
   ok(ui.current === 'vsresult' && g.versus.result && ['win', 'lose', 'draw'].includes(g.versus.result.result), `no result: screen ${ui.current} ${JSON.stringify(g.versus.result)}`);
   info.result = g.versus.result && { r: g.versus.result.result, t: g.versus.result.t, reason: g.versus.result.reason };
   info.hubWrites = hub.stats.writes - writes0;
-  ok(info.hubWrites === 0, `the page wrote ${info.hubWrites} times to the hub from GO to the result`);
+  // stage 4: the only writes of a bot match are its ranked ones (the stake, the rank mirror, a close) - no match traffic
+  await K.wait(300);
+  info.rankedWrites = flow.session.ranked.test.writes.filter((x) => x.ok).length - ranked0;
+  ok(info.hubWrites <= info.rankedWrites && info.rankedWrites >= 2, `the page wrote ${info.hubWrites} times to the hub from GO to the result (${info.rankedWrites} ranked writes)`);
   ok(!hub.admin.get(`meter/${meterKey(Date.now())}`), 'a bot match was counted on the day meter');
   const row = g.save.data.online.hist[0];
   ok(row && row.k === 'q' && row.n === v.name && row.r === info.result.r[0], 'history row: ' + JSON.stringify(row));

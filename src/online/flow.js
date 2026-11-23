@@ -101,10 +101,10 @@ export function createFlow(game, ui, { transport, session, clock }) {
   async function settlePending() {
     if (flow.link) return; // I am in a match right now: that one is not "left"
     const p = pending.take();
-    let quit = false;
-    if (p && transport.now() - p.ts0 <= NET.capMs + 60000) quit = await quitOut(transport, { mid: p.mid, slot: p.slot, t: 0, d: 0, ts0: p.ts0 });
+    const told = () => { if (!flow.room) { note('quit'); changed(); } };
+    if (p && transport.now() - p.ts0 <= NET.capMs + 60000 && await quitOut(transport, { mid: p.mid, slot: p.slot, t: 0, d: 0, ts0: p.ts0 })) told();
     const r = await session.settle().catch(() => null);
-    if ((quit || (r && r.quit)) && !flow.room) { note('quit'); changed(); }
+    if (r && r.quit && !(flow.notice && flow.notice.kind === 'quit')) told();
   }
 
   // ---------------- the room ----------------

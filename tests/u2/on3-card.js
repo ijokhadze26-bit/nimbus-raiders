@@ -37,7 +37,7 @@ try {
     ok(rival.includes('MIKA') && !rival.includes('YOU') && rival.includes('Cinder') && rival.includes('Emberstorm') && rival.includes('Frost paint'), 'rival picks: ' + rival);
     ok(!rival.includes('Royal Gold'), 'a hero that is not Pip shows a Pip outfit: ' + rival);
     ok(cs[0].style.getPropertyValue('--sc') === SLOT_COLORS[0] && cs[1].style.getPropertyValue('--sc') === SLOT_COLORS[1], 'seat colours on the cards');
-    ok(cs[0].querySelectorAll('svg').length === 2 && cs[1].querySelectorAll('svg').length === 2, 'hero + weapon icons on each card');
+    ok(cs[0].querySelectorAll('.vc-ico svg').length === 2 && cs[1].querySelectorAll('.vc-ico svg').length === 2, 'hero + weapon icons on each card'); // (stage 4 adds a league badge svg)
   }
   ok(mid() === 'VS', `middle reads "${mid()}" before the count (want VS)`);
   k.frames(0.5);
