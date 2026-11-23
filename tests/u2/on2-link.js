@@ -1,4 +1,4 @@
-// @smoke --query test=1&room=abcd&watch=1&net=nope&pid=A1&nettest=lat400,jit200,loss5
+// @smoke --query test=1&room=abcd&watch=1&net=off&pid=A1&nettest=lat400,jit200,loss5
 // Online stage 1 (builder SHELL): a friend's link and everything that can go wrong around a room, in one page over
 // a local hub (the real rules). The other players (Holly, Carl) are plain room.js calls.
 // 1. The page address: ?room=abcd is read (upper case), online is opened at boot, and room / watch leave the address
@@ -22,7 +22,7 @@ let offline = () => {};
 try {
   // ---- 1. the address ----
   const q = new URLSearchParams(location.search);
-  ok(ui.params.room === 'ABCD' && ui.params.watch === true && ui.params.net === null && ui.params.pid === 'A1' && ui.params.nettest === 'lat400,jit200,loss5', 'params: ' + JSON.stringify(ui.params));
+  ok(ui.params.room === 'ABCD' && ui.params.watch === true && ui.params.net === 'off' && ui.params.pid === 'A1' && ui.params.nettest === 'lat400,jit200,loss5', 'params: ' + JSON.stringify(ui.params));
   ok(!q.has('room') && !q.has('watch') && q.get('test') === '1' && q.get('pid') === 'A1', 'address after boot: ' + location.search);
   await K.until(() => ui.online.state !== 'loading' && ui.online.state !== 'idle', 6000);
   const lbl = ui.screens.title.el.querySelector('.btn-online .btn-online-lbl').textContent;

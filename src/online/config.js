@@ -1,16 +1,18 @@
 // Online configuration. Everything here is PUBLIC by design: this setup has no secret key at all.
-// The owner pastes the `firebaseConfig` block from the Firebase console (SPEC4 section 2, step 8).
-// While `apiKey` is empty the game has no online service: createTransport('fire') reports
-// 'unconfigured' and the ONLINE button reads COMING SOON.
+// This is the `firebaseConfig` block of the Firebase web app "Nimbus Raiders" (project nimbus-raiders, set up
+// 2026-11-23). A Firebase web apiKey only names the project; it grants nothing: the security rules in
+// config/firebase/database.rules.json decide every read and write.
+// With `apiKey` empty the game has no online service: createTransport('fire') reports 'unconfigured' and the
+// ONLINE button reads COMING SOON.
 
 export const BUILD = 1; // compared with cfg/minBuild; raise it when an old client must stop playing online
 
 export const firebaseConfig = {
-  apiKey: '',
-  authDomain: '',
-  databaseURL: '',
-  projectId: '',
-  appId: '',
+  apiKey: 'AIzaSyDZ5vaROzhzjXbRomkNfeft6AtMA9SuoDA',
+  authDomain: 'nimbus-raiders.firebaseapp.com',
+  databaseURL: 'https://nimbus-raiders-default-rtdb.europe-west1.firebasedatabase.app',
+  projectId: 'nimbus-raiders',
+  appId: '1:461917988069:web:6954d8a842108edf5ba00c',
 };
 
 /** True when the public config has been pasted in. */

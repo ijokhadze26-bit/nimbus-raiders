@@ -16,6 +16,7 @@
 //   default        the real service (src/online/config.js; nothing is loaded while it has no apiKey)
 //   net: 'local'   two tabs of ONE browser on one computer, no account: the first tab runs a tiny local "server"
 //                  (localhub.js with the real rules) and the others reach it over a BroadcastChannel
+//   net: 'off'     tests only: behave as if config.js had no apiKey, so a test never reaches the real service
 //   net: 'bridge'  the two-page test harness: the page waits for window.__netPort = { post(msg), onmessage }
 //   hub            a local hub object in this very page (the one-page tests)
 //   pid            this tab's player id on a local network;  nettest: 'lat400,jit200,loss5' slows any of them down
@@ -42,6 +43,7 @@ function tabId(pid) {
 async function pickTransport(opts) {
   const nettest = opts.nettest || null;
   if (opts.hub) return createTransport('local', { hub: opts.hub, uid: tabId(opts.pid), nettest });
+  if (opts.net === 'off') return { transport: null, reason: 'unconfigured' }; // tests: act as if no service were set up
   if (opts.net === 'local') {
     if (typeof BroadcastChannel !== 'function') return { transport: null, reason: 'no-channel' };
     const [{ joinChannel }, { createHub }, { createRules }, rules] = await Promise.all([

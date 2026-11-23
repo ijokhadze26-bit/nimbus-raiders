@@ -1,8 +1,8 @@
-// @smoke --size 360x640
+// @smoke --size 360x640 --query test=1&net=off
 // Online stage 1 (builder SHELL): the ONLINE button on the title, on the smallest phone (360x640).
 // 1. Before the first tap nothing of src/online (or firebase) has been downloaded: the online code is a lazy chunk.
 // 2. The wide ONLINE button sits under PLAY, above MODES / SHOP / SETTINGS, inside the frame, overlapping nothing.
-// 3. No online service set up (config.js has no apiKey) and no local network asked for: ONLINE · COMING SOON, the
+// 3. No online service (?net=off: tests never reach the real one; same as config.js without an apiKey): ONLINE · COMING SOON, the
 //    title stays, a level still starts.
 // 4. The chunk does not load (thrown, then never answering): ONLINE · LOADING while it tries, ONLINE · UNAVAILABLE
 //    after; tapping again tries again; the service not answering reads UNAVAILABLE too.

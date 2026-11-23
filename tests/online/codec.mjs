@@ -134,10 +134,14 @@ test('nettest string', () => {
   eq(parseNettest(''), null);
 });
 
-test('no account yet: the real adapter reports unconfigured and loads nothing', async () => {
-  ok(!configured(firebaseConfig), 'config.js ships with an empty apiKey');
-  eq(availability('fire'), 'unconfigured');
-  const r = await createTransport('fire');
+test('the real adapter: an empty config reports unconfigured and loads nothing; the shipped config is the public one', async () => {
+  // config.js now carries the owner's public web config (no secret: the rules decide everything)
+  ok(configured(firebaseConfig), 'config.js has the public firebaseConfig');
+  ok(/^AIza[0-9A-Za-z_-]{35}$/.test(firebaseConfig.apiKey) && /firebasedatabase\.app$/.test(firebaseConfig.databaseURL), 'the config looks like a Firebase web config');
+  for (const k of Object.keys(firebaseConfig)) ok(!/secret|private|token|password/i.test(k), `config key ${k} looks secret`);
+  const empty = { apiKey: '', authDomain: '', databaseURL: '', projectId: '', appId: '' };
+  ok(!configured(empty), 'an empty config counts as unconfigured');
+  const r = await createTransport('fire', { config: empty });
   eq(r.transport, null);
   eq(r.reason, 'unconfigured');
   eq(availability('local'), 'ok');
