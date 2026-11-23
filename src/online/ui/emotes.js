@@ -71,7 +71,8 @@ export function mountEmotes(ctx) {
   const replay = (el, cls) => { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
   const bot = () => { const ps = link && link.peers; return ps ? ps.find((p) => p && p.bot) || null : null; };
   const onResult = () => ui.current === 'vsresult' && game.state === 'result';
-  const inMatch = () => !!(game.run && game.run.mode === 'versus' && (game.state === 'playing' || game.state === 'paused') && game.versus && game.versus.live);
+  // (from GO on: the VS card before it keeps the whole screen)
+  const inMatch = () => !!(game.run && game.run.mode === 'versus' && (game.state === 'playing' || game.state === 'paused') && game.versus && game.versus.live && game.versus.go);
   const visible = () => !!link && game.versus && game.versus.link === link && ui.top() !== 'confirm' && (inMatch() || onResult());
 
   // ---------------- the link of the current match ----------------

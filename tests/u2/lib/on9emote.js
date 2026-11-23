@@ -32,6 +32,9 @@ export async function emoteScenario(g) {
     // ---------- 1. a scripted match ----------
     const curve = (t) => ({ dist: 9 * t, n: 40, x: 0, form: 0, boss: 0, zone: 1, flags: 0, danger: 0 });
     const link = k.start({ rivals: [{ slot: 1, name: 'Mika', curve }] });
+    k.frames(0.1);
+    info.goAt = versus.go ? 'at once' : 'later';
+    if (!versus.go) ok(dock().style.display === 'none', 'the emote button shows before GO');
     k.frames(3, () => { keep(); return false; });
     ok(versus.live && dock().style.display !== 'none' && dock().classList.contains('match'), 'no emote button in the match: ' + dock().className);
     ok(btn().hasAttribute('data-ui') && btn().getBoundingClientRect().width === 48, 'the button is not a 48 px data-ui button');
@@ -54,7 +57,21 @@ export async function emoteScenario(g) {
     const fanR2 = rectOf(k.q('.emo-fan'));
     ok(fanR2.left >= app.left - 0.5 && fanR2.right <= app.right + 0.5 && fanR2.top >= app.top + 100 && fanR2.bottom <= app.bottom, `the fan sticks out (${Math.round(fanR2.left)},${Math.round(fanR2.top)} .. ${Math.round(fanR2.right)},${Math.round(fanR2.bottom)})`);
     for (const [n, el] of [['SABOTAGE', sab], ['ability', abil], ['rival row', row]]) if (el && el.getClientRects().length) ok(!over(fanR2, rectOf(el)), `the open fan covers the ${n} button`);
+    const others = ['.sab-btn', '.hud-ability-mount > *', '.form-btn', '.dodge-btn', '.hud-weapon', '.vs-rivals .vs-r'];
+    const clear = (what) => {
+      const br = rectOf(btn()), fr = rectOf(k.q('.emo-fan'));
+      for (const sel of others) for (const el of k.qa(sel)) if (el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden' && (over(br, rectOf(el)) || over(fr, rectOf(el)))) fails.push(`${what}: the emote button / fan covers ${sel}`);
+    };
+    clear('right-handed');
     await shot('fan');
+    // left-handed play: the dock moves to the right side with SABOTAGE, still clear of everything
+    const st = g.save.data.settings, side0 = st.abilitySide;
+    st.abilitySide = 'left'; ui.applyHand(); E.update(0);
+    await N.wait(250);
+    ok(dock().classList.contains('right') && E.open && rectOf(btn()).left > app.left + app.width / 2, 'left-handed: the dock did not move right: ' + dock().className);
+    clear('left-handed');
+    await shot('fan-left');
+    st.abilitySide = side0; ui.applyHand(); E.update(0);
     // send: one event { k: 'e', a, to: -1 }, my bubble
     const n0 = link.test.events.length;
     down(picks[0]);
@@ -179,7 +196,11 @@ export async function emoteScenario(g) {
     const clink = carl.match(room);
     await N.wait(300);
     ok(!!mine && versus.link === mine, 'the real match did not start: ' + !!mine);
-    for (let i = 0; i < 30; i++) g.ui.update(1 / 60);
+    for (let i = 0; i < 6; i++) { keep(); k.frame(); }
+    info.preGo = mine.clock() < 0;
+    if (mine.clock() < 0) ok(dock().style.display === 'none', 'the emote button shows before GO (on the VS card)');
+    await N.until(() => mine.clock() > 0.1, 8000);   // (GO of a friend room comes a few seconds after its start)
+    for (let i = 0; i < 30; i++) { keep(); k.frame(); }
     ok(dock().style.display !== 'none', 'no emote button in the real match');
     tick(0.1);
     down(btn()); down(k.q('.emo-pick[data-emo="1"]'));
