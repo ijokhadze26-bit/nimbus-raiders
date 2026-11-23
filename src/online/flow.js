@@ -21,6 +21,8 @@
 //   leave(to = 'online')            leave the match and the room for good, then go to the hub ('online') or 'title'
 //   on(type, cb) -> off             'change': something a screen shows has changed
 //   shareLink()                     the address a friend opens to land in my room
+//   mode / quickMatch() / quickCancel() / quickView() / quick   QUICK MATCH (src/online/quickflow.js); in quick mode
+//                                   rematchState() / rematch() mean PLAY AGAIN (a new search), never a REMATCH
 // Leaving the online pages for any other menu also leaves the room; a tab that reloads in the middle of a match
 // has its fall written on the next visit (SPEC4 §5.7).
 import { MENU_STATES } from '../game/states.js';
@@ -30,6 +32,7 @@ import { createRoom, joinRoom } from './room.js';
 import { createMatch, quitOut } from './match.js';
 import { NAME_HELP } from './names.js';
 import { NET } from './config.js';
+import { installQuick } from './quickflow.js';
 
 const PENDING_KEY = 'nimbusRaiders.online.pending';
 
@@ -54,6 +57,7 @@ export function createFlow(game, ui, { transport, session }) {
   let players = [];         // who was in the current / last match: [{ slot, uid, name }]
   let parked = false;       // I was un-readied because my rematch partner went away (ready again when they are back)
   let queued = false;
+  let quick = null;         // the QUICK MATCH hooks (quickflow.js)
 
   const emitNow = () => { queued = false; for (const cb of [...(handlers.get('change') || [])]) { try { cb(flow); } catch (e) { console.error(e); } } };
   /** Several things often change in one go (a room update): the screens are told once, a moment later. */
@@ -101,11 +105,12 @@ export function createFlow(game, ui, { transport, session }) {
   function onRoom(state) {
     if (!flow.room) return;
     const inMatch = !!flow.link;
+    if (flow.mode === 'quick' && !inMatch) { changed(); return; } // before its match a quick room is the queue's (quick.js)
     if (state.gone) { if (!inMatch) dropRoom('closed'); else changed(); return; }
     // no seat for me: the room was full or already playing (watching a match comes in a later stage)
     if (state.watching && !inMatch) { dropRoom(state.st === 'live' ? 'playing' : 'full'); return; }
     if (state.lost && !inMatch) { dropRoom('lostseat'); return; }
-    if (inMatch) guardRematch(state);
+    if (inMatch && flow.mode !== 'quick') guardRematch(state);
     changed();
   }
 
@@ -228,12 +233,13 @@ export function createFlow(game, ui, { transport, session }) {
       const room = flow.room, st = room && room.state;
       if (!st || !st.mid) return false;
       if (flow.link) { const old = flow.link; flow.link = null; old.leave(); } // a rematch: the last match is over
-      const link = createMatch({ transport, room, cfg: session.cfg });
+      const link = createMatch({ transport, room, cfg: quick.cfg() });
       if (link.slot === null) { link.leave(); dropRoom('playing'); return false; } // it began without me
       flow.link = link;
       wantRematch = false; parked = false;
       matchRn = st.rn;
       players = (st.players || []).map((p) => ({ slot: p.slot, uid: p.uid, name: p.n }));
+      quick.started(link, st.players || []);
       pending.set({ mid: link.mid, slot: link.slot, uid: session.uid, ts0: link.t0 - NET.goMs });
       game.versus.start(link, syncPicks());
       changed();
@@ -241,6 +247,7 @@ export function createFlow(game, ui, { transport, session }) {
     },
 
     rematchState() {
+      if (flow.mode === 'quick') return quick.rematchState(players);
       // a rival the match saw drop (forfeited for silence, or silent right now) is offline, not gone for good
       const offline = (slot) => { const p = game.versus && game.versus.peer ? game.versus.peer(slot) : null; return !!p && (p.by === 'dc' || p.silent > 0 || p.countdown != null); };
       const out = { can: false, mine: false, others: [], waitingFor: null, lost: false, hostLeft: false };
@@ -267,6 +274,7 @@ export function createFlow(game, ui, { transport, session }) {
     },
 
     rematch() {
+      if (flow.mode === 'quick') return quick.playAgain();
       const room = flow.room;
       if (!room || !flow.rematchState().can) return Promise.resolve(false);
       wantRematch = true;
@@ -278,6 +286,7 @@ export function createFlow(game, ui, { transport, session }) {
     leave(to = 'online') {
       const v = game.versus;
       if (v && v.live) v.stop({ toTitle: false }); // leaving a running match is a fall ('quit')
+      quick.stop();
       dropRoom(null);
       ui.nav(to === 'title' ? 'title' : 'online');
     },
@@ -299,6 +308,7 @@ export function createFlow(game, ui, { transport, session }) {
     if (state === 'online' || !MENU_STATES.has(state) || ui.navigating === 'online') return;
     // any other menu: nothing online stays open behind it, and the connection is let go a little later
     // (every way back in goes through ui.openOnline -> connect(), which takes it up again)
+    if (flow.mode) quick.stop(); // (a search, or RIVAL FOUND!: no ticket and no seat stay behind)
     if (flow.room || flow.link) dropRoom(null);
     transport.idle();
   });
@@ -308,12 +318,13 @@ export function createFlow(game, ui, { transport, session }) {
     if (!link || !r || !['win', 'lose', 'draw'].includes(r.result)) return;
     pending.clear();
     const rival = players.find((p) => p.uid !== session.uid);
-    addOnlineMatch(game.save, { a: Math.floor(link.t0 / 1000), r: r.result[0], t: r.t, d: r.d, n: rival ? rival.name : '', k: 'f' });
+    addOnlineMatch(game.save, { a: Math.floor(quick.t0(link) / 1000), r: r.result[0], t: r.t, d: r.d, n: rival ? rival.name : '', k: flow.mode === 'quick' ? 'q' : 'f' });
     changed();
   };
   ev.on('versus:end', record);
   ev.on('versus:revised', record);
   ev.on('save:changed', () => { if (flow.room && !flow.link) syncPicks(); });
+  quick = installQuick(flow, { game, ui, transport, session, adopt, dropRoom, syncPicks, seatPicks, changed, setPlayers: (list) => { players = list; } });
   syncPicks();
   return flow;
 }
