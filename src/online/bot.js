@@ -94,7 +94,7 @@ export function createBotLink({ seed = 1, pick, game, now, t0, clock, slot = 0 }
   const mine = { live: -1, out: null };
   const stats = { bundles: 0, sent: 0, bigs: 0, recv: 0, dips: 0 };
   const wire = [];
-  const test = { events: [], bundles: [], rows: [], landed: [], fallAt: (T) => { plan.T = Math.max(Math.round(Number(T) * 10) / 10, k / 10); } };
+  const test = { events: [], bundles: [], rows: [], landed: [], fallAt: (T) => { plan.T = clamp(Math.round((Number(T) || 0) * 10) / 10, k / 10, MAX_T); } };
 
   const emit = (type, ...a) => {
     if (left) return;
