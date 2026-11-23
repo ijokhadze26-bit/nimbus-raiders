@@ -8,7 +8,7 @@ import { createRules } from '/src/online/rulescheck.js';
 import { QUICK } from '/src/online/quick.js';
 import { until, wait, page } from '/tests/u2/lib/on2kit.js';
 
-export const KEYS = ['nimbusRaiders.online.pending', 'nimbusRaiders.online.stake', 'nimbusRaiders.online.coins', 'nimbusRaiders.online.bot', 'nimbusRaiders.online.mute'];
+export const KEYS = ['nimbusRaiders.online.pending', 'nimbusRaiders.online.stake', 'nimbusRaiders.online.coins', 'nimbusRaiders.online.bot', 'nimbusRaiders.online.mute', 'nimbusRaiders.online.skins.v5'];
 export const clearKeys = () => { for (const k of KEYS) { try { localStorage.removeItem(k); } catch { /* blocked */ } } };
 
 /** A hub with the published rules; hub.jump(ms) moves its clock (and every client's) forward. */

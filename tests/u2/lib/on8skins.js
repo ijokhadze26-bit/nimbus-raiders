@@ -4,7 +4,7 @@
 // - a server profile with pk 300 grants on-silver only; an old tab dropping it -> back from the backup key;
 // - owned + equipped, a single-player run wears them (outfit + gun paint) and the shop shows EQUIPPED.
 import * as E from '/tests/u2/lib/on8kit.js';
-import { Save, SAVE_KEY, sanitize, defaultSave } from '/src/save/save.js';
+import { Save, SAVE_KEY, ONLINE_KEY, sanitize, defaultSave } from '/src/save/save.js';
 import { buySkin, equipSkin } from '/src/save/progress.js';
 import { ONLINE_SKINS, HERO_SKINS, WEAPON_SKINS, PAID_SKIN_IDS, FREE_SKIN_IDS } from '/src/data/skins.js';
 
@@ -51,7 +51,7 @@ export async function skinsScenario(g) {
       E.inFrame([`.screen-shop [data-id="${ids[0]}"]`, `.screen-shop [data-id="${ids[1]}"]`], fails, `shop ${tab}`);
       await E.shot(g, `shop-${tab}`);
     }
-    ok(/Win 10 online matches \(3\/10\)/.test(info['on-wins10']) && /in a row \(2\/5\)/.test(info['on-streak5']) && /Reach SILVER league online/.test(info['on-silver']), 'hints + progress: ' + JSON.stringify(info));
+    ok(/Win 10 Quick Matches \(3\/10\)/.test(info['on-wins10']) && /in a row \(2\/5\)/.test(info['on-streak5']) && /Reach SILVER league online/.test(info['on-silver']), 'hints + progress: ' + JSON.stringify(info));
     ui.nav('title');
     // ---- 4. the server profile grants them ----
     const hub = await E.makeHub();
@@ -60,14 +60,17 @@ export async function skinsScenario(g) {
     ok(g.save.owns('on-silver') && !g.save.owns('on-wins10') && !g.save.owns('on-streak5') && !g.save.owns('on-champion'), 'pk 330 grants on-silver only: ' + g.save.data.skins.owned.join());
     P.flow.leave('title');
     ui.nav('title');
-    // ---- 5. an old tab drops it; the backup key brings it back ----
+    // ---- 5. an old (stage 1-3, live) tab drops it and resets the outfit; the stage-4 backup key brings both back ----
+    ok(equipSkin(g.save, 'on-silver'), 'could not equip on-silver');
     g.save.flush();
     const raw = JSON.parse(localStorage.getItem(SAVE_KEY));
     raw.skins.owned = raw.skins.owned.filter((id) => !ONLINE.includes(id));
-    delete raw.online;
+    raw.skins.hero = 'classic';
     localStorage.setItem(SAVE_KEY, JSON.stringify(raw)); // what a stage-3 tab writes (it does not know these ids)
+    localStorage.setItem(ONLINE_KEY, JSON.stringify({ ...raw.online, skins: [] })); // and its backup copy: no online skin
     const again = new Save(null, { delay: 0 });
-    ok(again.owns('on-silver'), 'an old tab dropped on-silver for good: ' + again.data.skins.owned.join());
+    ok(again.owns('on-silver') && again.data.skins.hero === 'on-silver', 'an old tab dropped on-silver for good: ' + again.data.skins.owned.join() + ' wearing ' + again.data.skins.hero);
+    g.save.update((d) => { d.skins.hero = 'classic'; });
     // ---- 6. equipped, a single-player run wears it ----
     g.save.update((d) => { if (!d.skins.owned.includes('on-wins10')) d.skins.owned.push('on-wins10'); });
     ok(equipSkin(g.save, 'on-silver') && equipSkin(g.save, 'on-wins10'), 'could not equip the online skins');

@@ -301,6 +301,9 @@ export const scenarios = [
       ok(/SILVER STORM/.test(r.skinLine || '') && (await A.text('.vsr')).includes('VICTORY GOLD'), `the new-skin lines: ${await A.text('.vsr')}`);
       await A.page.waitForTimeout(3200); // (the moment goes by itself)
       await A.shot('skins');
+      // two new skins in one match: ONE line, and the whole panel (its YOU WIN! ribbon too) fits 360 x 640
+      const fit = await A.page.evaluate(() => { const s = document.querySelector('.screen-vsresult'), rib = s.querySelector('.ribbon, .vsr-ribbon, [class*="ribbon"]'); return { top: rib ? Math.round(rib.getBoundingClientRect().top) : null, lines: s.querySelectorAll('.vsr-skin').length, over: s.scrollHeight - s.clientHeight }; });
+      ok(fit.top !== null && fit.top >= 0 && fit.lines === 1 && fit.over <= 0, `360 x 640 with two new skins: ${JSON.stringify(fit)}`);
       // ---- the SHOP's GUN PAINT tab: Victory Gold is mine, EQUIP works ----
       await A.click('.vsr [data-act="leave"]');
       await duo.until(async () => (await A.view()).view === 'hub', 'the hub after LEAVE');

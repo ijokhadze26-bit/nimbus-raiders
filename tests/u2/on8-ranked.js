@@ -59,7 +59,7 @@ try {
   const p = hub.admin.get('users/me-1');
   ok(p.tr === 200 + G && p.w === 1 && p.l === 0 && !p.sk && hub.admin.get('rk/me-1') === 200 + G && g.save.data.online.tr === 200 + G, 'after the claim: ' + JSON.stringify(p));
   const rg = document.querySelector('.screen-vsresult .vsr-places li:not(.me) .vsr-rg');
-  ok(rg && rg.textContent === '0 TROPHIES', `Buddy's row (0 trophies: nothing to lose): ${rg && rg.textContent}`);
+  ok(!rg, `Buddy never staked (a plain searcher): no trophy tag on his row: ${rg && rg.textContent}`);
   await E.shot(g, 'ranked-saved');
   document.querySelector('.screen-vsresult [data-act="leave"]').click();
   await E.until(() => ui.current === 'online', 4000);

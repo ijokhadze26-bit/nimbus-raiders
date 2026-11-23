@@ -94,8 +94,12 @@ export async function installOnline(game, ui, opts = {}) {
       const session = createSession({ transport: made.transport });
       // the harness's pages run the Quick Match timers on the hub's virtual time, like everything else they see
       const clock = opts.net === 'bridge' ? createFollowClock(() => made.transport.now()) : undefined;
-      const flow = createFlow(game, ui, { transport: made.transport, session, clock });
-      on = game.online = { flow, hub: made.hub || opts.hub || null };
+      // a test network (no real service) pays coins and online skins only on a dev build or a ?test=1 page, and only
+      // there is its hub reachable from the page (tests seed profiles through hub.admin)
+      const test = !!(import.meta.env && import.meta.env.DEV) || !!(game.params && game.params.test);
+      const real = !opts.hub && !opts.net;
+      const flow = createFlow(game, ui, { transport: made.transport, session, clock, trusted: real || test });
+      on = game.online = { flow, hub: test ? made.hub || opts.hub || null : null };
       ui.addScreen('online', createOnlineScreen(ui, flow));
       installMatchUi(game, ui, flow);
     }

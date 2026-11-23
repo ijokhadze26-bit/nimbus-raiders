@@ -87,6 +87,7 @@ export function createProfileView(ui, flow, page) {
         <div class="pf-next">${next ? `<b class="num">${fmt(lg.next - tr)}</b> MORE TO ${esc(next.name)}` : 'TOP LEAGUE - AMAZING!'}</div>
       </div>
       <div class="pf-stats">${stats.map(([k, v]) => `<div class="pf-stat"><span>${k}</span><b class="num">${v}</b></div>`).join('')}</div>
+      <p class="pf-note">Wins and streaks count Quick Matches. Friend matches are just for fun!</p>
       <div class="on-card pf-skins">
         <div class="pf-h ol">ONLINE SKINS</div>
         <p class="pf-p">Only online players can earn these!</p>

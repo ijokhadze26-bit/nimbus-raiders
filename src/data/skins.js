@@ -54,11 +54,11 @@ export const ONLINE_SKINS = [
     pip: { helmet: '#eef3fa', visor: '#4dc3ff', suit: '#9aa9c4', scarf: '#2f8cff', jet: '#c9d3e3', glow: '#9fe6ff' },
     raider: { body: '#9aa9c4', helmet: '#eef3fa', visor: '#4dc3ff', pack: '#2f8cff' } },
   { id: 'on-wins10', kind: 'weapon', name: 'Victory Gold', cost: Infinity, rarity: 'epic', online: true,
-    earn: { field: 'w', min: 10, hint: 'Win 10 online matches' }, tiers: [
+    earn: { field: 'w', min: 10, hint: 'Win 10 Quick Matches' }, tiers: [
       t('#ffe98a', '#fffbe6'), t('#ffd34d', '#fff6cc', '#ffe98a'), t('#ffc21f', '#fff0b8'),
       t('#f0a800', '#ffefb0', '#ffd34d'), t('#ffdd55', '#ffffff', '#fff3a8'), t('#fff3a8', '#ffffff', '#ffc21f')] },
   { id: 'on-streak5', kind: 'weapon', name: 'Hot Streak', cost: Infinity, rarity: 'epic', online: true,
-    earn: { field: 'bs', min: 5, hint: 'Win 5 online matches in a row' }, tiers: [
+    earn: { field: 'bs', min: 5, hint: 'Win 5 Quick Matches in a row' }, tiers: [
       t('#ff7ab8', '#ffe6f2'), t('#ff4f8f', '#ffd9e8', '#ff9ac4'), t('#ff3b6b', '#ffd6df'),
       t('#ff5a2a', '#ffe0d4', '#ff4f8f'), t('#ff2a8a', '#ffe6f2', '#ffb21f'), t('#ffb21f', '#ffffff', '#ff2a8a')] },
   { id: 'on-champion', kind: 'hero', name: 'Storm Champion', cost: Infinity, rarity: 'legendary', online: true,

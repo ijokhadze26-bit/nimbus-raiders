@@ -5,7 +5,7 @@
 //   flow.quickMatch()    start a search -> false when busy / no name / in a room / already searching
 //   flow.quickCancel()   -> Promise: no ticket, no room, back to the hub
 //   flow.quickView()     -> { phase: 'search'|'found', secs, name, hero, weapon }   the SAME shape for a human and a bot
-//   flow.quick.match     { kind: 'human'|'bot', mid|null, slot, rivalSlot, rivalTr, seed, t0 } of the current match
+//   flow.quick.match     { kind: 'human'|'bot', mid|null, slot, rivalSlot, rivalTr, rivalUid (human), seed, t0 } of the current match
 //   flow.quick.q         the queue of the current search (quick.js) or null
 //   flow.quick.test      { clockFor: ({ t0, now }) => () -> s }  tests only: the clock a bot match runs on
 // What happens after a tap:
@@ -149,7 +149,7 @@ export function installQuick(flow, inner, { clock = realClock } = {}) {
       countMatch(tp, link).catch(() => {});
       if (flow.mode !== 'quick') return;
       const rival = (players || []).find((p) => p.slot !== link.slot) || {};
-      quick.match = { kind: 'human', mid: link.mid || null, slot: link.slot, rivalSlot: rival.slot ?? null, rivalTr: Number(rival.tr) || 0, seed: link.seed, t0: link.t0 };
+      quick.match = { kind: 'human', mid: link.mid || null, slot: link.slot, rivalSlot: rival.slot ?? null, rivalTr: Number(rival.tr) || 0, rivalUid: rival.uid || null, seed: link.seed, t0: link.t0 };
     },
     /** The result screen's big button in quick mode: PLAY AGAIN (a new search), for a person and a bot alike. */
     rematchState(players) {

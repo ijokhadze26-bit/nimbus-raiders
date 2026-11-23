@@ -9,7 +9,9 @@
 //   ranked.claim(match, result)  the verdict (provisional ones are skipped) -> { ok, kind: 'win'|'draw'|'close', g, reason }
 //   ranked.close(match)          left mid-match: the loss stands, the stake goes -> { ok }
 //   ranked.settle()              each connect: a pending win is claimed, anything else of mine closed, rk mirrored
-//   ranked.view                  { id, mid, kind, state, why, s, g, tr0, tr, o, at, test: { writes: [{ kind, ok }] } }
+//   ranked.view                  { id, mid, kind, state, why, s, g, tr0, tr, o, ro, at, test: { writes: [{ kind, ok }] } }
+//                                ro: the rival's own open stake of this match once seen, { tr0, o } (null: not seen, so a
+//                                rival who did not stake - limit, busy, connection - gets no trophy tag on my screen)
 //                                state 'none'|'staking'|'staked'|'saving'|'saved'|'failed'; why null|'cap'|'offline'|
 //                                'busy'|'late'|'denied'|'pending' (a win left for the next visit)
 //   ranked.on(cb) -> off         cb(v) after every change (a write, a state): v = that match's view (v.id = match.t0;
@@ -17,9 +19,13 @@
 //   match = flow.quick.match = { kind: 'human'|'bot', mid, slot, rivalSlot, rivalTr, seed, t0 }
 // The pending stake lives in localStorage 'nimbusRaiders.online.stake' = { uid, kind, mid, ms, ts0, a0, a1, res, t10,
 // live }; the page that plays the match stamps `live` every 2 s, and nobody else settles it while that stamp is fresh.
+// It is written BEFORE the first stake write (a1 0 = not acked yet), so a write that timed out but landed later is
+// still known as mine (adopted by the retry, the verdict, or the next settle). A pending win is retried when the line
+// comes back, when the next stake meets it, and (a dead page's stamp) a few seconds after a settle found it fresh.
 import { TS, isDenied, netError, realClock } from './transport.js';
 import { NET } from './config.js';
 import { quitOut } from './match.js';
+import { watchRival } from './rivalsk.js';
 import { TROPHY, humanStake, botStake, botGain, humanGain, weekBase, dayOf } from './leagues.js';
 
 export const STAKE_KEY = 'nimbusRaiders.online.stake';
@@ -55,8 +61,8 @@ export const botBtCap = (sk, now, margin = 0) => Math.min(NET.maxT10, Math.floor
 
 export function createRanked({ transport: tp, session, clock = realClock, storage = defaultStore(), wall = () => Date.now() }) {
   const listeners = new Set();
-  const view = { id: null, mid: null, kind: null, state: 'none', why: null, s: 0, g: null, tr0: null, tr: null, o: null, at: null, test: { writes: [] } };
-  let chain = Promise.resolve(), cur = null, stampOff = null;
+  const view = { id: null, mid: null, kind: null, state: 'none', why: null, s: 0, g: null, tr0: null, tr: null, o: null, ro: null, at: null, test: { writes: [] } };
+  let chain = Promise.resolve(), cur = null, stampOff = null, resettle = null, resettles = 0, settledOnce = false, lastSt = null;
   const R = { view, on(cb) { listeners.add(cb); return () => listeners.delete(cb); }, get clock() { return clock; }, set clock(c) { if (c) clock = c; } };
 
   const emit = (v = view) => { for (const cb of [...listeners]) { try { cb(v); } catch (e) { console.error(e); } } };
@@ -102,8 +108,9 @@ export function createRanked({ transport: tp, session, clock = realClock, storag
     write(v) { try { storage.setItem(STAKE_KEY, JSON.stringify(v)); } catch { /* storage blocked */ } },
     patch(c, fields) { const p = pend.read(); if (p && pend.is(p, c)) pend.write({ ...p, ...fields }); },
     clear(c) { const p = pend.read(); if (p && (!c || pend.is(p, c))) { try { storage.removeItem(STAKE_KEY); } catch { /* blocked */ } } if (cur === c || !c) stopStamp(); },
-    is: (p, c) => p.kind === c.kind && (c.kind === 'human' ? p.mid === c.mid : p.a0 === c.a0),
+    is: (p, c) => p.kind === c.kind && (c.kind === 'human' ? p.mid === c.mid : p.a0 === (c.a0first || c.a0)),
   };
+  const pendOf = (c) => ({ uid: uid(), kind: c.kind, mid: c.mid, ms: c.slot, ts0: c.match.t0 - NET.goMs, a0: c.a0first || c.a0, a1: c.a1 || 0, skA: c.skA || 0, res: null, t10: 0, live: wall() });
   function startStamp(c) {
     stopStamp();
     stampOff = clock.every(TROPHY.liveStampMs, () => { if (c.settled) stopStamp(); else pend.patch(c, { live: wall() }); });
@@ -111,16 +118,24 @@ export function createRanked({ transport: tp, session, clock = realClock, storag
   function stopStamp() { if (stampOff) { stampOff(); stampOff = null; } }
   /** Is the open stake `sk` the one of context `c`? (A human stake names its match; a bot stake is known by its time.) */
   // (skA: the server's own stamp, read back once after the stake; without it the moments around the write)
+  // (a1 0: the write was never acked, so it may have landed any time after it went out)
   const owns = (sk, c) => !!sk && (c.kind === 'human' ? sk.b === false && sk.m === c.mid
-    : sk.b === true && (c.skA ? sk.a === c.skA : sk.a >= c.a0 - 3000 && sk.a <= c.a1 + 3000));
+    : sk.b === true && (c.skA ? sk.a === c.skA : sk.a >= (c.a0first || c.a0) - 3000 && (!c.a1 || sk.a <= c.a1 + 3000)));
+  /** The open stake `sk` is one of my own tries for match `c` that timed out (it landed after all). */
+  const ownTry = (sk, c) => !!sk && !!c.a0first && (c.kind === 'human' ? sk.b === false && sk.m === c.mid : sk.b === true && sk.a >= c.a0first - 3000);
+  /** Is this page playing / claiming the stake `D.sk` through context `c`? (then settle() leaves it alone) */
+  const handling = (c, D) => !!c && !c.settled && !c.gaveUp && ((c.staked && owns(D.sk, c)) || (!!c.staking && !c.stakeDone) || (c.maybe && !c.verdict));
+  /** A context for a pending stake an earlier page (or a claim that gave up) left. */
+  const fromPending = (p, D) => ({ ...context({ kind: p.kind, mid: p.mid, slot: p.ms, t0: (p.ts0 || 0) + NET.goMs, rivalTr: 0 }), staked: true, over: true,
+    verdict: p.res || 'lose', t10: Number(p.t10) || 0, a0: p.a0, a0first: p.a0, a1: p.a1, skA: p.skA || 0, s: D.sk.s, tr0: D.tr + D.sk.s, o: D.sk.o ?? null });
 
   // ---------------- one match ----------------
   function context(m) {
     const human = m.kind === 'human';
     return { id: m.t0, match: m, kind: human ? 'human' : 'bot', mid: human ? m.mid : null, slot: m.slot, rec: null,
-      why: null, staked: false, over: false, settled: false, verdict: null, t10: 0, a0: 0, a1: 0, s: 0, tr0: null, o: null,
-      prepared: null, staking: null, claiming: null, closing: null,
-      v: { id: m.t0, mid: human ? m.mid : null, kind: human ? 'human' : 'bot', state: 'none', why: null, s: 0, g: null, tr0: null, tr: null, o: human ? null : Number(m.rivalTr) || 0, at: null } };
+      why: null, staked: false, over: false, settled: false, verdict: null, t10: 0, a0: 0, a0first: 0, a1: 0, s: 0, tr0: null, o: null,
+      maybe: false, pendWritten: false, prepared: null, staking: null, claiming: null, closing: null,
+      v: { id: m.t0, mid: human ? m.mid : null, kind: human ? 'human' : 'bot', state: 'none', why: null, s: 0, g: null, tr0: null, tr: null, o: human ? null : Number(m.rivalTr) || 0, ro: null, at: null } };
   }
   const ctxOf = (m) => (m && cur && cur.id === m.t0 ? cur : null);
   const capped = (D, now) => D.cd === dayOf(now) && D.cc >= TROPHY.dayCap;
@@ -142,39 +157,81 @@ export function createRanked({ transport: tp, session, clock = realClock, storag
 
   R.stake = (m) => {
     const c = ctxOf(m) || (R.prepare(m), cur);
-    if (!c.staking) c.staking = runStake(c);
+    if (!c.staking) {
+      c.staking = runStake(c);
+      if (c.kind === 'human') watchRival({ get: (path) => timed(tp.get(path)), clock, uid: c.match.rivalUid, mid: c.mid, found: (ro) => { c.ro = ro; show(c, { ro }); } });
+    }
     return c.staking;
   };
 
   async function runStake(c) {
     await c.prepared;
-    const unranked = (why) => { c.why = why; c.stakeDone = true; if (!c.staked) c.settled = true; show(c, { state: 'none', why }); return { ok: false, reason: why, s: 0 }; };
+    // (a try that timed out may still land: then the pending key stays, stamped, and the verdict looks once more)
+    const unranked = (why) => {
+      c.why = why; c.stakeDone = true;
+      if (!c.staked && !c.maybe) { c.settled = true; if (c.pendWritten) pend.clear(c); }
+      show(c, { state: 'none', why }); return { ok: false, reason: why, s: 0 };
+    };
     if (c.why) return unranked(c.why);
     show(c, { state: 'staking' });
     const deadline = c.kind === 'human' ? (c.rec && isNum(c.rec.ts) ? c.rec.ts : c.match.t0 - NET.goMs) + TROPHY.stakeHumanMs : c.match.t0 + TROPHY.stakeBotMs;
     // the last match's win claim goes first: a fresh stake would replace its open stake and lose that win
     const prev = c.prev;
+    if (prev && prev.gaveUp && !prev.settled && prev.staked && prev.verdict === 'win') retryClaim(prev); // (offline at its end)
     if (prev && prev.claiming && !prev.settled) {
       await Promise.race([prev.claiming, sleep(deadline - tp.now())]);
       if (!prev.settled && prev.verdict === 'win') return unranked('busy');
     }
-    let denials = 0;
+    let denials = 0, busy = false;
     for (;;) {
       if (c.over) return unranked('late');
-      if (tp.now() > deadline) return unranked('offline');
+      if (tp.now() > deadline) return unranked(busy ? 'busy' : 'offline');
       const r = await serial(() => tryStake(c, deadline));
       if (r === 'ok') { c.stakeDone = true; return { ok: true, reason: null, s: c.s }; }
       if (r === 'cap') return unranked('cap');
       if (r === 'denied' && ++denials >= 2) return unranked('denied');
       if (r === 'gone') return unranked('late');
+      busy = r === 'busy';
+      if (busy && await leftWin()) continue; // an earlier visit's win: claimed first, then my stake
       await sleep(TROPHY.stakeRetryMs);
     }
+  }
+
+  /** Claim the win an earlier page left (its stamp is dead) -> true once it is settled. */
+  async function leftWin() {
+    const D = await serial(readMe), p = pend.read();
+    if (!D || !D.sk || !p || p.res !== 'win' || !owns(D.sk, p)) return false;
+    if (p.live && wall() - p.live < TROPHY.liveDeadMs) return false; // a page still plays or claims it
+    if (cur && cur.prev && !cur.prev.settled && pend.is(p, cur.prev)) return false; // (this page's own last match)
+    const r = await finish(fromPending(p, D));
+    return !!r.ok;
+  }
+
+  /** A win whose claim gave up (offline) is tried again (the line is back, or the next stake needs it settled). */
+  function retryClaim(c) {
+    c.gaveUp = false;
+    show(c, { state: 'saving', why: null });
+    c.claiming = claimWin(c);
+    return c.claiming;
+  }
+
+  /** One of my stake tries timed out but landed after all: it is this match's stake. */
+  async function adopt(c, D) {
+    const sk = D.sk;
+    c.staked = true; c.maybe = false; c.s = sk.s; c.tr0 = D.tr + sk.s; c.o = c.kind === 'human' ? Number(sk.o) || 0 : c.v.o;
+    c.skA = sk.a; c.a0 = c.a0first; c.a1 = sk.a + Math.max(0, c.a0first - sk.a);
+    session.profile = D;
+    pend.write({ ...pendOf(c), ...(c.verdict ? { res: c.verdict, t10: c.t10 } : {}) });
+    if (cur === c && !c.verdict) startStamp(c);
+    show(c, { state: 'staked', why: null, s: c.s, g: -c.s, tr0: c.tr0, tr: D.tr, o: c.o, at: c.a1 });
+    await mirror(D.tr);
   }
 
   async function tryStake(c, deadline) {
     if (c.over || tp.now() > deadline) return 'gone';
     const D = await readMe();
     if (!D) return 'offline';
+    if (c.maybe && ownTry(D.sk, c)) { await adopt(c, D); return 'ok'; } // an earlier try landed after its timeout
     if (capped(D, tp.now())) return 'cap';
     const p = pend.read();
     if (D.sk && p && p.res === 'win' && owns(D.sk, p)) return 'busy'; // a win of an earlier visit still waits for its claim
@@ -183,13 +240,15 @@ export function createRanked({ transport: tp, session, clock = realClock, storag
     if (c.over) return 'gone';
     const P = stakeBody(D, c.match, c.rec);
     c.a0 = tp.now();
+    if (!c.a0first) c.a0first = c.a0;
+    if (!c.pendWritten) { c.pendWritten = true; pend.write(pendOf(c)); startStamp(c); } // before the write (see the top)
     const r = await write('stake', P);
-    if (r !== 'ok') return r;
+    if (r !== 'ok') { if (r === 'offline') c.maybe = true; return r; }
     c.a1 = tp.now();
     c.staked = true; c.s = P.sk.s; c.tr0 = D.tr; c.o = c.kind === 'human' ? P.sk.o : c.v.o;
     const back = await readMe(); // the server's sk.a: what this stake is known by from now on
     if (back && back.sk && back.sk.b === P.sk.b && back.sk.s === P.sk.s && back.sk.a >= c.a0 - 60000) { c.skA = back.sk.a; session.profile = back; }
-    pend.write({ uid: uid(), kind: c.kind, mid: c.mid, ms: c.slot, ts0: c.match.t0 - NET.goMs, a0: c.a0, a1: c.a1, skA: c.skA || 0, res: null, t10: 0, live: wall() });
+    pend.write(pendOf(c));
     startStamp(c);
     show(c, { state: 'staked', s: c.s, g: -c.s, tr0: D.tr, tr: P.tr, o: c.o, at: c.a1 });
     return 'ok';
@@ -211,6 +270,13 @@ export function createRanked({ transport: tp, session, clock = realClock, storag
     if (c.staked) told();
     c.claiming = (async () => {
       if (!c.staked && c.staking) { await c.staking; if (c.staked) told(); }
+      if (!c.staked && c.maybe) { // a stake try timed out: did it land after all?
+        const D = await serial(readMe);
+        if (D && ownTry(D.sk, c)) { await adopt(c, D); told(); } else if (!D) {
+          pend.patch(c, { res: c.verdict, t10: c.t10 }); c.gaveUp = true; if (cur === c) stopStamp(); // settle() looks again
+          return { ok: false, kind: null, g: null, reason: c.why || 'offline' };
+        } else { c.maybe = false; pend.clear(c); }
+      }
       if (!c.staked) { c.settled = true; return { ok: false, kind: null, g: null, reason: c.why }; }
       pend.patch(c, { res: c.verdict, t10: c.t10 });
       return finish(c);
@@ -356,7 +422,7 @@ export function createRanked({ transport: tp, session, clock = realClock, storag
     c.over = true; c.verdict = 'lose';
     return (async () => {
       if (c.staking) await c.staking;
-      if (!c.staked) { c.settled = true; return { ok: false }; }
+      if (!c.staked) { if (c.maybe) pend.patch(c, { res: 'lose' }); c.settled = true; return { ok: false }; }
       pend.patch(c, { res: 'lose' });
       show(c, { state: 'saved', g: -c.s });
       return { ok: await closeNow(c) };
@@ -364,19 +430,21 @@ export function createRanked({ transport: tp, session, clock = realClock, storag
   };
 
   /** Each connect (after flow's quit record): settle what an earlier page left, then mirror my trophies once. */
-  R.settle = () => (async () => {
+  R.settle = (again = false) => (async () => {
     const out = { quit: false, claimed: false, closed: false };
+    settledOnce = true;
     const D = await serial(readMe);
     if (!D) return out;
     session.profile = D;
     const p = pend.read();
     const mine = !!(D.sk && p && owns(D.sk, p));
-    const busy = !!cur && !cur.settled && !cur.gaveUp && ((cur.staked && owns(D.sk, cur)) || (!!cur.staking && !cur.stakeDone));
+    const busy = handling(cur, D) || (!!cur && handling(cur.prev, D));
+    const fresh = !!(p && p.live && wall() - p.live < TROPHY.liveDeadMs);
     if (!D.sk) { if (p && !busy) pend.clear(); }
     else if (busy) { /* this page is playing / claiming it */ }
-    else if (mine && !(p.live && wall() - p.live < TROPHY.liveDeadMs)) {
-      const c = { ...context({ kind: p.kind, mid: p.mid, slot: p.ms, t0: (p.ts0 || 0) + NET.goMs, rivalTr: 0 }), staked: true, over: true,
-        verdict: p.res || 'lose', t10: Number(p.t10) || 0, a0: p.a0, a1: p.a1, skA: p.skA || 0, s: D.sk.s, tr0: D.tr + D.sk.s, o: D.sk.o ?? null };
+    else if (mine && fresh) later(p); // another tab plays it, or a page that just closed: look again once its stamp is dead
+    else if (mine) {
+      const c = fromPending(p, D);
       if (c.kind === 'human' && !p.res) {
         // left in the middle: my own fall record first (flow.js writes it on connect too; whoever is first wins)
         const outs = await readOuts(p.mid);
@@ -388,13 +456,32 @@ export function createRanked({ transport: tp, session, clock = realClock, storag
       out.quit = !p.res;
     } else if (!mine && p && !busy && !(p.live && wall() - p.live < TROPHY.liveDeadMs)) pend.clear(); // (a pending of a stake long gone)
     if (D.sk && !mine && !busy && tp.now() - D.sk.a > TROPHY.staleStakeMs) {
-      const c = { ...context({ kind: D.sk.b ? 'bot' : 'human', mid: D.sk.m, slot: D.sk.ms, t0: D.sk.a, rivalTr: 0 }), staked: true, over: true, verdict: 'lose', a0: D.sk.a, a1: D.sk.a, skA: D.sk.a, s: D.sk.s };
+      const c = { ...context({ kind: D.sk.b ? 'bot' : 'human', mid: D.sk.m, slot: D.sk.ms, t0: D.sk.a, rivalTr: 0 }), staked: true, over: true, verdict: 'lose', a0: D.sk.a, a0first: D.sk.a, a1: D.sk.a, skA: D.sk.a, s: D.sk.s };
       out.closed = await closeNow(c);
     }
+    if (again && !out.claimed && !out.closed) return out; // (a second look that changed nothing: no rank write)
     const now = await serial(readMe);
     if (now) await serial(() => mirror(now.tr));
     return out;
   })();
+
+  /** settle() again just after the pending's stamp goes stale (bounded: a tab that really plays keeps it fresh). */
+  function later(p) {
+    if (resettle || resettles >= 60) return;
+    resettles++;
+    resettle = clock.after(Math.max(500, TROPHY.liveDeadMs - (wall() - p.live) + 300), () => { resettle = null; R.settle(true).catch(() => {}); });
+  }
+
+  // the line came back: a win that gave up is tried again, and whatever an earlier page left is settled
+  if (tp.onStatus) {
+    tp.onStatus((st) => {
+      const was = lastSt;
+      lastSt = st;
+      if (st !== 'on' || !was || was === 'on' || !settledOnce || !session.uid) return;
+      for (const c of [cur, cur && cur.prev]) if (c && c.gaveUp && !c.settled && c.staked && c.verdict === 'win') retryClaim(c);
+      R.settle(true).catch(() => {});
+    });
+  }
 
   return R;
 }

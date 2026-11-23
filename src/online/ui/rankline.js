@@ -14,12 +14,14 @@ import { badgeHtml, leagueOf, predict } from '../leagues.js';
 import { esc, up } from './vswords.js';
 
 const signed = (g) => (g > 0 ? `+${g}` : g < 0 ? `-${-g}` : '0');
-const CONNECTION = 'UNRANKED - CONNECTION';
+const CONNECTION = 'Your internet was too slow to play for trophies.';
 const WHY = {
   cap: ['DAILY TROPHY LIMIT', 'You won 40 times today! Trophies come back tomorrow.'],
   offline: ['NO TROPHIES THIS TIME', CONNECTION], late: ['NO TROPHIES THIS TIME', CONNECTION],
-  busy: ['NO TROPHIES THIS TIME', CONNECTION], denied: ['NO TROPHIES THIS TIME', CONNECTION],
+  busy: ['NO TROPHIES THIS TIME', 'Your last win was still saving.'], denied: ['NO TROPHIES THIS TIME', 'This match could not play for trophies.'],
 };
+// a staked win the limit refused (a second tab won the 40th first): the stake is gone, so no "come back tomorrow"
+const CAP_AFTER = 'You already won 40 times today, so this win could not add trophies. Play again tomorrow!';
 
 /** The trophies line: { cls, g, html }. */
 function trophyLine(L, res) {
@@ -38,7 +40,7 @@ function trophyLine(L, res) {
   else if (L.state === 'failed') tail = '';
   else tail = '<i class="vsr-st">SAVING...</i>';
   const big = res.result === 'draw' && L.state !== 'failed' ? '<b class="vsr-g even">TROPHIES BACK</b>' : `<b class="vsr-g ${g > 0 ? 'up' : g < 0 ? 'down' : 'even'}">${signed(g)}</b>`;
-  const cap = L.state === 'failed' && L.why === 'cap' ? `<small>${WHY.cap[0]} - ${WHY.cap[1]}</small>` : L.state === 'failed' && L.why === 'denied' ? '<small>The win could not be saved.</small>' : '';
+  const cap = L.state === 'failed' && L.why === 'cap' ? `<small>${WHY.cap[0]} - ${CAP_AFTER}</small>` : L.state === 'failed' && L.why === 'denied' ? '<small>The win could not be saved.</small>' : '';
   return { g: String(g), html: `<span class="vsr-trrow">${big}${badgeHtml(tr, 'sm')}<span class="vsr-total num">${tr}</span>${tail}</span>${cap}` };
 }
 
@@ -46,17 +48,18 @@ function coinsLine(L) {
   if (!L) return { c: '', html: '' };
   const first = L.coinParts.find((p) => p.k === 'first'), rest = L.coins - (first ? first.n : 0);
   if (!L.coins) {
-    const why = L.kind === 'f' ? 'Friend matches pay coins 10 times a day' : 'Play at least 10 seconds to earn coins';
+    const why = L.untrusted ? 'Test games pay no coins' : L.kind === 'f' ? 'Friend matches pay coins 10 times a day' : 'Play at least 10 seconds to earn coins';
     return { c: '0', html: `<span class="vsr-cnone">${why}</span>` };
   }
   return { c: String(L.coins), html: `${rest > 0 ? `<span class="vsr-cn"><span class="coin-ico">${icon('coin')}</span><b class="num">+${rest}</b> COINS</span>` : ''}${first ? `<span class="vsr-first">+${first.n} FIRST WIN TODAY!</span>` : ''}` };
 }
 
+/** One line however many skins one match unlocked (two lines did not fit 360 x 640 under the ribbon). */
 function skinLines(L) {
-  return (L && L.skins ? L.skins : []).map((id) => {
-    const hero = HERO_BY_ID[id], s = hero || WEAPON_SKIN_BY_ID[id];
-    return s ? `<div class="vsr-skin">${icon('gift')}<span>NEW ${hero ? 'PIP OUTFIT' : 'GUN PAINT'}: ${esc(up(s.name))}! <small>Find it in the SHOP.</small></span></div>` : '';
-  }).join('');
+  const list = (L && L.skins ? L.skins : []).map((id) => ({ hero: !!HERO_BY_ID[id], s: HERO_BY_ID[id] || WEAPON_SKIN_BY_ID[id] })).filter((x) => x.s);
+  if (!list.length) return '';
+  const what = list.length === 1 ? `NEW ${list[0].hero ? 'PIP OUTFIT' : 'GUN PAINT'}: ${esc(up(list[0].s.name))}!` : `NEW SKINS: ${list.map((x) => esc(up(x.s.name))).join(' + ')}!`;
+  return `<div class="vsr-skin" data-n="${list.length}">${icon('gift')}<span>${what} <small>Find ${list.length === 1 ? 'it' : 'them'} in the SHOP.</small></span></div>`;
 }
 
 /** The whole .vsr-rank block (inner HTML) for the last match. */
@@ -70,6 +73,8 @@ export function rankHtml(L, res) {
 export function rivalG(L, res) {
   if (!L || L.kind !== 'q' || !L.ranked || L.tr0 == null) return null;
   const opp = res.result === 'win' ? 'lose' : res.result === 'lose' ? 'win' : 'draw';
+  // a person: only from their own stake of this match (one who did not stake changes nothing: no tag)
+  if (L.rkind === 'human') return L.ro ? predict({ tr0: L.ro.tr0, rivalTr: L.ro.o, result: opp, bot: false }) : null;
   return predict({ tr0: L.o || 0, rivalTr: L.tr0, result: opp, bot: false });
 }
 

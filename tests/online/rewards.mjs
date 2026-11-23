@@ -6,6 +6,7 @@ import { test, ok, eq, run } from './kit.mjs';
 import { LEAGUES, leagueOf, badgeHtml, coinsFor, earnedSkins, predict, weekBase, dayOf, weekScore, SKIN_RULES, TROPHY, COINS,
   humanStake, botStake, botGain, humanGain } from '../../src/online/leagues.js';
 import * as verdict from '../../src/online/verdict.js';
+import { installRewards } from '../../src/online/rewards.js';
 import { ONLINE_SKINS, HERO_SKINS, WEAPON_SKINS, HERO_BY_ID, WEAPON_SKIN_BY_ID, PAID_SKIN_IDS, FREE_SKIN_IDS } from '../../src/data/skins.js';
 
 test('leagues: every edge', () => {
@@ -69,6 +70,22 @@ test('weekBase / dayOf equal the WK / DAY of the published rules on 20 random ti
   ok(weekBase(mon) - weekBase(sun) === 100000 && dayOf(mon) - dayOf(sun) === 1, 'Monday 00:00 UTC starts a week');
   eq([weekScore(weekBase(mon) + 124, mon), weekScore(weekBase(sun) + 900, mon)], [124, 0], 'this week / last week');
   eq([TROPHY.dayCap, TROPHY.claimAfterMs, TROPHY.liveDeadMs], [40, 20500, 6000]);
+});
+
+test('a test network in a production build (inner.trusted false) pays no coins and grants no online skin', () => {
+  const make = (trusted) => {
+    const data = { coins: 0, online: { name: '', tr: 0, pk: 0, bt: 0, st: 0, bs: 0, w: 0, hist: [] }, skins: { owned: ['classic', 'factory'], hero: 'classic', weapon: 'factory' } };
+    const save = { data, owns: (id) => data.skins.owned.includes(id), update: (fn) => { fn(data); return data; }, addCoins: (n) => { data.coins += n; return data.coins; } };
+    const session = { uid: 'me', profile: { n: 'Kid', tr: 1800, pk: 1800, w: 10, bs: 5, bt: 0, st: 0, l: 0, ws: 0, cd: 0, cc: 0 }, ranked: null, onRanked: () => () => {} };
+    const flow = { mode: 'quick' };
+    const R = installRewards(flow, { game: { save }, transport: { now: () => 1.8e12 }, session, changed: () => {}, trusted, t0: () => 1.8e12 });
+    R.connected();
+    R.record({ result: 'win', t: 40, d: 480 }, {}, [{ uid: 'me', name: 'Kid', slot: 0 }, { uid: 'x', name: 'Bot', slot: 1 }]);
+    return { coins: data.coins, skins: data.skins.owned.filter((id) => id.startsWith('on-')).length, shown: flow.reward.last.coins, untrusted: flow.reward.last.untrusted };
+  };
+  eq(make(false), { coins: 0, skins: 0, shown: 0, untrusted: true }, 'untrusted: nothing paid, nothing owned');
+  const t = make(true);
+  eq([t.coins > 0, t.skins, t.untrusted], [true, 4, false], 'the real service (or a dev / test page): coins and all four skins');
 });
 
 run('rewards');

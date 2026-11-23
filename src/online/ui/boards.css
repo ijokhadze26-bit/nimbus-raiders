@@ -18,7 +18,7 @@
 .on-me-tr .ico { font-size: 16px; }
 .on-me-tr b { font-weight: 400; color: #fff; }
 .on-me-btns { display: flex; flex-direction: column; gap: 6px; flex: none; }
-.on-me-btns .btn-sm { min-height: 38px; width: 100px; padding: 2px 8px 4px; font-size: 16px; -webkit-text-stroke-width: 3px; }
+.on-me-btns .btn-sm { min-height: 44px; width: 100px; padding: 2px 8px 4px; font-size: 16px; -webkit-text-stroke-width: 3px; }
 .on-public { margin: 0; max-width: 320px; font: 800 12.5px/1.3 var(--font-body); color: #b0142a; }
 
 /* ---------- LEADERBOARDS ---------- */
@@ -58,16 +58,15 @@
 .bd[data-tab="week"] .bd-v { color: #17702d; }
 .bd-row.me { background: linear-gradient(180deg, #fff6c4, #ffe07a) !important; box-shadow: inset 0 0 0 3px #ffae1a; }
 .bd-mine {
-  position: sticky; bottom: 4px; z-index: 2; min-height: 50px; border-radius: 18px; color: #fff;
-  background: linear-gradient(180deg, #2f5fd0, #1b3a9a); border: 3px solid #ffd34d; box-shadow: 0 4px 0 rgba(10, 28, 80, 0.55), 0 8px 18px rgba(5, 18, 60, 0.4);
+  /* (stuck flush at the scroller's bottom edge, past its padding, so no list row shows under it) */
+  position: sticky; bottom: calc(-14px - var(--safe-b, 0px)); z-index: 2; min-height: 50px; border-radius: 18px; color: #fff;
+  background: linear-gradient(180deg, #2f5fd0, #1b3a9a); border: 3px solid #ffd34d; box-shadow: 0 4px 0 #0a1c50, 0 8px 18px rgba(5, 18, 60, 0.4);
 }
 .bd-mine-l { display: flex; flex-direction: column; align-items: center; gap: 1px; line-height: 1; }
 .bd-mine-l span { font: 400 7.5px/1 var(--font-display); letter-spacing: 0.3px; color: #a9d4ff; text-align: center; white-space: nowrap; }
 .bd-mine-l b { font: 400 15px/1 var(--font-display); color: #ffd34d; }
-.bd-mine.out { grid-template-columns: 28px minmax(0, 1fr) auto; }
-.bd-mine.out .bd-mine-l span:empty { display: none; }
-.bd-mine.out .bd-mine-l { position: absolute; left: 50%; bottom: calc(100% + 4px); transform: translateX(-50%); }
-.bd-mine.out .bd-mine-l span { font-size: 11px; padding: 3px 8px 4px; border-radius: 8px; color: #fff; background: rgba(10, 28, 80, 0.8); }
+.bd-mine.out { grid-template-columns: 28px minmax(0, 1fr) auto; padding-left: 12px; }
+.bd-mine .bd-nm small { display: block; margin-top: 2px; font-size: 11px; letter-spacing: 0.3px; color: #a9d4ff; }
 .bd .bd-mine .bd-v { color: #fff; }
 
 /* ---------- MY PROFILE ---------- */
@@ -84,6 +83,7 @@
 .pf-next { font: 400 14px/1 var(--font-display); letter-spacing: 0.5px; color: #3a5aa6; }
 .pf-next b { color: #17702d; font-weight: 400; }
 .pf-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.pf-note { margin: -4px 0 0; text-align: center; font: 800 12.5px/1.25 var(--font-body); color: #e3efff; text-shadow: 0 2px 0 rgba(10, 28, 80, 0.55); }
 .pf-stat {
   display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 9px 4px 10px; border-radius: 16px; text-align: center;
   background: linear-gradient(180deg, rgba(14, 40, 104, 0.78), rgba(20, 52, 128, 0.7)); border: 3px solid rgba(255, 255, 255, 0.92); box-shadow: 0 4px 0 rgba(10, 28, 80, 0.45);

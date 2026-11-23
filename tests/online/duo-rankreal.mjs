@@ -83,6 +83,9 @@ export const scenarios = [
         ok(/290/.test(card) && /310/.test(card) && (await A.evaluate(() => document.querySelectorAll('.vs-card .lg-badge svg').length)) === 2, `the VS card: ${card}`);
         // ---- an emote with real taps, seen on the other tab ----
         // (every text the trophies line shows, sampled in the page: screenshots of two tabs take seconds)
+        // (and the ranked side's own states: with two tabs rendering, game time runs slower than wall time, so the claim
+        // may need no wait and the in-process hub acks it within a millisecond, before a 50 ms sampler sees SAVING...)
+        await A.evaluate(() => { const st = (window.__states = []); window.__game.online.flow.session.onRanked((v) => { if (st[st.length - 1] !== v.state) st.push(v.state); }); });
         await A.evaluate(() => { const seen = (window.__lines = []); setInterval(() => { const n = document.querySelector('.vsr .vsr-tr'); const t = n && n.isConnected ? `${n.dataset.state}:${n.textContent.trim()}` : null; if (t && seen[seen.length - 1] !== t) seen.push(t); }, 50); });
         await A.waitForFunction(() => window.__game.versus.t >= 3, null, { timeout: 60000 });
         await A.bringToFront();
@@ -100,8 +103,9 @@ export const scenarios = [
         await shot(A, 'A', '4-saving');
         const t0 = Date.now();
         await saved(A);
-        const lines = await A.evaluate(() => window.__lines);
-        ok(/SAVING/.test(lines[0] || '') && /^saved:/.test(lines[lines.length - 1]), `A's line: SAVING... first, then saved: ${JSON.stringify(lines)}`);
+        const lines = await A.evaluate(() => window.__lines), states = await A.evaluate(() => window.__states);
+        ok(states.includes('saving') && states.indexOf('saving') < states.lastIndexOf('saved') && /^saved:/.test(lines[lines.length - 1]), `A's line: SAVING... first, then saved: states ${JSON.stringify(states)}, lines ${JSON.stringify(lines)}`);
+        note(`A's trophies line as sampled: ${JSON.stringify(lines)}`);
         await A.waitForSelector('.vsr-lgup', { timeout: 5000 });
         const claimMs = Date.now() - t0;
         await sleep(500);

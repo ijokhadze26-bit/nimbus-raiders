@@ -21,12 +21,12 @@ import { isHeroUnlocked, isWeaponUnlocked } from './unlocks.js';
 import { TOTAL_LEVELS, WORLD_COUNT } from '../data/worlds.js';
 import { PLAYER_MOD_IDS } from '../data/modifiers.js';
 import { SQUAD_TYPE_IDS, mixLevel } from '../data/squadtypes.js';
-import { ONLINE_KEY, defaultOnline, cleanOnline, mergeOnline, onlineBackup } from './onlinesave.js';
+import { ONLINE_KEY, ONLINE_SKINS_KEY, defaultOnline, cleanOnline, mergeOnline, onlineBackup, onlineSkinsBackup, mergeOnlineSkins } from './onlinesave.js';
 
 export const SAVE_KEY = 'nimbusRaiders.save.v1';
 export const OWNED_KEY = 'nimbusRaiders.owned.v2';
 export const PROGRESS_KEY = 'nimbusRaiders.progress.v3';
-export { ONLINE_KEY };
+export { ONLINE_KEY, ONLINE_SKINS_KEY };
 export const SAVE_VERSION = 4;
 const EXTRA_MAX = 16, EXTRA_BYTES = 4096;
 const LEVELS = TOTAL_LEVELS;
@@ -220,8 +220,10 @@ export class Save {
     this.memoryOwned = null;
     this.memoryProgress = null;
     this.memoryOnline = null;
+    this.memoryOnlineSkins = null;
     this.persistent = true;
     this.data = mergeOnline(mergeProgress(mergeOwned(sanitize(this.readRaw()), this.readOwned()), this.readProgress()), this.readKey(ONLINE_KEY, this.memoryOnline));
+    this.data = mergeOnlineSkins(this.data, this.readKey(ONLINE_SKINS_KEY, this.memoryOnlineSkins)); // (online stage 4: onlinesave.js)
     const flush = () => this.flush();
     window.addEventListener('pagehide', flush);
     document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); });
@@ -253,10 +255,13 @@ export class Save {
     this.memoryProgress = progress;
     const online = JSON.stringify(onlineBackup(d));
     this.memoryOnline = online;
+    const os = onlineSkinsBackup(d), onlineSkins = os ? JSON.stringify(os) : null; // (null: no online skin, no key)
+    if (onlineSkins) this.memoryOnlineSkins = onlineSkins;
     if (!this.persistent) return;
     try {
       window.localStorage.setItem(this.key, text); window.localStorage.setItem(OWNED_KEY, owned); window.localStorage.setItem(PROGRESS_KEY, progress);
       window.localStorage.setItem(ONLINE_KEY, online);
+      if (onlineSkins) window.localStorage.setItem(ONLINE_SKINS_KEY, onlineSkins);
     } catch { this.persistent = false; }
   }
 
@@ -285,7 +290,8 @@ export class Save {
     this.memoryOwned = null;
     this.memoryProgress = null;
     this.memoryOnline = null; // (the online account itself lives on the server and stays)
-    try { window.localStorage.removeItem(OWNED_KEY); window.localStorage.removeItem(PROGRESS_KEY); window.localStorage.removeItem(ONLINE_KEY); } catch { /* storage blocked */ }
+    this.memoryOnlineSkins = null;
+    try { window.localStorage.removeItem(OWNED_KEY); window.localStorage.removeItem(PROGRESS_KEY); window.localStorage.removeItem(ONLINE_KEY); window.localStorage.removeItem(ONLINE_SKINS_KEY); } catch { /* storage blocked */ }
     this.data = defaultSave();
     this.data.settings = keepSettings;
     this.changed();

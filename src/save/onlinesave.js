@@ -83,6 +83,27 @@ export function mergeOnline(d, backup) {
   return d;
 }
 
+// The online-only skins also live under ONLINE_SKINS_KEY = { owned, hero, weapon }, a key NO older build writes: a
+// stage 1-3 tab still open (live before stage 4) knows none of these ids, so its writes drop them from the main save
+// (and reset the outfit / paint) and store `skins: []` under ONLINE_KEY. Written only once an online skin is owned,
+// so a player who never earned one never gets the key; reset() removes it.
+export const ONLINE_SKINS_KEY = 'nimbusRaiders.online.skins.v5';
+
+/** What goes under ONLINE_SKINS_KEY (null: nothing earned, no key). */
+export function onlineSkinsBackup(d) {
+  const owned = d.skins.owned.filter(onlineSkin);
+  return owned.length ? { owned, hero: d.skins.hero, weapon: d.skins.weapon } : null;
+}
+
+/** Load: the earned ids come back, and an online outfit / paint an older tab reset to the default is worn again. */
+export function mergeOnlineSkins(d, backup) {
+  if (!isObj(backup) || !Array.isArray(backup.owned)) return d;
+  for (const id of backup.owned.slice(0, 64)) if (onlineSkin(id) && !d.skins.owned.includes(id)) d.skins.owned.push(id);
+  if (HERO_BY_ID[backup.hero] && HERO_BY_ID[backup.hero].online && d.skins.owned.includes(backup.hero) && d.skins.hero === 'classic') d.skins.hero = backup.hero;
+  if (WEAPON_SKIN_BY_ID[backup.weapon] && WEAPON_SKIN_BY_ID[backup.weapon].online && d.skins.owned.includes(backup.weapon) && d.skins.weapon === 'factory') d.skins.weapon = backup.weapon;
+  return d;
+}
+
 /** The online screens call these (through game.save); both go through save.update so the write is debounced. */
 export function setOnlineProfile(save, profile) {
   if (!isObj(profile)) return;

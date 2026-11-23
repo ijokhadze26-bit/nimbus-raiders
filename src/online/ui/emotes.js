@@ -27,8 +27,8 @@ const SVGS = [
   '<svg viewBox="0 0 48 48" class="emo-svg" aria-hidden="true"><path d="M14 22h7l4-11c1-3 6-3 6 1v7h8c3 0 5 3 4 6l-3 12c-1 2-2 3-4 3H14z" fill="#ffd34d" stroke="#8a5a00" stroke-width="3" stroke-linejoin="round"/><rect x="6" y="21" width="9" height="20" rx="2" fill="#2f8cff" stroke="#143f9a" stroke-width="3"/></svg>',
   // laugh: closed happy eyes, a wide open mouth
   `<svg viewBox="0 0 48 48" class="emo-svg" aria-hidden="true">${FACE}<path d="M13 19q4-5 8 0M27 19q4-5 8 0" fill="none" stroke="#5a3200" stroke-width="3" stroke-linecap="round"/><path d="M13 26h22q-2 11-11 11t-11-11z" fill="#c8102e" stroke="#5a3200" stroke-width="2.5" stroke-linejoin="round"/></svg>`,
-  // cry: sad brows, a tear, a down-turned mouth
-  `<svg viewBox="0 0 48 48" class="emo-svg" aria-hidden="true">${FACE}<path d="M13 17l7 3M35 17l-7 3" stroke="#5a3200" stroke-width="3" stroke-linecap="round"/><circle cx="17" cy="24" r="2.6" fill="#5a3200"/><circle cx="31" cy="24" r="2.6" fill="#5a3200"/><path d="M16 36q8-7 16 0" fill="none" stroke="#5a3200" stroke-width="3" stroke-linecap="round"/><path d="M33 27q3 5 0 8q-3-3 0-8z" fill="#4dc3ff" stroke="#1b5a8a" stroke-width="1.5"/></svg>`,
+  // cry: sad brows (the inner ends up), a tear, a down-turned mouth
+  `<svg viewBox="0 0 48 48" class="emo-svg" aria-hidden="true">${FACE}<path d="M13 20l7-3M35 20l-7-3" stroke="#5a3200" stroke-width="3" stroke-linecap="round"/><circle cx="17" cy="24" r="2.6" fill="#5a3200"/><circle cx="31" cy="24" r="2.6" fill="#5a3200"/><path d="M16 36q8-7 16 0" fill="none" stroke="#5a3200" stroke-width="3" stroke-linecap="round"/><path d="M33 27q3 5 0 8q-3-3 0-8z" fill="#4dc3ff" stroke="#1b5a8a" stroke-width="1.5"/></svg>`,
   // GG: the two letters on a green badge (drawn, no font needed)
   '<svg viewBox="0 0 48 48" class="emo-svg" aria-hidden="true"><rect x="3" y="9" width="42" height="30" rx="10" fill="#2fbf4f" stroke="#17702d" stroke-width="3"/><path d="M20 18h-6a3 3 0 0 0-3 3v6a3 3 0 0 0 3 3h6v-6h-4M37 18h-6a3 3 0 0 0-3 3v6a3 3 0 0 0 3 3h6v-6h-4" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 ];
