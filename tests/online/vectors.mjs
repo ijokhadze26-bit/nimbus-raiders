@@ -3,7 +3,8 @@
 //   node scripts/rules-probe.mjs --live    against the real database, once the owner has made the account
 // It only uses the transport interface and three signed-in players A, B, C, so it needs no console
 // access. The steps build on each other (allowed writes really happen), so the order matters.
-// Real waits add up to about 50 s on the live run; the hub run uses a virtual clock.
+// Real waits add up to about 53 s on the live run; the hub run uses a virtual clock. The last 20 rows (stage 4) were
+// appended: a draw, a human close and a bot close that raise the best survival time.
 
 import { TS, isDenied } from '../../src/online/transport.js';
 import { makeCode } from '../../src/online/names.js';
@@ -304,6 +305,37 @@ export async function runVectors({ A, B, C, wait, rand = Math.random }) {
   await allow('leave the queue', 'B', (t) => t.remove(`queue/${U.B}`));
   await allow('leave the queue (second player)', 'A', (t) => t.remove(`queue/${U.A}`));
   await allow('leave the queue (third player)', 'C', (t) => t.remove(`queue/${U.C}`));
+
+  // ------------------------------------------------------------------ stage 4 (appended): never run live before
+  // a draw (rule E), a human close that raises bt, a bot close that raises bt. Each body is built from the CURRENT
+  // profile (read first), the way src/online/ranked.js builds it.
+  const now = async (t, u) => { const v = await t.get(u); const { sk, ...rest } = v || {}; return { rest, sk }; };
+  const cP = (await now(C, uC)).rest;
+  await allow('a bot stake (to close with a survival time)', 'C', (t) => t.set(uC, { ...cP, tr: cP.tr - 10, l: cP.l + 1, st: 0, sk: { a: TS, s: 10, st: cP.st, b: true } }));
+  await deny('close a bot stake with a survival time I did not reach', 'C', async (t) => { const { rest } = await now(t, uC); return t.set(uC, { ...rest, bt: 3000 }); });
+  await allow('close a bot stake with my survival time', 'C', async (t) => { const { rest } = await now(t, uC); return t.set(uC, { ...rest, bt: Math.max(rest.bt, 20) }); });
+  await allow('join the queue again', 'B', (t) => t.set(`queue/${U.B}`, { tr: 0, ts: TS }));
+  await wait(30);
+  await allow('join the queue again (second player)', 'A', async (t) => t.set(`queue/${U.A}`, { tr: (await now(t, uA)).rest.tr, ts: TS }));
+  let qcode2 = makeCode(rand);
+  while ([code, qcode, code4].includes(qcode2)) qcode2 = makeCode(rand);
+  const Q2 = `rooms/${qcode2}`, mid3 = A.newId(), M3 = `matches/${mid3}`;
+  await allow('reserve a fourth room code', 'A', (t) => t.set(`host/${U.A}`, qcode2));
+  await allow('a second quick room', 'A', (t) => t.set(Q2, roomVal(U.A, 'quick', 2, { q: U.B })));
+  await allow('claim the ticket for the second quick room', 'A', (t) => t.set(`queue/${U.B}/m`, { by: U.A, code: qcode2 }));
+  await allow('sit in the second quick room', 'B', (t) => t.set(`${Q2}/sl/1`, U.B));
+  await allow('the second quick match record', 'A', async (t) => t.set(M3, { code: qcode2, k: 'quick', ts: TS, u: { 0: U.A, 1: U.B }, us: { [U.A]: 0, [U.B]: 1 }, tr: { 0: (await now(t, uA)).rest.tr, 1: 0 } }));
+  const match3At = A.now();
+  await allow('the second quick room goes live', 'A', (t) => t.update(live(Q2, mid3)));
+  const stake3 = (r, s, ms, o) => ({ ...r, tr: r.tr - s, l: r.l + 1, st: 0, sk: { a: TS, s, st: r.st, b: false, m: mid3, ms, os: 1 - ms, o } });
+  await allow('both stake: the first', 'A', async (t) => { const { rest } = await now(t, uA); return t.set(uA, stake3(rest, rest.tr >= 300 ? 20 : rest.tr >= 10 ? 10 : rest.tr, 0, 0)); });
+  await allow('both stake: the second', 'B', async (t) => { const { rest } = await now(t, uB); return t.set(uB, stake3(rest, 0, 1, (await t.get(`${M3}/tr/0`)))); });
+  await until(match3At + 3200);
+  await allow('both fall: the first', 'A', (t) => t.set(`${M3}/out/0`, out(5, 30)));
+  await allow('both fall at the same moment and distance', 'B', (t) => t.set(`${M3}/out/1`, out(5, 30)));
+  await allow('a draw gives the stake back', 'A', async (t) => { const { rest, sk } = await now(t, uA); return t.set(uA, { ...rest, tr: rest.tr + sk.s, l: rest.l - 1, st: sk.st }); });
+  await deny('close with a survival time above my own fall', 'B', async (t) => { const { rest } = await now(t, uB); return t.set(uB, { ...rest, bt: 6 }); });
+  await allow('close with my own fall time as my best', 'B', async (t) => { const { rest } = await now(t, uB); return t.set(uB, { ...rest, bt: Math.max(rest.bt, 5) }); });
   return results;
 }
 
