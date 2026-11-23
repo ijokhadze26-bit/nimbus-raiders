@@ -29,6 +29,7 @@ function trophyLine(L, res) {
     const w = L.why === 'cap' ? ['NO TROPHIES THIS TIME', WHY.cap[1]] : WHY[L.why] || ['NO TROPHIES THIS TIME', CONNECTION];
     return { g: '', html: `<span class="vsr-none">${w[0]}</span><small>${w[1]}</small>` };
   }
+  if (L.state === 'staking') return { g: '', html: '<span class="vsr-trrow"><span class="vsr-none">TROPHIES</span><i class="vsr-st">SAVING...</i></span>' };
   const g = L.g == null ? 0 : L.g;
   const tr = L.tr != null ? L.tr : (L.tr0 || 0) + g;
   let tail;

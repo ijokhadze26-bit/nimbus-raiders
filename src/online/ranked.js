@@ -81,17 +81,18 @@ export function createRanked({ transport: tp, session, clock = realClock, storag
   async function write(kind, P) {
     try {
       await timed(tp.set(`users/${uid()}`, P));
-    } catch (e) { view.test.writes.push({ kind, ok: false }); return isDenied(e) ? 'denied' : 'offline'; }
-    view.test.writes.push({ kind, ok: true });
+    } catch (e) { logged(kind, false); return isDenied(e) ? 'denied' : 'offline'; }
+    logged(kind, true);
     session.profile = P.sk ? { ...P, sk: { ...P.sk, a: tp.now() } } : P;
     if (kind !== 'close') await mirror(P.tr);
     else emit();
     return 'ok';
   }
+  const logged = (kind, ok) => { const w = view.test.writes; w.push({ kind, ok }); if (w.length > 200) w.splice(0, w.length - 200); };
   async function mirror(tr) {
     let ok = true;
     try { await timed(tp.set(`rk/${uid()}`, tr)); } catch { ok = false; }
-    view.test.writes.push({ kind: 'rk', ok });
+    logged('rk', ok);
     emit();
   }
 
@@ -196,6 +197,8 @@ export function createRanked({ transport: tp, session, clock = realClock, storag
 
   R.claim = async (m, result) => {
     const c = ctxOf(m);
+    // a provisional verdict (offline after my fall) waits for the real one; until then a closed page means a loss
+    if (c && result && result.provisional && c.staked && !c.verdict) pend.patch(c, { res: 'lose' });
     if (!c || !result || result.provisional) return { ok: false, kind: null, g: null, reason: result && result.provisional ? 'provisional' : 'none' };
     if (c.verdict) return c.claiming || { ok: false, kind: null, g: null, reason: 'done' };
     c.over = true;
@@ -383,7 +386,8 @@ export function createRanked({ transport: tp, session, clock = realClock, storag
       out.claimed = r.kind === 'win' && r.ok;
       out.closed = r.kind === 'close';
       out.quit = !p.res;
-    } else if (!mine && tp.now() - D.sk.a > TROPHY.staleStakeMs) {
+    } else if (!mine && p && !busy && !(p.live && wall() - p.live < TROPHY.liveDeadMs)) pend.clear(); // (a pending of a stake long gone)
+    if (D.sk && !mine && !busy && tp.now() - D.sk.a > TROPHY.staleStakeMs) {
       const c = { ...context({ kind: D.sk.b ? 'bot' : 'human', mid: D.sk.m, slot: D.sk.ms, t0: D.sk.a, rivalTr: 0 }), staked: true, over: true, verdict: 'lose', a0: D.sk.a, a1: D.sk.a, skA: D.sk.a, s: D.sk.s };
       out.closed = await closeNow(c);
     }
