@@ -9,6 +9,7 @@
 //   --shots <dir>    where screenshots go (default shots/duo)
 //   --verbose        print each scenario's notes (seeds, times, measured numbers)
 //   --headed         show the browser windows
+//   --base <url>     test an already running copy instead of starting one (e.g. the live site, with DUO_LIVE=1)
 //   --echo           the pages' network adapter imitates the real SDK: my own writes show at once, before the answer
 //
 // A scenario file exports `scenarios = [{ name, run(duo, T), real }]`:
@@ -29,14 +30,16 @@ const args = process.argv.slice(2);
 const flag = (n) => args.includes(`--${n}`);
 const opt = (n, d) => { const i = args.indexOf(`--${n}`); return i >= 0 ? args[i + 1] : d; };
 const shots = path.resolve(opt('shots', 'shots/duo'));
-const filters = args.filter((a, i) => !a.startsWith('--') && args[i - 1] !== '--shots');
+const filters = args.filter((a, i) => !a.startsWith('--') && args[i - 1] !== '--shots' && args[i - 1] !== '--base');
 const verbose = flag('verbose');
 
-const server = flag('preview')
+// --base <url>: test an already running copy (e.g. the live site with `DUO_LIVE=1 ... live --base <url>`), no server
+const given = opt('base', null);
+const server = given ? null : flag('preview')
   ? await preview({ preview: { port: 0, host: '127.0.0.1' }, logLevel: 'error' })
   : await createServer({ server: { port: 0, host: '127.0.0.1', hmr: false, watch: null }, logLevel: 'error' });
-if (!flag('preview')) await server.listen();
-const base = `http://127.0.0.1:${server.httpServer.address().port}`;
+if (server && !flag('preview')) await server.listen();
+const base = given ? given.replace(/\/$/, '') : `http://127.0.0.1:${server.httpServer.address().port}`;
 const browser = await chromium.launch({
   channel: 'chrome', headless: !flag('headed'),
   args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required',
@@ -74,6 +77,6 @@ for (const f of files) {
 }
 
 await browser.close();
-if (server.close) await server.close(); else await new Promise((r) => server.httpServer.close(r));
+if (server) { if (server.close) await server.close(); else await new Promise((r) => server.httpServer.close(r)); }
 console.log(failed ? `\nFAILED: ${failed} of ${passed + failed} duo scenario(s) failed` : `\nALL DUO SCENARIOS PASSED (${passed}${flag('echo') ? ', echo' : ''}${flag('preview') ? ', production build' : ''})`);
 process.exit(failed || !passed ? 1 : 0);
