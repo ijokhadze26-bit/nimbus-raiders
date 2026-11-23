@@ -4,6 +4,7 @@
 //   (2 rows for a duel, places 1-4 for more players), then REMATCH and LEAVE.
 // - REMATCH follows flow.rematchState(): "NAME WANTS A REMATCH", "WAITING FOR NAME" after my own tap, greyed out with
 //   "RIVAL LEFT" when nobody is left to play. The next match begins when the flow starts it (the screen just leaves).
+//   After a QUICK MATCH the same button reads PLAY AGAIN (rematchWords(rs).label): a new search.
 // - A verdict the network side could not be sure of (provisional) may be replaced by a later one: 'versus:revised'
 //   redraws the screen with the result that counts and a RESULT UPDATED tag.
 // No coins, trophies or share button here (stage 4), and none of the single-player RETRY / NEXT / MAP buttons.
@@ -103,6 +104,8 @@ export function createVsResult(ctx) {
     const cls = `btn btn-lg vsr-rematch ${w.waiting ? 'btn-green is-waiting' : w.off ? 'btn-grey' : 'btn-gold'}${w.off ? ' is-disabled' : ''}`;
     if (btn.className !== cls) btn.className = cls;
     btn.hidden = !!w.hide;
+    const lab = btn.querySelector('span');
+    if (lab && lab.textContent !== w.label) lab.textContent = w.label; // REMATCH, or PLAY AGAIN after a quick match
     const ncls = `vsr-rm${w.hot ? ' hot' : ''}${w.waiting ? ' wait' : ''}`;
     if (note.className !== ncls) note.className = ncls;
     if (note.textContent !== w.note) { note.textContent = w.note; if (w.note) bump(note); }

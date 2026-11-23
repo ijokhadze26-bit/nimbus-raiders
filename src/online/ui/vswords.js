@@ -4,6 +4,7 @@
 //   verdictWords(result, opts)  -> { title, tone, head, text }   what the result screen says and why
 //   rematchWords(rs)            -> { label, note, off, hot, waiting }   the REMATCH button + the line under it
 //   leftWords(by)               -> the small tag of a player who did not fall in play ('dc', 'quit', 'cap')
+//   FIND / findLine(secs)       the words of the QUICK MATCH finding view (never BOT, PLAYER, HUMAN or COMPUTER)
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ESC[c]);
 export const up = (s) => String(s ?? '').toUpperCase();
@@ -68,9 +69,10 @@ export function verdictWords(result, opts = {}) {
 
 export function leftWords(by) { return by === 'dc' ? 'OFFLINE' : by === 'quit' ? 'LEFT' : by === 'cap' ? 'TIME UP' : ''; }
 
-/** The REMATCH button and the line under it, from flow.rematchState(). */
+/** The REMATCH button and the line under it, from flow.rematchState(). A quick match's button is PLAY AGAIN. */
 export function rematchWords(rs) {
   if (!rs) return { label: 'REMATCH', note: '', off: true, hot: false, waiting: false, hide: true };
+  if (rs.quick) return { label: 'PLAY AGAIN', note: '', off: !rs.can, hot: false, waiting: false };
   const others = rs.others || [];
   if (rs.lost) return { label: 'REMATCH', note: 'YOU LOST YOUR SEAT', off: true, hot: false, waiting: false };
   if (!rs.can) {
@@ -87,3 +89,11 @@ export function rematchWords(rs) {
   const note = !keen.length ? '' : keen.length > 1 ? 'EVERYONE WANTS A REMATCH' : `${up(keen[0].name)} WANTS A REMATCH`;
   return { label: 'REMATCH', note, off: false, hot: keen.length > 0, waiting: false };
 }
+
+/** QUICK MATCH, the finding view (ui/finding.js). */
+export const FIND = {
+  title: 'QUICK MATCH', head: 'FINDING A RIVAL...', found: 'RIVAL FOUND!', ready: 'GET READY!', away: 'RECONNECTING...', cancel: 'CANCEL',
+  lines: ['Looking for a rival...', 'Warming up the road...', 'Lining up the gates...', 'Waking up the horde...'],
+};
+/** The line under the counter: a new one every 3 seconds. */
+export const findLine = (secs) => FIND.lines[Math.floor(Math.max(0, secs || 0) / 3) % FIND.lines.length];
