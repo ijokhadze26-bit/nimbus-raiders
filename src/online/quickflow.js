@@ -19,7 +19,7 @@
 // versus:end, quick matches only (both are stubs today: nothing is written). link.ranked stays false.
 import { NET } from './config.js';
 import { hash32, realClock } from './transport.js';
-import { createQuick, countMatch, matchCfg, QUICK } from './quick.js';
+import { createQuick, countMatch, matchCfg, quitIfLive, QUICK } from './quick.js';
 import { pickBot, createBotLink } from './bot.js';
 
 /**
@@ -34,12 +34,20 @@ export function installQuick(flow, inner, { clock = realClock } = {}) {
   flow.quick = quick;
 
   const stopTimer = () => { if (readyOff) { readyOff(); readyOff = null; } };
-  const lostRoom = () => { if (adopted && flow.room === adopted && !flow.link) inner.dropRoom(null); adopted = null; };
+  // the paired room is let go before its match started on this page; when it is live already (quick.js handed it
+  // over, its record still on the way) my fall goes in, so the rival is not left waiting for a forfeit
+  const lostRoom = () => {
+    const rm = adopted;
+    adopted = null;
+    if (!rm || flow.room !== rm || flow.link) return;
+    const live = rm.state && rm.state.st === 'live';
+    inner.dropRoom(null);
+    if (live) quitIfLive(tp, session.uid, rm.code, clock).catch(() => {});
+  };
 
   function onChange(st) {
     // a pairing fell through (the rival left before the match): quick.js has left that room, the flow lets go too
     if (prev === 'paired' && st.phase !== 'paired' && st.phase !== 'off') { stopTimer(); lostRoom(); }
-    if (st.phase === 'off' && st.why === 'live') adopted = null; // the match is on: the room is the flow's now
     prev = st.phase;
     inner.changed();
   }
@@ -115,7 +123,7 @@ export function installQuick(flow, inner, { clock = realClock } = {}) {
     if (flow.mode !== 'quick' || !q) return null;
     const st = q.state, secs = Math.max(0, Math.floor((clock.now() - st.since) / 1000));
     if (found) return { phase: 'found', secs, name: found.pick.name, hero: found.pick.hero, weapon: found.pick.weapon };
-    if (st.phase === 'paired' && st.rival) return { phase: 'found', secs, name: st.rival.n, hero: st.rival.he, weapon: st.rival.we };
+    if ((st.phase === 'paired' || (st.phase === 'off' && st.why === 'live')) && st.rival) return { phase: 'found', secs, name: st.rival.n, hero: st.rival.he, weapon: st.rival.we };
     return { phase: 'search', secs, name: '', hero: '', weapon: '' };
   };
 
@@ -130,6 +138,7 @@ export function installQuick(flow, inner, { clock = realClock } = {}) {
     cfg: () => matchCfg(session.cfg, flow.mode === 'quick' && !!(q && q.state.busy)),
     /** flow.startMatch made a human link (friend or quick): the day meter, and the quick match's record. */
     started(link, players) {
+      adopted = null; // the match is on: the room is the flow's now
       countMatch(tp, link).catch(() => {});
       if (flow.mode !== 'quick') return;
       const rival = (players || []).find((p) => p.slot !== link.slot) || {};

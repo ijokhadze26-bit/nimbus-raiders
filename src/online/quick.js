@@ -20,15 +20,21 @@
 //   A room that is gone: back in line with a fresh ticket (or a bot, after botAtMs).
 // - At botAtMs my unclaimed ticket is marked { by: me, bot: true } in a transaction (nobody can claim it while I
 //   switch), then removed: 'bot'. A claim that landed first aborts it: I join that room instead.
-// - A claimer whose room has no seat 1 after fillMs takes a bot ('nofill'). Paired but not live after startMs, or
-//   the rival's seat empties: the room goes and the search goes on (the counter keeps running).
-// Once the paired room's match is on (room state mid), this lets go of it (phase 'off', why 'live'): it is the flow's.
+// - A claimer whose room has no seat 1 after fillMs takes a bot ('nofill'); a waiter whose room has nobody in seat 0
+//   after fillMs searches on. Paired but not live after startMs (one more startMs / 2 when both are READY: the start
+//   is on its way), or the rival's seat empties: the room goes and the search goes on (the counter keeps running).
+// Once the paired room is live, this lets go of it (phase 'off', why 'live'): it is the flow's. A paired room I give
+//   up that went live with me in its record all the same (the start crossed my leaving) gets my fall ('quit').
+// - Only tickets younger than staleMs are asked for (a crowd of old ones cannot fill the 10). Two tickets of the same
+//   server millisecond: the larger uid writes its ticket again. A ticket of mine that is refused (an older page of
+//   this account still holds one) or that vanishes (that page's onDisconnect) is written again.
 //
 // The day meter (SPEC4 §14): readMeter() at the start of every search; countMatch() is called by the flow for every
 // human match (friend or quick) and adds 1 from the lowest seat; matchCfg() gives a busy day's slower flush.
 import { NET } from './config.js';
 import { TS, isDenied, netError, realClock } from './transport.js';
 import { createRoom, joinRoom } from './room.js';
+import { quitOut } from './match.js';
 
 export const QUICK = {
   listen: 10,          // tickets in the query (rules: limitToFirst <= 10)
@@ -37,17 +43,20 @@ export const QUICK = {
   staleMs: 20000,      // a ticket older than this is ignored (its owner is gone)
   retryMs: 500,        // at most one claim attempt this often (each makes a room)
   botAtMs: 10000,      // my ticket still unclaimed: take a bot
-  fillMs: 4000,        // a room I claimed for has no seat 1 after this: give it up, take a bot
-  startMs: 6000,       // paired but the room not live after this: give it up, search again
+  fillMs: 7000,        // a room I claimed for has no seat 1 after this: give it up, take a bot (a waiter: search on)
+  startMs: 10000,      // paired but the room not live after this: give it up, search again (slow lines need 6-9 s)
   busyBotMs: [3000, 6000],  // a bots-only day (meter > 2 x dayCap): the bot comes after this long
   meterMs: 1500,       // reading the day meter waits at most this long (missing = 0)
   busyFlushMs: 500,    // flush2 for a match started on a busy day (meter > dayCap)
   lookMs: 250,         // how often the candidates are looked at again (compatibility grows with time)
   markMs: 2000,        // the bot marker transaction waits at most this long (then: offline)
   foundMs: 1500,       // RIVAL FOUND! shows at least this long before a paired player is READY (quickflow.js)
+  requeryMs: 5000,     // the ticket query's window (younger than staleMs) moves on this often
+  quitAfterMs: 2600,   // a fall may be written this long after its match record (the rules want 2.5 s)
 };
 
-const QUERY = { orderBy: 'child', child: 'ts', limitToFirst: QUICK.listen };
+/** The tickets I look at: the 10 oldest that are not stale (the rules allow any startAt). */
+const query = (tp) => ({ orderBy: 'child', child: 'ts', startAt: tp.now() - QUICK.staleMs, limitToFirst: QUICK.listen });
 const quiet = (p) => { if (p && p.catch) p.catch(() => {}); return p; };
 const within = (clock, ms, p, what) => new Promise((res, rej) => {
   const cancel = clock.after(ms, () => rej(netError('timeout', what)));
@@ -76,6 +85,23 @@ export function countMatch(tp, link) {
 /** The match cfg of a search that saw a busy day: states sent every busyFlushMs (never faster than cfg says). */
 export const matchCfg = (cfg = {}, busy = false) => (busy ? { ...cfg, flush2: Math.max(Number(cfg.flush2) || 0, QUICK.busyFlushMs) } : cfg);
 
+/**
+ * A paired room I left may have gone live with me in its record (the start crossed my leaving): write my fall
+ * ('quit'), so the rival sees RIVAL DOWN at once instead of waiting for the silent-rival forfeit. -> Promise<bool>
+ */
+export async function quitIfLive(tp, uid, code, clock = realClock) {
+  const rm = await within(clock, NET.leaveMs, tp.get(`rooms/${code}`), 'room').catch(() => null);
+  if (!rm || rm.st !== 'live' || typeof rm.mid !== 'string') return false;
+  const rec = await within(clock, NET.leaveMs, tp.get(`matches/${rm.mid}`), 'match').catch(() => null);
+  const slot = rec && rec.us ? rec.us[uid] : undefined;
+  if (!Number.isInteger(slot) || typeof rec.ts !== 'number' || (rec.out && rec.out[slot])) return false;
+  for (let i = 0; i < 3; i++) {
+    await new Promise((res) => clock.after(Math.max(0, rec.ts + QUICK.quitAfterMs - tp.now()) + i * 1000, res));
+    if (await quitOut(tp, { mid: rm.mid, slot, ts0: rec.ts })) return true;
+  }
+  return false;
+}
+
 // ------------------------------------------------------------------ the queue
 export function createQuick({ transport: tp, uid = tp.uid, profile, picks, cfg = {}, clock = realClock, rand = Math.random }) {
   const T = `queue/${uid}`;
@@ -84,8 +110,8 @@ export function createQuick({ transport: tp, uid = tp.uid, profile, picks, cfg =
   let run = 0;               // one search, from start() to cancel(): everything older is ignored
   let subs = [];             // transport listeners of the search
   let timers = [];           // timers of the search: { off, kind }
-  let od = null, ticketOn = false, myTr = int(profile && profile.tr), reread = false;
-  let myTs = null, myM = null, tickets = null;
+  let od = null, ticketOn = false, myTr = int(profile && profile.tr), reread = false, cleared = false;
+  let myTs = null, myM = null, tickets = null, seen = false, rewriting = false, tied = false, qOff = null;
   let attempt = false, joining = false, marking = false, lastTry = -Infinity;
   const tried = new Set();
   let room = null, roomOff = null, rivalUid = null;
@@ -101,11 +127,19 @@ export function createQuick({ transport: tp, uid = tp.uid, profile, picks, cfg =
   // ---------------- my ticket ----------------
   function writeTicket(r) {
     ticketOn = true;
-    myTs = null; myM = null;
+    myTs = null; myM = null; seen = false;
     if (!od) od = tp.onDisconnect(T, null);
     stats.tickets++;
     tp.set(T, { tr: myTr, ts: TS }).catch(async (e) => {
       if (r !== run || !ticketOn || !isDenied(e)) return;
+      // an older page of this account still holds a ticket (the rules keep its ts): mine replaces it
+      if (!cleared) {
+        cleared = true; rewriting = true;
+        await tp.remove(T).catch(() => {});
+        rewriting = false;
+        if (r === run && ticketOn && state.phase === 'search') writeTicket(r);
+        return;
+      }
       // my trophies changed on the server (the rules want them equal): read them once and try again
       if (reread) { toBot('lost'); return; }
       reread = true;
@@ -127,14 +161,23 @@ export function createQuick({ transport: tp, uid = tp.uid, profile, picks, cfg =
   function search(r) {
     setPhase('search');
     subs.push(tp.on(T, 'value', (v) => onMine(r, v)));
-    subs.push(tp.on('queue', 'value', (v) => { if (r === run) { tickets = v; look(r); } }, QUERY, () => {}));
+    requery(r);
+    subs.push(() => { if (qOff) { qOff(); qOff = null; } });
     timers.push({ kind: 'look', off: clock.every(QUICK.lookMs, () => look(r)) });
+    timers.push({ kind: 'look', off: clock.every(QUICK.requeryMs, () => requery(r)) });
     writeTicket(r);
+  }
+  /** (Again) listen to the tickets younger than staleMs: the window moves with the clock. */
+  function requery(r) {
+    if (r !== run) return;
+    const old = qOff;
+    qOff = tp.on('queue', 'value', (v) => { if (r === run) { tickets = v; look(r); } }, query(tp), () => {});
+    if (old) old();
   }
   /** Out of the line: no ticket, no queue listener. */
   function unsearch() {
     for (const off of subs.splice(0)) off();
-    clear('look');
+    clear('look'); clear('tie');
     tickets = null;
     return dropTicket();
   }
@@ -143,6 +186,9 @@ export function createQuick({ transport: tp, uid = tp.uid, profile, picks, cfg =
     if (r !== run || !ticketOn) return;
     myTs = v && typeof v.ts === 'number' ? v.ts : null;
     myM = v && v.m && typeof v.m === 'object' ? v.m : null;
+    if (myTs !== null) seen = true;
+    // my ticket went without me (an older page's onDisconnect): back in line with a fresh one
+    else if (seen && !rewriting && !marking && state.phase === 'search') { writeTicket(r); return; }
     if (myM && typeof myM.code === 'string' && myM.by !== uid) waiter(r);
   }
 
@@ -155,13 +201,23 @@ export function createQuick({ transport: tp, uid = tp.uid, profile, picks, cfg =
     if (dueBot()) { botNow(r); return; }
     if (myTs === null || myM || !tickets || clock.now() - lastTry < QUICK.retryMs) return;
     const now = tp.now();
-    let best = null;
+    let best = null, tie = false;
     for (const [k, v] of Object.entries(tickets)) {
       if (k === uid || !v || typeof v.ts !== 'number' || v.m) continue;
+      if (v.ts === myTs && k < uid) tie = true; // the same server millisecond: neither may claim the other
       if (!(v.ts < myTs) || v.ts <= now - QUICK.staleMs || tried.has(`${k}:${v.ts}`) || !compatible(v, now)) continue;
       if (!best || v.ts < best.v.ts) best = { k, v };
     }
     if (best) claim(r, best.k, best.v);
+    else if (tie && !tied) retie(r);
+  }
+  /** A tie: the larger uid takes its ticket out and writes it again a moment later (a later ts: it can claim). */
+  function retie(r) {
+    tied = true; rewriting = true; myTs = null;
+    tp.remove(T).catch(() => {}).then(() => after(QUICK.lookMs, () => {
+      rewriting = false;
+      if (r === run && state.phase === 'search' && ticketOn) writeTicket(r);
+    }, 'tie'));
   }
 
   async function claim(r, them, v) {
@@ -218,6 +274,8 @@ export function createQuick({ transport: tp, uid = tp.uid, profile, picks, cfg =
     stats.joins++;
     unsearch();
     room = jr; rivalUid = jr.state.host;
+    // the host's seat may be gone already (its tab closed while I sat down): do not wait for it forever
+    after(QUICK.fillMs, () => { if (r === run && room === jr && state.phase === 'wait') resume(); }, 'fill');
     watch(r, jr);
   }
 
@@ -236,14 +294,23 @@ export function createQuick({ transport: tp, uid = tp.uid, profile, picks, cfg =
       clear('fill');
       state.rival = rival;
       setPhase('paired');
-      after(QUICK.startMs, () => { if (r === run && room === rm && state.phase === 'paired') resume(); }, 'start');
+      giveUp(r, rm, false);
       emit('paired', rm);
       return;
     }
     if (state.phase !== 'paired') return;
-    if (st.st === 'live' && st.mid) { release(); return; }
+    if (st.st === 'live') { release(); return; } // (its record may be on the way: room.js fetches it, the flow starts)
     if (broken || !rival) { resume(); return; }
     if (rival !== state.rival) { state.rival = rival; emit('change', state); }
+  }
+  /** Paired but not live after startMs: give up. Both READY: the start is on its way, wait startMs / 2 more. */
+  function giveUp(r, rm, more) {
+    after(more ? QUICK.startMs / 2 : QUICK.startMs, () => {
+      if (r !== run || room !== rm || state.phase !== 'paired') return;
+      const seated = rm.state ? rm.state.seats.filter(Boolean) : [];
+      if (!more && seated.length >= 2 && seated.every((s) => s.rdy)) giveUp(r, rm, true);
+      else resume();
+    }, 'start');
   }
   /** The match of the paired room is on: from now on the room belongs to the flow. */
   function release() {
@@ -256,9 +323,12 @@ export function createQuick({ transport: tp, uid = tp.uid, profile, picks, cfg =
   }
   function leaveRoom() {
     if (roomOff) { roomOff(); roomOff = null; }
-    const rm = room;
+    const rm = room, paired = state.phase === 'paired';
     room = null; rivalUid = null; state.rival = null; state.code = null;
-    return rm ? rm.leave().catch(() => {}) : Promise.resolve();
+    if (!rm) return Promise.resolve();
+    const left = rm.leave().catch(() => {});
+    if (paired) left.then(() => quitIfLive(tp, uid, rm.code, clock)).catch(() => {});
+    return left;
   }
 
   // ---------------- a bot ----------------
@@ -327,7 +397,7 @@ export function createQuick({ transport: tp, uid = tp.uid, profile, picks, cfg =
       run++;
       tried.clear();
       Object.assign(state, { since: clock.now(), code: null, rival: null, why: null, busy: false });
-      reread = false; lastTry = -Infinity;
+      reread = false; cleared = false; tied = false; rewriting = false; lastTry = -Infinity;
       setPhase('search');
       begin(run);
       return true;

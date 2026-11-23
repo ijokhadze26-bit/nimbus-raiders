@@ -12,24 +12,50 @@ let seq = 0;
 
 /** A clock that counts the callbacks of the timers made through it (tests: nothing may fire after cancel). */
 function counting(clock) {
-  const c = { fired: 0, armed: false };
-  const wrap = (fn) => () => { if (c.armed) c.fired++; fn(); };
+  const c = { fired: 0, armed: false, dead: false }; // dead: the page is closed, its timers never run again
+  const wrap = (fn) => () => { if (c.dead) return; if (c.armed) c.fired++; fn(); };
   return Object.assign(c, { now: () => clock.now(), after: (ms, fn) => clock.after(ms, wrap(fn)), every: (ms, fn) => clock.every(ms, wrap(fn)) });
 }
 
-/** A player searching like the flow does: READY as soon as it is paired. */
+/** A transport that can die like a closed tab: kill() says goodbye (onDisconnect fires now), kill(true) just goes
+ *  silent (the hub notices after dropMs); after that nothing it was asked ever answers. */
+function killable(tp) {
+  let dead = false;
+  const never = new Promise(() => {});
+  return new Proxy(tp, {
+    get(t, k) {
+      if (k === 'kill') return (silent) => { dead = true; if (silent) (t._net ? t._net(false) : t.inner._net(false)); else t.close(); };
+      const v = t[k];
+      if (typeof v !== 'function') return v;
+      return (...a) => {
+        if (!dead || k === 'now' || k === 'newId') return v.apply(t, a);
+        if (k === 'on' || k === 'onStatus') return () => {};
+        if (k === 'onDisconnect') return { cancel() {} };
+        return k === 'status' ? 'off' : never;
+      };
+    },
+  });
+}
+
+/** A player searching like the flow does: READY as soon as it is paired (`ready: 'flow'`: QUICK.foundMs later). */
 async function searcher(w, uid, name, { net, ready = true, profile } = {}) {
-  const p = await w.player(uid, name, net);
+  const p0 = await w.player(uid, name, net);
+  const p = { ...p0, tp: killable(p0.tp) };
   const clock = counting(w.clock);
   const n = ++seq;
   let r = n * 0x9e3779b9; // mulberry32: every player its own room codes
   const rand = () => { r = (r + 0x6d2b79f5) | 0; let t = Math.imul(r ^ (r >>> 15), 1 | r); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
   const s = { ...p, clock, events: [], room: null, bot: null, pairedAt: null, botAt: null, t0: null };
   s.q = createQuick({ transport: p.tp, profile: profile || p.profile, picks: PICK, cfg: p.session.cfg, clock, rand });
-  s.q.on('change', (st) => s.events.push(st.phase));
-  s.q.on('paired', (room) => { s.room = room; s.pairedAt = w.clock.now(); if (ready) room.ready(true); });
+  s.q.on('change', (st) => { s.events.push(st.phase); if (st.phase === 'off' && st.why === 'live') s.liveAt = w.clock.now(); });
+  s.q.on('paired', (room) => {
+    s.room = room; s.pairedAt = w.clock.now();
+    if (ready === 'flow') w.clock.after(QUICK.foundMs, () => { if (s.q.state.phase === 'paired') room.ready(true); });
+    else if (ready) room.ready(true);
+  });
   s.q.on('bot', (b) => { s.bot = b.why; s.botAt = w.clock.now(); });
   s.tap = () => { s.t0 = w.clock.now(); s.q.start(); };
+  s.kill = (silent) => { s.clock.dead = true; p.tp.kill(silent); };
   return s;
 }
 const ticket = (w, uid) => w.hub.admin.get(`queue/${uid}`);
@@ -290,6 +316,123 @@ test('day meter: +1 per human match (friend and quick, lowest seat only), 0 for 
   eq(H.bot, 'busy');
   const at = H.botAt - H.t0;
   ok(at >= QUICK.busyBotMs[0] && at <= QUICK.busyBotMs[1] + 100, `busy bot at ${at} ms`);
+});
+
+// ---------------------------------------------------------------- review fixes (stage 3)
+const ends = (s) => s.bot || (s.liveAt ? 'human' : null);
+const halfRooms = (w) => Object.values(w.hub.admin.get('rooms') || {}).filter((r) => r.st === 'live' && Object.keys(r.sl || {}).length < 2);
+
+test("the claimer's seat goes while I sit down (its tab closed): I do not wait forever", async () => {
+  for (const [lat, d] of [[100, 150], [100, 300], [400, 1000]]) {
+    const w = world();
+    const A = await searcher(w, 'uidA', 'Alpha', { net: lat ? { lat } : undefined });
+    A.tap(); await w.clock.advance(1500);
+    const B = await searcher(w, 'uidB', 'Bravo', { net: lat ? { lat } : undefined });
+    B.tap();
+    await until(w, () => A.q.state.phase === 'wait', 9000, 5);
+    eq(A.q.state.phase, 'wait', `lat${lat}: A waits`);
+    await w.clock.advance(d);
+    B.kill(); // a goodbye: B's seat guard frees seat 0 at once, the room stays
+    await until(w, () => A.bot, 20000, 50);
+    ok(A.bot === 'alone' || A.bot === 'lost', `lat${lat} +${d} ms: A is stuck (${A.events.join('>')}, bot ${A.bot})`);
+    ok(A.botAt - A.t0 <= QUICK.botAtMs + QUICK.fillMs + 2000, `lat${lat}: the bot came ${A.botAt - A.t0} ms after the tap`);
+    await w.clock.advance(2000); // (its leaving is on the way)
+    eq(roomsOf(w, 'uidA').length, 0, `lat${lat}: A sits in no room`);
+    eq(anyRooms(w), 0, `lat${lat}: the empty room shell is gone`);
+  }
+});
+
+test('slow lines: two players still play each other, both the same kind of match, no half room', async () => {
+  for (const net of [{ lat: 400 }, { lat: 400, jit: 300, loss: 5 }]) {
+    for (const gap of [500, 1300]) {
+      const w = world();
+      const A = await searcher(w, 'uidA', 'Alpha', { net: { ...net }, ready: 'flow' });
+      const B = await searcher(w, 'uidB', 'Bravo', { net: { ...net }, ready: 'flow' });
+      A.tap(); await w.clock.advance(gap); B.tap();
+      await until(w, () => ends(A) && ends(B), 40000, 25);
+      await w.clock.advance(4000);
+      const what = `${JSON.stringify(net)} +${gap} ms`;
+      eq([ends(A), ends(B)], ['human', 'human'], `${what}: both play each other (events ${A.events.join('>')} / ${B.events.join('>')})`);
+      eq(halfRooms(w).length, 0, `${what}: a live room with one seat`);
+    }
+  }
+});
+
+test('ten old tickets nobody removes do not hide the new ones (only tickets younger than staleMs are read)', async () => {
+  const w = world();
+  for (let i = 0; i < 10; i++) {
+    const j = await w.player(`junk${i}`, `Junk${i}`);
+    await j.tp.set(`queue/junk${i}`, { tr: 0, ts: TS }); // no onDisconnect: they stay
+  }
+  await w.clock.advance(QUICK.staleMs + 1000);
+  for (const gap of [500, 70000]) {
+    await w.clock.advance(gap);
+    const A = await searcher(w, `uidA${gap}`, 'Alpha');
+    const B = await searcher(w, `uidB${gap}`, 'Bravo');
+    A.tap(); await w.clock.advance(500); B.tap();
+    await until(w, () => ends(A) && ends(B), 15000, 25);
+    eq([ends(A), ends(B)], ['human', 'human'], `${gap} ms on: the two pair past the old tickets`);
+  }
+});
+
+test('two tickets of the same server millisecond still pair', async () => {
+  for (const net of [undefined, { lat: 100 }]) {
+    const w = world();
+    const A = await searcher(w, 'uidA', 'Alpha', { net });
+    const B = await searcher(w, 'uidB', 'Bravo', { net });
+    A.tap(); B.tap();
+    await until(w, () => ends(A) && ends(B), 15000, 25);
+    eq([ends(A), ends(B)], ['human', 'human'], `${JSON.stringify(net || 'no latency')}: they pair`);
+    eq(A.q.stats.tickets + B.q.stats.tickets, 3, 'the tie was seen: one of them wrote its ticket again');
+  }
+});
+
+test("a new page of the same account while the old page's ticket is still there: it searches normally", async () => {
+  const w = world();
+  const B = await searcher(w, 'uidB', 'Bravo');
+  const A1 = await searcher(w, 'uidA', 'Alpha');
+  A1.tap(); await w.clock.advance(3000);
+  A1.kill(true); // the old page goes silent: its ticket stays until the hub notices (dropMs)
+  await w.clock.advance(800);
+  const A2 = await searcher(w, 'uidA', 'Alpha');
+  A2.tap(); await w.clock.advance(300); B.tap();
+  await until(w, () => ends(A2) && ends(B), 20000, 50);
+  eq([ends(A2), ends(B)], ['human', 'human'], `the new page plays B (A2 ${A2.events.join('>')}, stats ${JSON.stringify(A2.q.stats)})`);
+  // and a ticket of the new page that the old page's onDisconnect removes is written again
+  const w2 = world();
+  const C1 = await searcher(w2, 'uidC', 'Charlie');
+  C1.tap(); await w2.clock.advance(1000);
+  C1.kill(true);
+  const C2 = await searcher(w2, 'uidC', 'Charlie');
+  C2.tap();
+  await w2.clock.advance(7000); // past dropMs: the old connection's onDisconnect has removed queue/uidC
+  ok(ticket(w2, 'uidC'), 'the new page is still in line');
+  const D = await searcher(w2, 'uidD', 'Delta');
+  D.tap();
+  await until(w2, () => ends(C2) && ends(D), 15000, 50);
+  eq([ends(C2), ends(D)], ['human', 'human'], 'and pairs');
+});
+
+test('CANCEL while the start is on its way: a rival whose match goes live sees my fall (quit) at once', async () => {
+  let crossed = 0;
+  for (let d = 3500; d <= 4600; d += 100) {
+    const w = world();
+    const A = await searcher(w, 'uidA', 'Alpha', { net: { lat: 100 }, ready: 'flow' });
+    const B = await searcher(w, 'uidB', 'Bravo', { net: { lat: 100 }, ready: 'flow' });
+    A.tap(); await w.clock.advance(300); B.tap();
+    await w.clock.advance(d);
+    if (B.liveAt || B.bot) continue;
+    await w.settle(B.q.cancel(), 4000);
+    await until(w, () => ends(A), 30000, 25);
+    if (!A.liveAt) continue;
+    crossed++;
+    const mid = A.room.state.mid || (w.hub.admin.get(`rooms/${A.room.code}`) || {}).mid;
+    await until(w, () => (w.hub.admin.get(`matches/${mid}/out`) || {})[0], 6000, 50);
+    const out = w.hub.admin.get(`matches/${mid}/out`) || {};
+    eq(out[0] && out[0].by, 'quit', `cancel at +${d} ms: the cancelled seat's fall (${JSON.stringify(out)})`);
+    ok(w.clock.now() - A.liveAt <= 6000, `the quit came ${w.clock.now() - A.liveAt} ms after the room went live`);
+  }
+  ok(crossed >= 1, 'no run where the start crossed the cancel (move the window)');
 });
 
 run('quick');
