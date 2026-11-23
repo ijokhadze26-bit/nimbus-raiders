@@ -5,7 +5,7 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const FILES = ['codec', 'verdict', 'hub', 'rules', 'attacks', 'room', 'match', 'fixes', 'quick', 'channel', 'fire'];
+const FILES = ['codec', 'verdict', 'hub', 'rules', 'attacks', 'room', 'match', 'fixes', 'quick', 'botplan', 'channel', 'fire'];
 const BOTH_WAYS = new Set(['hub', 'room', 'match', 'fixes', 'quick']);
 const want = process.argv.slice(2);
 const quiet = process.env.NET_QUIET === '1';

@@ -6,6 +6,8 @@
 //    outside +-4.75.
 // 2. Level -3: on the worse side at least once in 20 rows.
 // 3. A red gate row a sabotage spliced onto MY road (`sab: true`) is ignored: never aimed at, never recorded.
+// 4. The rows it drives through move its squad (BOT.gate): up just after a better-side row, down after a wrong one,
+//    in most rows (its squad curve moves too, so not in every one).
 const g = window.__game;
 const { on7 } = await import('/tests/u2/lib/on7kit.js');
 const k = await on7(g);
@@ -33,7 +35,9 @@ function play(level, seeds, want) {
     }, 220);
     const recs = link.bot.test.rows;
     (info.ends ||= []).push(`seed ${seed}: ${recs.length} rows, t ${versus.t.toFixed(1)}, bot d ${k.rec.states.length ? Math.round(k.rec.states[k.rec.states.length - 1].s.dist) : 0}, my d ${Math.round(g.run.dist)}, zone ${g.endless.zone}, state ${g.state}, verdict ${JSON.stringify(k.rec.verdicts[0] || null)}`);
-    for (const r of recs) { rows.push({ seed, ...r }); if (sabAts.has(r.at)) aimedSab++; }
+    // its squad on the stream just before a row and 0.5 s after it
+    const nAt = (t) => { let n = null; for (const st of k.rec.states) { if (st.s.t > t + 1e-6) break; n = st.s.n; } return n; };
+    for (const r of recs) { rows.push({ seed, ...r, n0: nAt(r.t - 0.15), n1: nAt(r.t + 0.5) }); if (sabAts.has(r.at)) aimedSab++; }
     // the stream: lane speed between samples
     for (const st of k.rec.states) {
       const xs = st.s.xs;
@@ -65,6 +69,13 @@ try {
   info.levelM3 = `${b.rows.length} rows, worse side ${worse}, wrong rolls ${b.rows.filter((r) => r.wrong).length}`;
   ok(b.rows.length >= 20 && worse >= 1, `level -3: worse side ${worse} in ${b.rows.length} rows`);
   ok(b.aimedSab === 0, 'level -3: aimed at a sabotage row');
+  // 4. the gate rows move its squad
+  const all = [...a.rows, ...b.rows].filter((r) => r.n0 !== null && r.n1 !== null && r.n0 < 990);
+  const up = all.filter((r) => !r.wrong), down = all.filter((r) => r.wrong);
+  const ups = up.filter((r) => r.n1 > r.n0).length, downs = down.filter((r) => r.n1 < r.n0).length;
+  info.squad = `better rows ${ups} / ${up.length} up, wrong rows ${downs} / ${down.length} down`;
+  ok(up.length >= 10 && ups >= 0.7 * up.length, 'better rows did not lift its squad: ' + info.squad);
+  ok(down.length >= 3 && downs >= 0.7 * down.length, 'wrong rows did not cost it: ' + info.squad);
 } catch (e) {
   fails.push('threw: ' + (e.stack || e.message));
 }

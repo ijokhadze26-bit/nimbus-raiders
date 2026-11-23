@@ -87,7 +87,7 @@ export function createBotLink({ seed = 1, pick, game, now, t0, clock, slot = 0 }
   let left = false, given = null, recorded = false, ticked = false, alive = true;
   let k = 0, j = 1, seq = 0, buf = [], last = null, lastState = -Infinity, lastAny = -Infinity;
   let q = 0, lastSend = -Infinity, ni = 0, ai = 0, bigN = 0, sabUntil = -1, botOut = null;
-  const queue = [], effects = [], dips = [], bigs = [];
+  const queue = [], effects = [], dips = [], bigs = [], steps = []; // steps: what the gate rows it passed did
   const lane = newLane();
   const ring = new Float32Array(Math.round(2 / ST.sample)); let ri = 0;
   const deliv = { t10: -1, dist: 0 };
@@ -163,7 +163,16 @@ export function createBotLink({ seed = 1, pick, game, now, t0, clock, slot = 0 }
       const A = plan.arenas[ai++];
       bigs.push({ due: A.b + SB.bigAfter, code: bigN++ % 2 ? 12 : 11, need: A.z * ENDLESS.bossEvery - 2 });
     }
+    // the gate row it was aiming at is passed: note where it went through (on7-gates); the row moves its squad
+    const aim = lane.chosen, GT = BOT.gate;
+    if (aim && !aim.done && r.dist >= aim.at) {
+      aim.done = true;
+      keep(test.rows, { at: aim.at, t, x: lane.x, aim: aim.x, best: aim.best, wrong: aim.wrong }, 400);
+      const [lo, hi] = aim.wrong ? GT.wrong : GT.right, u = plan.roll(aim.at + 0.05);
+      keep(steps, { at: t, k: (aim.wrong ? -1 : 1) * (lo + (hi - lo) * u) }, 8);
+    }
     let n = plan.squad(t), dangerR = 0;
+    for (const st of steps) { const rem = 1 - (t - st.at) / GT.fade; if (rem > 0) n *= 1 + st.k * rem; }
     for (let i = dips.length - 1; i >= 0; i--) {
       const rem = 1 - (t - dips[i].at) / R.recover;
       if (rem <= 0) { dips.splice(i, 1); continue; }
@@ -178,9 +187,6 @@ export function createBotLink({ seed = 1, pick, game, now, t0, clock, slot = 0 }
     let peak = n;
     for (let i = 0; i < ring.length; i++) if (ring[i] > peak) peak = ring[i];
     const dangerL = Math.round(9 * Math.max(t >= 20 ? 1 - n / 15 : 0, peak > 0 ? (peak - n) / peak : 0));
-    // the gate row it was aiming at is passed: note where it went through (on7-gates)
-    const aim = lane.chosen;
-    if (aim && !aim.done && r.dist >= aim.at) { aim.done = true; keep(test.rows, { at: aim.at, x: lane.x, aim: aim.x, best: aim.best, wrong: aim.wrong }, 400); }
     const x = laneStep(lane, plan, t, inArena ? null : nextRow(lane, rows(), r.dist, knobs), inArena);
     if (alive) sabotage(t);
     last = {

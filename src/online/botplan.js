@@ -67,7 +67,7 @@ export function makePlan(seed, pick = {}, curves = BOT_CURVES) {
   const T = tenth(clamp(median * Math.exp(sigma * gauss(S.fall)), F.min, F.max));
   const collapse = S.fall.range(F.collapse[0], F.collapse[1]);
   const factor = S.squad.range(0.85, 1.15);
-  const sliceK = mix(C.sliceK, P.sliceK) * L.slice[li];
+  const sliceK = Math.max(mix(C.sliceK, P.sliceK), BOT.react.sliceMin) * L.slice[li];
   const arenaOf = (z) => { const i = Math.min(z, C.arena.length) - 1; return { dur: mix(C.arena[i].dur, P.arena[i].dur), loss: clamp(mix(C.arena[i].loss, P.arena[i].loss), 0, 0.95) }; };
 
   // ---- the road, one entry per tenth ----
@@ -89,21 +89,29 @@ export function makePlan(seed, pick = {}, curves = BOT_CURVES) {
     }
   }
 
-  // ---- squad: the calibrated curve x the factor, a dip across each arena ----
-  const curve = (t) => {
+  // ---- squad: the calibrated curve x the factor (eased to 1 near the cap), a dip across each arena, and the whole
+  // timeline growing no faster than gate rows can (BOT.grow: the medians of the few runs still standing late, and the
+  // climb back after an arena, would otherwise leap 8 -> 600 in 5 s) ----
+  const G = BOT.grow, REC = BOT.arenaRecover;
+  const raw = (t) => {
     const x = clamp(t / 5, 0, C.n.length - 1), i = Math.floor(x), f = x - i, j = Math.min(C.n.length - 1, i + 1);
     const c = mix(C.n[i], P.n[i]) * (1 - f) + mix(C.n[j], P.n[j]) * f;
-    return clamp(c * factor, 1, 999);
+    return clamp(c * (factor + (1 - factor) * clamp((c - G.capFrom) / (990 - G.capFrom), 0, 1)), 1, 999);
   };
-  const REC = BOT.arenaRecover;
-  const squad = (t) => {
+  const shaped = (t) => {
     for (const A of arenas) {
       if (t < A.a) break;
-      if (t < A.b) return curve(A.a) * (1 - A.loss * (t - A.a) / (A.b - A.a));
-      if (t < A.b + REC) { const end = curve(A.a) * (1 - A.loss); return end + (curve(t) - end) * (t - A.b) / REC; }
+      if (t < A.b) return raw(A.a) * (1 - A.loss * (t - A.a) / (A.b - A.a));
+      if (t < A.b + REC) { const end = raw(A.a) * (1 - A.loss); return end + (raw(t) - end) * (t - A.b) / REC; }
     }
-    return curve(t);
+    return raw(t);
   };
+  const limited = (fn) => {
+    const a = new Float32Array(K);
+    for (let k = 0; k < K; k++) a[k] = k ? Math.min(fn(k / 10), a[k - 1] * G.mul + G.add) : fn(0);
+    return (t) => { const x = clamp(t * 10, 0, K - 1), i = Math.floor(x), j = Math.min(K - 1, i + 1); return a[i] + (a[j] - a[i]) * (x - i); };
+  };
+  const curve = limited(raw), squad = limited(shaped);
 
   // ---- its sabotage: a shuffled cycle of the normal kinds ----
   const normals = [];

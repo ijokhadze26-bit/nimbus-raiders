@@ -16,11 +16,17 @@
 //   steer       lane speed (u/s), lane noise (u), how far ahead a gate row is aimed at (u)
 //   formEvery   seconds between formation changes (line / wedge / circle)
 //   arenaRecover  seconds for its squad to climb back from an arena's dip to the curve
+//   grow        the squad curve never climbs faster than x mul + add per 0.1 s (what gate rows can do: the medians of
+//               the few runs still standing late can leap 8 -> 600 in 5 s); capFrom: above this the per-bot factor
+//               eases to 1, so a squad at the 999 cap reads 999 on every bot
+//   gate        each gate row it drives through moves its squad by a share in `right` (the better side) or `wrong`
+//               (a wrongGate pass, a loss), easing back to the curve over `fade` s
 //   sab         its sabotage: the first normal one at U(first) s, then every U(every) s, never two within `gap` s;
 //               a big one `bigAfter` s after each of its boss kills
 //   react       mine landing on it: after `delay` s a squad dip of dip[code] (share lost) that recovers over
 //               `recover` s, danger round(9 x dip x dangerK), the 'sabotaged' flag for `flag` s, FREEZE holds its
-//               lane for `freeze` s, and slice[code] x BOT_CURVES.*.sliceK x level slice seconds off its fall time
+//               lane for `freeze` s, and slice[code] x max(BOT_CURVES.*.sliceK, sliceMin) x level slice seconds off its
+//               fall time (sliceMin: the autopilots that measured sliceK hardly feel sabotage; a child does)
 export const BOT = {
   salt: 0x5bd1e995,                          // Rng(seed ^ salt): everything one bot does
   ready: [1.5, 4.0],                         // s of RIVAL FOUND! before its match starts (pickBot().readyIn)
@@ -29,7 +35,7 @@ export const BOT = {
   fall: { min: 25, max: 300, collapse: [6, 8], keep: 7 },
   levels: { min: -3, max: 3, loseRun: 2, winRun: 3 },
   level: {         //   -3    -2    -1     0     1     2     3
-    median:      [0.70, 0.80, 0.90, 1.00, 1.10, 1.20, 1.30],    // x curves.casual.fall.median ([3] checked 2026-11-23: 20/40 = 50 % on seeds 41-80)
+    median:      [0.70, 0.80, 0.90, 1.05, 1.10, 1.20, 1.30],    // x curves.casual.fall.median ([3] tuned 2026-11-23 with sliceMin: 20/40 = 50 % on seeds 41-80)
     wrongGate:   [0.35, 0.30, 0.25, 0.20, 0.15, 0.10, 0.06],
     curve:       [0,    0,    0,    0,    0.5,  1,    1],       // squad / arena curves: 0 casual .. 1 pro
     slice:       [1.3,  1.2,  1.1,  1.0,  0.9,  0.8,  0.7],     // x the slice of T a landed sabotage takes
@@ -37,9 +43,11 @@ export const BOT = {
   steer: { speed: 6, wobble: 0.35, look: 45 },   // u/s; lane noise (u); how far ahead a gate row is aimed at (u)
   formEvery: [12, 30],                       // s between formation changes (form 0..2)
   arenaRecover: 10,                          // s for its squad to climb back from an arena's dip to the curve
+  grow: { mul: 1.03, add: 0.2, capFrom: 600 },  // per 0.1 s; the per-bot factor eases to 1 from capFrom to 990
+  gate: { right: [0.04, 0.12], wrong: [0.08, 0.18], fade: 4 },   // share of its squad per gate row passed; s
   sab: { first: [28, 40], every: [18, 35], gap: 6, bigAfter: 1.0 },
   react: {
-    delay: 1.0, recover: 8, flag: 3, dangerK: 1.5, freeze: 2,
+    delay: 1.0, recover: 8, flag: 3, dangerK: 1.5, freeze: 2, sliceMin: 1.5,
     dip:   { 1: 0.25, 2: 0.05, 3: 0.15, 4: 0.10, 5: 0.10, 11: 0.40, 12: 0.15 },   // share of its squad lost
     slice: { 1: 1.0,  2: 0.4,  3: 0.8,  4: 0.6,  5: 0.8,  11: 2.0,  12: 1.0 },    // x curves.sliceK (s of T)
   },
