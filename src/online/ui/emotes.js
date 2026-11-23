@@ -80,6 +80,7 @@ export function mountEmotes(ctx) {
     detach();
     link = (game.versus && game.versus.link) || null;
     T = 0; lastSend = -1e9; sent = 0; botN = 0; queue = []; recv = new Map();
+    for (const b of bubbles.splice(0)) b.el.remove(); // (a bubble of the last match goes with it)
     setOpen(false);
     if (link && typeof link.on === 'function') offLink = link.on('event', onEvent);
   }

@@ -72,7 +72,7 @@ export async function hubScenario(g) {
     await N.until(() => P.view() === 'name');
     await N.wait(400);
     ok(P.text('.on-public') === 'Everyone can see this name on the leaderboards. Do not use your real name!', 'name screen line: ' + P.text('.on-public'));
-    N.layout(P.q('.on-name'), ['.on-h', '.on-p', '.on-nameinput', '.on-rules', '.on-public', '.btn-row', '.on-fine:not(.on-public)'], fails, 'name');
+    N.layout(P.q('.on-name'), ['.on-h', '.on-p', '.on-nameinput', '.on-rules', '.on-public', '.btn-row', '.on-fine'], fails, 'name');
     const card = P.q('.on-name').getBoundingClientRect();
     ok(card.bottom <= innerHeight + 0.5 || body.scrollHeight > body.clientHeight, 'the name card is cut off');
     await N.shotAt(P, 'name', 0);
