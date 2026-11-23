@@ -475,9 +475,10 @@ export function createRanked({ transport: tp, session, clock = realClock, storag
   // the line came back: a win that gave up is tried again, and whatever an earlier page left is settled
   if (tp.onStatus) {
     tp.onStatus((st) => {
+      // (only after a dropped line: a visit that let the line go idle reconnects through flow.connect(), which settles)
       const was = lastSt;
       lastSt = st;
-      if (st !== 'on' || !was || was === 'on' || !settledOnce || !session.uid) return;
+      if (st !== 'on' || was !== 'lost' || !settledOnce || !session.uid) return;
       for (const c of [cur, cur && cur.prev]) if (c && c.gaveUp && !c.settled && c.staked && c.verdict === 'win') retryClaim(c);
       R.settle(true).catch(() => {});
     });
