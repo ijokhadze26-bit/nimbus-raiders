@@ -13,7 +13,7 @@
 // How a search goes (the rules in config/firebase decide every race; nothing here trusts the other client):
 // - My ticket queue/{me} = { tr, ts: TS } with onDisconnect remove; I listen to it and to the 10 oldest tickets.
 // - A CANDIDATE is an older ticket with no `m`, not stale, and compatible (trophies within trBand, or either side
-//   has waited anyOfterMs). I make a quick room for the oldest one first, then set its `m` = { by: me, code }.
+//   has waited anyAfterMs). I make a quick room for the oldest one first, then set its `m` = { by: me, code }.
 //   Denied = somebody else got there first (or my own ticket was claimed meanwhile): my room goes, I go on.
 //   One attempt at a time, one every retryMs (each makes a room).
 // - My own `m` appears with a code: I join that room's seat 1 (only I may sit there), then my ticket goes.
@@ -165,12 +165,13 @@ export function createQuick({ transport: tp, uid = tp.uid, profile, picks, cfg =
   }
 
   async function claim(r, them, v) {
-    attempt = true; lastTry = clock.now(); tried.add(`${them}:${v.ts}`);
+    const key = `${them}:${v.ts}`;
+    attempt = true; lastTry = clock.now(); tried.add(key);
     stats.claims++;
     let made = null;
     try {
       made = await createRoom({ transport: tp, uid, profile, picks, kind: 'quick', max: 2, madeFor: them, rand, clock });
-    } catch { attempt = false; return; } // no room this time: the next look tries again
+    } catch { attempt = false; tried.delete(key); return; } // no room this time: the next look may try that ticket again
     const stale = () => r !== run || state.phase !== 'search';
     if (stale() || myM) { attempt = false; quiet(made.leave()); if (!stale()) waiter(r); return; }
     let won = false;
