@@ -20,18 +20,7 @@
 import { NET } from './config.js';
 import { hash32, realClock } from './transport.js';
 import { createQuick, countMatch, matchCfg, QUICK } from './quick.js';
-import { createTestLink } from './game/testlink.js';
-
-// The bot (builder BOT, src/online/bot.js). Until the merge it may be missing: then a scripted stand-in plays.
-// (THE INTEGRATOR replaces this glob and the stand-in with: import { pickBot, createBotLink } from './bot.js';)
-const BOT = import.meta.glob('./bot.js', { eager: true })['./bot.js'] || null;
-const stubPick = () => ({ id: 'stub', name: 'Raider-1234', hero: 'pip', weapon: 'thunderclap', heroSkin: 'classic', weaponSkin: 'factory', tr: 0, readyIn: 2, level: 0 });
-const stubLink = ({ seed, pick, game, now, t0, clock }) => createTestLink({
-  game, seed, clock: clock || (() => (now() - t0) / 1000),
-  rivals: [{ slot: 1, name: pick.name, hero: pick.hero, weapon: pick.weapon, heroSkin: pick.heroSkin, weaponSkin: pick.weaponSkin, tr: pick.tr, fallAt: 90 }],
-});
-const pickBot = BOT && BOT.pickBot ? BOT.pickBot : stubPick;
-const createBotLink = BOT && BOT.createBotLink ? BOT.createBotLink : stubLink;
+import { pickBot, createBotLink } from './bot.js';
 
 /**
  * inner = flow.js's private pieces: { game, ui, transport, session, adopt(room), dropRoom(kind), syncPicks(),
@@ -40,7 +29,7 @@ const createBotLink = BOT && BOT.createBotLink ? BOT.createBotLink : stubLink;
 export function installQuick(flow, inner, { clock = realClock } = {}) {
   const { game, ui, transport: tp, session } = inner;
   let q = null, qOffs = [], prev = 'off', adopted = null, found = null, readyOff = null;
-  const quick = { match: null, q: null, test: { clockFor: null }, real: !!BOT };
+  const quick = { match: null, q: null, test: { clockFor: null }, real: true };
   flow.mode = null;
   flow.quick = quick;
 
@@ -66,7 +55,7 @@ export function installQuick(flow, inner, { clock = realClock } = {}) {
   function onBot() {
     const seed = hash32(tp.now(), 'bot:' + session.uid);
     let pick;
-    try { pick = pickBot({ seed, tr: Number(session.profile && session.profile.tr) || 0, avoid: flow.name }); } catch (e) { console.error(e); pick = stubPick(); }
+    try { pick = pickBot({ seed, tr: Number(session.profile && session.profile.tr) || 0, avoid: flow.name }); } catch (e) { console.error(e); pick = pickBot({ seed }); }
     found = { pick, seed };
     stopTimer();
     readyOff = clock.after(Math.max(0, Number(pick.readyIn) || 0) * 1000, () => { readyOff = null; startBot(); });
