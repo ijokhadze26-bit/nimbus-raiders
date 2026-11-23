@@ -110,7 +110,8 @@ export const scenarios = [
       ok(v && shown(v), `no result: ${JSON.stringify(await A.view())}`);
       const writes = duo.hub.stats.writes - writes0;
       note(`result ${v.result.result} (${v.result.reason}) at ${v.result.t} s, ${v.result.d} m; moment "${moment}"; ${writes} hub writes; ${Math.round((Date.now() - t0) / 1000)} s real`);
-      eq(writes, 0, 'hub writes from GO to the result');
+      // stage 4: a bot match writes only its ranked profile writes (the stake, the rank mirror, a close), never match traffic
+      ok(writes <= 3, `hub writes from GO to the result: ${writes} (at most the stake, the rank mirror and a close)`);
       ok(['win', 'lose'].includes(v.result.result) && v.result.t > 60, `a full match: ${JSON.stringify(v.result)}`);
       eq(await rematchLabel(A), 'PLAY AGAIN', 'the big button');
       eq(await hist(A), [`q:${v.result.result[0]}:${f.name}`], 'history row');

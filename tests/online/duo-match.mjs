@@ -68,9 +68,10 @@ export const scenarios = [
       eq(ta[0][0], '0', 'the winner is first on the winner\'s screen');
       eq(tb[0][0], '0', 'the winner is first on the loser\'s screen');
       await A.shot('result'); await B.shot('result');
-      // a match pays nothing and touches no single-player progress; it leaves one row in the online history
+      // a friend match pays only its friend coins (stage 4: 20 for the win, 10 for the loss), touches no single-player
+      // progress, and leaves one row in the online history
       const after = [await save(A), await save(B)];
-      eq([after[0].coins, after[0].level, after[0].best, after[1].coins, after[1].level, after[1].best], [before[0].coins, before[0].level, before[0].best, before[1].coins, before[1].level, before[1].best], 'saves');
+      eq([after[0].coins, after[0].level, after[0].best, after[1].coins, after[1].level, after[1].best], [before[0].coins + 20, before[0].level, before[0].best, before[1].coins + 10, before[1].level, before[1].best], 'saves');
       eq([after[0].hist, after[1].hist], ['w:Ben', 'l:Ann'], 'online history rows');
       eq(duo.denials.length, 0, `rule refusals: ${JSON.stringify(duo.denials.slice(0, 3))}`);
     },
