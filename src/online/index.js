@@ -23,6 +23,7 @@ import './ui/online.css';
 import { Versus } from './game/versus.js';
 import { createTransport } from './transport.js';
 import { createSession } from './session.js';
+import { createFollowClock } from './clock.js';
 import { createFlow } from './flow.js';
 import { createOnlineScreen } from './ui/hub.js';
 import { installMatchUi } from './ui/matchui.js'; // the match screens: VS card, versus bar, LEAVE MATCH?, the 'vsresult' screen
@@ -88,7 +89,9 @@ export async function installOnline(game, ui, opts = {}) {
     if (game.online) on = game.online; // (two calls at once: the first one built it)
     else {
       const session = createSession({ transport: made.transport });
-      const flow = createFlow(game, ui, { transport: made.transport, session });
+      // the harness's pages run the Quick Match timers on the hub's virtual time, like everything else they see
+      const clock = opts.net === 'bridge' ? createFollowClock(() => made.transport.now()) : undefined;
+      const flow = createFlow(game, ui, { transport: made.transport, session, clock });
       on = game.online = { flow };
       ui.addScreen('online', createOnlineScreen(ui, flow));
       installMatchUi(game, ui, flow);

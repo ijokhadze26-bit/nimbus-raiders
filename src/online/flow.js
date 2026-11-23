@@ -49,7 +49,7 @@ export const NOTICES = {
 };
 const NAME_FAIL = { ...NAME_HELP, denied: 'That name did not work. Try another one.', offline: 'No connection right now. Try again in a moment.' };
 
-export function createFlow(game, ui, { transport, session }) {
+export function createFlow(game, ui, { transport, session, clock }) {
   const handlers = new Map();
   let roomOffs = [];
   let wantRematch = false;
@@ -324,7 +324,7 @@ export function createFlow(game, ui, { transport, session }) {
   ev.on('versus:end', record);
   ev.on('versus:revised', record);
   ev.on('save:changed', () => { if (flow.room && !flow.link) syncPicks(); });
-  quick = installQuick(flow, { game, ui, transport, session, adopt, dropRoom, syncPicks, seatPicks, changed, setPlayers: (list) => { players = list; } });
+  quick = installQuick(flow, { game, ui, transport, session, adopt, dropRoom, syncPicks, seatPicks, changed, setPlayers: (list) => { players = list; } }, clock ? { clock } : undefined);
   syncPicks();
   return flow;
 }
