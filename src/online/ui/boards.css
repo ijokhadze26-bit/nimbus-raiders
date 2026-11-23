@@ -66,7 +66,7 @@
 .bd-mine-l span { font: 400 7.5px/1 var(--font-display); letter-spacing: 0.3px; color: #a9d4ff; text-align: center; white-space: nowrap; }
 .bd-mine-l b { font: 400 15px/1 var(--font-display); color: #ffd34d; }
 .bd-mine.out { grid-template-columns: 28px minmax(0, 1fr) auto; padding-left: 12px; }
-.bd-mine .bd-nm small { display: block; margin-top: 2px; font-size: 11px; letter-spacing: 0.3px; color: #a9d4ff; }
+.bd-mine .bd-nm .bd-out { display: block; margin-top: 2px; font-size: 11px; letter-spacing: 0.3px; color: #a9d4ff; }
 .bd .bd-mine .bd-v { color: #fff; }
 
 /* ---------- MY PROFILE ---------- */

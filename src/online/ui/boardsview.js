@@ -87,7 +87,7 @@ export function createBoardsView(ui, flow, page) {
     mineEl.className = `bd-mine${place ? '' : ' out'}`;
     // (not placed: the words go under my name inside the bar, never over the list above it)
     mineEl.innerHTML = (place ? `<span class="bd-mine-l"><span>${sub}</span><b class="num">${place}</b></span>` : '')
-      + `<span class="bd-bg">${LG.badgeHtml(myTr(), 'sm')}</span><span class="bd-nm">${name}${!place && sub ? `<small>${sub}</small>` : ''}</span><span class="bd-v num">${val}</span>`;
+      + `<span class="bd-bg">${LG.badgeHtml(myTr(), 'sm')}</span><span class="bd-nm">${name}${!place && sub ? `<span class="bd-out">${sub}</span>` : ''}</span><span class="bd-v num">${val}</span>`;
   }
 
   function render() {
