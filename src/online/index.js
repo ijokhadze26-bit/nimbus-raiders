@@ -51,8 +51,9 @@ async function pickTransport(opts) {
       import('./localchannel.js'), import('./localhub.js'), import('./rulescheck.js'), import('../../config/firebase/database.rules.json'),
     ]);
     const id = tabId(opts.pid);
-    const { port } = await joinChannel({ channel: new BroadcastChannel('nimbus-net'), id, makeHub: () => createHub({ rules: createRules(rules.default || rules) }) });
+    const { port, hub } = await joinChannel({ channel: new BroadcastChannel('nimbus-net'), id, makeHub: () => createHub({ rules: createRules(rules.default || rules) }) });
     const made = await createTransport('local', { port, uid: id, nettest });
+    made.hub = hub; // the tab that hosts the local hub keeps it (game.online.hub: tests seed profiles through hub.admin)
     // a closed tab lets go of its seat at once (the real service does that through onDisconnect); a tab the browser
     // brings back from its page cache has said goodbye already, so it starts over
     if (made.transport) {
@@ -94,7 +95,7 @@ export async function installOnline(game, ui, opts = {}) {
       // the harness's pages run the Quick Match timers on the hub's virtual time, like everything else they see
       const clock = opts.net === 'bridge' ? createFollowClock(() => made.transport.now()) : undefined;
       const flow = createFlow(game, ui, { transport: made.transport, session, clock });
-      on = game.online = { flow };
+      on = game.online = { flow, hub: made.hub || opts.hub || null };
       ui.addScreen('online', createOnlineScreen(ui, flow));
       installMatchUi(game, ui, flow);
     }

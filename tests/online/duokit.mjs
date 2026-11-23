@@ -361,6 +361,52 @@ export class Duo {
     await p.ctx.close().catch(() => {});
   }
 
+  // ---------------- stage 4: profiles, reloads, boards, emotes ----------------
+  /** The hub's users row of a page (a page's uid is its pid). */
+  profile(p) { return this.hub.admin.get(`users/${typeof p === 'string' ? p : p.pid}`); }
+  /** Seeds users/{uid} fields (and rk/{uid} with tr) the way the owner's console would: the rules are skipped. */
+  seed(uid, fields) {
+    this.hub.admin.update(Object.fromEntries(Object.entries(fields).map(([k, v]) => [`users/${uid}/${k}`, v])));
+    if ('tr' in fields) this.hub.admin.set(`rk/${uid}`, fields.tr);
+  }
+  /** The page reloads (a closed tab coming back): its line drops (the hub sees it go), the same pid, a new line.
+   *  localStorage and sessionStorage stay, as in a browser. Leaves the page on the title screen, its loop stopped. */
+  async reload(p) {
+    p.wire.close();
+    await p.page.reload({ waitUntil: 'load', timeout: 120000 });
+    await p.page.waitForFunction(() => window.__game && window.__game.loop && window.__game.loop.running, null, { timeout: 120000 });
+    await p.page.evaluate(() => window.__game.loop.stop());
+    Object.assign(p, { outbox: [], got: 0, next: 0, early: new Map() }); // (the new page numbers its messages from 0)
+    p.wire = makeWire(this.clock, this.hub, 7919 * (this.players.indexOf(p) + 1) + 101, (m) => p.outbox.push(m));
+  }
+  /** LEADERBOARDS (from the hub, a real tap), one tab -> { state, rows: [{ rank, name, v, me, uid }], mine } */
+  async boards(p, tab = 'top') {
+    if ((await p.view()).view !== 'boards') {
+      await p.click('[data-act="boards"]');
+      await this.until(async () => (await p.view()).view === 'boards', `${p.pid}: LEADERBOARDS`);
+    }
+    await p.click(`[data-act="bd-tab"][data-tab="${tab}"]`);
+    await this.until(() => p.ev((t) => { const b = document.querySelector('.bd'); return b && b.dataset.tab === t && b.dataset.state && b.dataset.state !== 'loading'; }, tab), `${p.pid}: the ${tab} board`);
+    await this.until(() => p.ev(() => !/\.\.\./.test(document.querySelector('.bd-mine').textContent)), `${p.pid}: my place on the ${tab} board`);
+    return p.ev(() => ({
+      state: document.querySelector('.bd').dataset.state,
+      rows: [...document.querySelectorAll('.bd-list .bd-row')].map((li) => ({
+        rank: Number(li.querySelector('.bd-rk').textContent), name: li.querySelector('.bd-nm').firstChild.textContent.trim(),
+        v: li.querySelector('.bd-v').textContent, me: li.classList.contains('me'), uid: li.dataset.uid,
+      })),
+      mine: document.querySelector('.bd-mine').textContent.replace(/\s+/g, ' ').trim(),
+    }));
+  }
+  /** Emote `a` (0 thumbs, 1 laugh, 2 cry, 3 GG) with real taps: the emote button opens the fan -> true when it was sent. */
+  async emote(p, a) {
+    const sent = () => p.ev(() => window.__game.ui.matchUi.emotes.test.sent.length);
+    const before = await sent();
+    if (!(await p.ev(() => window.__game.ui.matchUi.emotes.open))) await p.click('.emo-btn');
+    await p.click(`.emo-pick[data-emo="${a}"]`);
+    await this.pump();
+    return (await sent()) > before;
+  }
+
   async close() {
     for (const p of this.players) { try { p.wire.close(); } catch { /* gone */ } await p.ctx.close().catch(() => {}); }
   }
