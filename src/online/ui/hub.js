@@ -4,6 +4,7 @@
 //   hub    QUICK MATCH, CREATE ROOM, JOIN WITH CODE, my name with CHANGE, BACK         (this file)
 //   quick  FINDING A RIVAL... / RIVAL FOUND! while flow.mode is 'quick'               (ui/finding.js)
 //   lobby  room code + share link, both seats with their picks, READY, LEAVE          (ui/lobby.js)
+//   boards LEADERBOARDS (TOP 100 / THIS WEEK / LONGEST, my rank); profile MY PROFILE     (ui/boardsview.js, stage 4)
 // Which view shows follows the FLOW (src/online/flow.js): every 'change' re-checks it. A view is
 // { el, title, enter(), sync(), leave(), onAct(act, btn), onBack() }: `el` is built once, sync() only touches what
 // changed (a text box must never be rebuilt while someone is typing in it).
@@ -13,6 +14,8 @@ import { icon } from '../../ui/icons.js';
 import { createNameView, onEnter } from './name.js';
 import { createLobbyView } from './lobby.js';
 import { createFindingView } from './finding.js';
+import { createBoardsView, createProfileView } from './boardsview.js';
+import { LG } from '../boards.js';
 
 const GATES = {
   paused: ['ONLINE IS PAUSED', 'Online play is taking a short break. Please come back a little later!'],
@@ -42,6 +45,7 @@ function createHubView(ui, flow, page) {
       <p class="on-p">Play a rival from anywhere. Last squad standing wins!</p>
       <button type="button" class="btn btn-gold btn-lg on-quick" data-act="quick">${icon('globe')}<span>QUICK MATCH</span></button>
     </div>
+    <button type="button" class="btn btn-purple btn-md on-boards pop" data-act="boards">${icon('trophy')}<span>LEADERBOARDS</span></button>
     <div class="on-card pop">
       <div class="on-h ol">PLAY A FRIEND</div>
       <p class="on-p">Make a room and send the code to a friend. Last squad standing wins!</p>
@@ -54,8 +58,12 @@ function createHubView(ui, flow, page) {
       <div class="on-msg" role="status" aria-live="polite"></div>
     </div>
     <div class="on-me">
-      <div class="on-me-t"><span>YOUR NAME</span><b class="on-me-n"></b></div>
-      <button type="button" class="btn btn-blue btn-sm" data-act="rename">CHANGE</button>
+      <span class="on-me-bg"></span>
+      <div class="on-me-t"><span>YOUR NAME</span><b class="on-me-n"></b><span class="on-me-tr">${icon('trophy')}<b class="num">0</b> TROPHIES</span></div>
+      <div class="on-me-btns">
+        <button type="button" class="btn btn-purple btn-sm on-prof" data-act="profile">PROFILE</button>
+        <button type="button" class="btn btn-blue btn-sm" data-act="rename">CHANGE</button>
+      </div>
     </div>
     <ol class="on-how">
       <li>QUICK MATCH finds you a rival in seconds.</li>
@@ -63,6 +71,8 @@ function createHubView(ui, flow, page) {
       <li>Same road for both. The last squad standing wins!</li>
     </ol>`;
   const code = root.querySelector('.on-code'), msg = root.querySelector('.on-msg'), nameEl = root.querySelector('.on-me-n');
+  const badgeEl = root.querySelector('.on-me-bg'), trEl = root.querySelector('.on-me-tr b');
+  let shownTr = null; // (the badge is redrawn only when my trophies change)
   const buttons = [...root.querySelectorAll('button')];
   let local = ''; // a hint of my own ("type 4 letters") shown until the next action
   code.addEventListener('input', () => { code.value = code.value.replace(CODE_CHARS, '').toUpperCase().slice(0, 4); if (local) { local = ''; view.sync(); } });
@@ -88,6 +98,8 @@ function createHubView(ui, flow, page) {
     leave() { if (root.parentElement) root.parentElement.classList.remove('on-typing'); },
     sync() {
       nameEl.textContent = flow.name;
+      const p = flow.session && flow.session.profile, tr = p ? Math.max(0, Math.floor(Number(p.tr) || 0)) : 0;
+      if (tr !== shownTr) { shownTr = tr; badgeEl.innerHTML = LG.badgeHtml(tr, 'md'); trEl.textContent = tr.toLocaleString('en-US'); }
       const away = flow.net !== 'on'; // my connection dropped: nothing can be asked of the service right now
       for (const b of buttons) b.classList.toggle('is-disabled', !!flow.busy || away);
       const n = flow.notice;
@@ -102,6 +114,7 @@ function createHubView(ui, flow, page) {
       else if (act === 'create') { local = ''; flow.createRoom(); }
       else if (act === 'join') join();
       else if (act === 'rename') { flow.clearNotice(); page.rename(); }
+      else if (act === 'boards' || act === 'profile') { flow.clearNotice(); page.open(act); }
     },
     /** Test hook / deep link: put a code in the box. */
     setCode(c) { code.value = String(c || '').replace(CODE_CHARS, '').toUpperCase().slice(0, 4); },
@@ -120,17 +133,22 @@ export function createOnlineScreen(ui, flow) {
     </div>
     <div class="on-scroll on-body"></div>`;
   const body = root.querySelector('.on-body'), title = root.querySelector('.on-title'), net = root.querySelector('.on-net');
-  let cur = null, shown = false, off = null, naming = false, joinCode = null;
+  let cur = null, shown = false, off = null, naming = false, joinCode = null, sub = null; // sub: 'boards' | 'profile' | null
 
   const page = {
     /** Hub -> the name view to change my name. */
     rename() { naming = true; refresh(); },
     named() { naming = false; refresh(); },
+    /** Hub -> LEADERBOARDS / MY PROFILE; BACK there closes it. */
+    open(name) { sub = name === 'boards' || name === 'profile' ? name : null; refresh(); },
+    close() { sub = null; refresh(); },
   };
   const views = { gate: createGateView(ui, flow), name: createNameView(ui, flow, page), hub: null, lobby: createLobbyView(ui, flow, page), quick: createFindingView(ui, flow) };
   views.hub = createHubView(ui, flow, page);
+  views.boards = createBoardsView(ui, flow, page);
+  views.profile = createProfileView(ui, flow, page);
 
-  const want = () => (flow.gate ? 'gate' : !flow.name || naming ? 'name' : flow.mode === 'quick' && !flow.link ? 'quick' : flow.room ? 'lobby' : 'hub');
+  const want = () => (flow.gate ? 'gate' : !flow.name || naming ? 'name' : flow.mode === 'quick' && !flow.link ? 'quick' : flow.room ? 'lobby' : sub || 'hub');
 
   function refresh() {
     if (!shown) return;
@@ -158,14 +176,14 @@ export function createOnlineScreen(ui, flow) {
       shown = true;
       if (opts && opts.room) joinCode = opts.room;
       if (!off) off = flow.on('change', refresh);
-      naming = false;
+      naming = false; sub = null;
       refresh();
     },
     hide() {
       shown = false;
       if (off) { off(); off = null; }
       if (cur) views[cur].leave?.();
-      cur = null; joinCode = null;
+      cur = null; joinCode = null; sub = null;
     },
     onAct(act, btn) {
       if (act === 'back') { this.onBack(); return; }

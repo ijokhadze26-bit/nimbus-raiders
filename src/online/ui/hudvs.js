@@ -56,7 +56,7 @@ export function mountVsHud(ctx) {
     hud.el.classList.toggle('vs-many', n > 1);   // two or three rows are wider: the phase tag gets the progress bar's line
     hud.el.classList.remove('vs-ph');
     rivalsEl.className = `vs-rivals n${n}`;
-    rivalsEl.innerHTML = peers.slice(0, 3).map((p) => `<div class="vs-r" style="--sc:${SLOT_COLORS[p.slot % SLOT_COLORS.length]}">`
+    rivalsEl.innerHTML = peers.slice(0, 3).map((p) => `<div class="vs-r" data-slot="${p.slot}" style="--sc:${SLOT_COLORS[p.slot % SLOT_COLORS.length]}">`
       + `<span class="vs-n"><i class="vs-dot"></i>${n === 1 ? '' : '<span class="vs-fl"></span>'}<span class="vs-name${nameFit(p.name)}">${esc(up(p.name))}</span></span>`
       + `<span class="vs-v">${n === 1 ? icon('squad') : ''}<b class="vs-cnt num">0</b><span class="vs-d"></span></span>${n === 1 ? '<span class="vs-fl"></span>' : ''}</div>`).join('');
     rows = [...rivalsEl.children].map((el, i) => ({ el, slot: peers[i].slot, cntEl: el.querySelector('.vs-cnt'), dEl: el.querySelector('.vs-d'), flEl: el.querySelector('.vs-fl'), state: '', n: 0, d: '', fl: '' }));

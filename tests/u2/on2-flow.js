@@ -56,7 +56,7 @@ try {
   ok(P.view() === 'hub' && flow.name === 'Sky Rider', `after a good name: view ${P.view()}, name "${flow.name}"`);
   ok(g.save.data.online.name === 'Sky Rider', 'the name is not cached in the save');
   ok(P.text('.on-me-n') === 'Sky Rider', 'the hub does not show my name');
-  ok(!P.q('.on-hub').textContent.match(/LEADERBOARD|TROPH/i), 'the hub shows something that is not built yet (QUICK MATCH is, since stage 3)');
+  ok(!P.q('.on-hub').textContent.match(/SPECTATE|4-PLAYER|FOUR PLAYER/i), 'the hub shows something that is not built yet (QUICK MATCH is, since stage 3; LEADERBOARDS and TROPHIES since stage 4)');
   K.layout(P.el, ['.topbar', '.on-hub .on-card', '.on-me'], fails, 'hub');
   P.q('.on-code').focus(); // (QUICK MATCH sits above it since stage 3: a focused box scrolls up clear of the keyboard)
   ok(P.q('.on-code').getBoundingClientRect().bottom < innerHeight * 0.5, 'the focused code box sits in the lower half: a phone keyboard would cover it');
