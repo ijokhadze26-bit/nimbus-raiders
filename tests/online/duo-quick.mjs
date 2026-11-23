@@ -268,6 +268,29 @@ export const scenarios = [
     },
   },
   {
+    name: 'two pages on a bad line (lat400, jit300, loss5) still play each other: both human, one full room, the same seed',
+    async run(duo, { ok, eq, note }) {
+      const A = await duo.page('A', { net: 'lat400,jit300,loss5' }), B = await duo.page('B', { net: 'lat400,jit300,loss5' });
+      await duo.signIn(A, 'Ann');
+      await duo.signIn(B, 'Ben');
+      await bots(A, B);
+      const tap = duo.clock.now();
+      await duo.quick(A);
+      await duo.tick(500);
+      await duo.quick(B);
+      const [fa, fb] = [await duo.found(A, { max: 30000 }), await duo.found(B, { max: 30000 })];
+      const [va, vb] = await duo.go(A, B);
+      const [qa, qb] = [await quick(A), await quick(B)];
+      note(`found ${fa.name} / ${fb.name}; both live ${duo.clock.now() - tap} ms after A's tap; kinds ${qa.match.kind} / ${qb.match.kind}`);
+      eq([qa.match.kind, qb.match.kind], ['human', 'human'], 'both play a person');
+      eq([fa.name, fb.name], ['Ben', 'Ann'], 'each other');
+      eq(va.seed, vb.seed, 'the same road');
+      const rs = rooms(duo);
+      ok(rs.length === 1 && Object.keys(rs[0][1].sl || {}).length === 2 && rs[0][1].st === 'live', `one live room with both seats: ${JSON.stringify(rs.map(([c, r]) => [c, r.sl, r.st]))}`);
+      eq(tickets(duo), [], 'no ticket left');
+    },
+  },
+  {
     name: 'a bot match on a bad line (lat400, jit300, loss5) at 390x844: the timers hold, the match plays to a result',
     async run(duo, { ok, eq, note }) {
       const A = await duo.page('A', { net: 'lat400,jit300,loss5' });
