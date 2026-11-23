@@ -26,6 +26,7 @@ import { mountVsMoment } from './vsmoment.js';
 import { mountSabButton } from './sabbtn.js';
 import { mountSabWarn } from './sabwarn.js';
 import { createVsResult } from './vsresult.js';
+import { mountEmotes } from './emotes.js'; // stage 4: the emote button, its fan and the bubbles
 
 export function installMatchUi(game, ui, flow) {
   if (ui.matchUi) { ui.matchUi.ctx.flow = flow; return ui.matchUi; }
@@ -68,6 +69,7 @@ export function installMatchUi(game, ui, flow) {
   const sabBtn = mountSabButton(ctx);
   const sabWarn = mountSabWarn(ctx);
   const screen = createVsResult(ctx);
+  const emotes = mountEmotes(ctx);
   if (typeof ui.addScreen === 'function') ui.addScreen('vsresult', screen);
   else ui.screens.vsresult = screen; // (a ui.js without addScreen: same thing its constructor does)
 
@@ -80,6 +82,7 @@ export function installMatchUi(game, ui, flow) {
     sabBtn.update(dt || 0);
     sabWarn.update(dt || 0);
     moment.update();
+    emotes.update(dt || 0);
   };
 
   // ---- the endless BOSS n DOWN! banner promises coins; an online match pays none: that part goes in a versus run ----
@@ -120,6 +123,6 @@ export function installMatchUi(game, ui, flow) {
     askLeave();
   });
 
-  ui.matchUi = { ctx, bar, card, moment, sabBtn, sabWarn, screen, askLeave, leave, update(dt) { bar.update(dt || 0); card.update(); sabBtn.update(dt || 0); sabWarn.update(dt || 0); moment.update(); } };
+  ui.matchUi = { ctx, bar, card, moment, sabBtn, sabWarn, screen, emotes, askLeave, leave, update(dt) { bar.update(dt || 0); card.update(); sabBtn.update(dt || 0); sabWarn.update(dt || 0); moment.update(); emotes.update(dt || 0); } };
   return ui.matchUi;
 }

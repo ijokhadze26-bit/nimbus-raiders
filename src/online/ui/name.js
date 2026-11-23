@@ -17,6 +17,7 @@ export function createNameView(ui, flow, page) {
     <p class="on-p">This is the name other players see.</p>
     <input type="text" class="on-input on-nameinput" maxlength="12" aria-label="Player name" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" enterkeyhint="done">
     <div class="on-rules">3 to 12 letters or numbers. Please keep it kind!</div>
+    <p class="on-fine on-public">Everyone can see this name on the leaderboards. Do not use your real name!</p>
     <div class="on-msg" role="status" aria-live="polite"></div>
     <div class="btn-row">
       <button type="button" class="btn btn-blue btn-md on-cancel" data-act="name-cancel">CANCEL</button>
