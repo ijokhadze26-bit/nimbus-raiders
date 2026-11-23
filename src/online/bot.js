@@ -199,7 +199,7 @@ export function createBotLink({ seed = 1, pick, game, now, t0, clock, slot = 0 }
     keep(wire, str, 50);
     const at = Math.max(lastState, tf + lag());
     lastState = at;
-    keep(test.bundles, { f: tf, at, str }, 400);
+    keep(test.bundles, { f: tf, at, str }, 1400);
     enqueue({ at, kind: 'state', s: decodeState(str) });
   }
 

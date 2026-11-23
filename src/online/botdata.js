@@ -15,6 +15,7 @@
 //               slice: x the slice of its fall time that a landed sabotage of mine takes
 //   steer       lane speed (u/s), lane noise (u), how far ahead a gate row is aimed at (u)
 //   formEvery   seconds between formation changes (line / wedge / circle)
+//   arenaRecover  seconds for its squad to climb back from an arena's dip to the curve
 //   sab         its sabotage: the first normal one at U(first) s, then every U(every) s, never two within `gap` s;
 //               a big one `bigAfter` s after each of its boss kills
 //   react       mine landing on it: after `delay` s a squad dip of dip[code] (share lost) that recovers over
