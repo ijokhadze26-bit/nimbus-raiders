@@ -12,46 +12,15 @@
 //   await boards.myRank({ force })                          -> { rank /* null = unknown */, plus /* 500+ */, tr }
 //   boards.stats.reads                                      reads sent (tests: a cached open sends none)
 //
-// The league numbers come from leagues.js (builder PROG). Until the two halves are merged that file may be missing:
-// LG below is then a stub with the same thresholds (the integrator replaces it with a static import).
+// The league numbers come from leagues.js (re-exported as LG).
 import { censor } from './names.js';
+import * as LG from './leagues.js';
 
 export const BOARD = { top: 100, rankMax: 500, ttlMs: 300000, rankTtlMs: 600000, timeoutMs: 8000 };
 export const TABS = ['top', 'week', 'long'];
 
-// ---- leagues.js, or a stub with exactly its thresholds (STAGE4 "THE API": removed by the integrator) ----
-const LEAGUES_STUB = [
-  { id: 'bronze', name: 'BRONZE', min: 0, color: '#d08a4c', edge: '#6b3a12' },
-  { id: 'silver', name: 'SILVER', min: 300, color: '#cfd8e6', edge: '#4d5f8a' },
-  { id: 'gold', name: 'GOLD', min: 700, color: '#ffd34d', edge: '#8a5a00' },
-  { id: 'diamond', name: 'DIAMOND', min: 1200, color: '#7fe8ff', edge: '#1b5a8a' },
-  { id: 'champion', name: 'STORM CHAMPION', min: 1800, color: '#b49dff', edge: '#3b2a8f' },
-];
-function stubLeagues() {
-  const LEAGUES = LEAGUES_STUB;
-  const weekBase = (now) => { const x = now - 345600000; return (x - (x % 604800000)) / 6048; };
-  const leagueOf = (tr) => {
-    const v = Math.max(0, Number(tr) || 0);
-    let i = 0;
-    while (i + 1 < LEAGUES.length && LEAGUES[i + 1].min <= v) i++;
-    return { i, ...LEAGUES[i], next: i + 1 < LEAGUES.length ? LEAGUES[i + 1].min : null };
-  };
-  const SKIN_RULES = [{ id: 'on-silver', field: 'pk', min: 300 }, { id: 'on-wins10', field: 'w', min: 10 },
-    { id: 'on-streak5', field: 'bs', min: 5 }, { id: 'on-champion', field: 'pk', min: 1800 }];
-  return {
-    LEAGUES, leagueOf, weekBase, SKIN_RULES,
-    dayOf: (now) => (now - (now % 86400000)) / 86400000,
-    weekScore: (ws, now) => (ws >= weekBase(now) ? ws - weekBase(now) : 0),
-    earnedSkins: (p) => SKIN_RULES.filter((r) => p && (Number(p[r.field]) || 0) >= r.min).map((r) => r.id),
-    badgeHtml: (tr, size = 'sm') => { const l = leagueOf(tr); return `<i class="lg-badge lg-${size}" style="--lg:${l.color};--lge:${l.edge}" role="img" aria-label="${l.name}"></i>`; },
-    stub: true,
-  };
-}
-let found = {};
-try { found = import.meta.glob('./leagues.js', { eager: true }); } catch { found = {}; } // (Node: no glob; the stub)
-const real = Object.values(found)[0];
-/** The league module this half works with: PROG's leagues.js when present, else the stub. */
-export const LG = real && typeof real.leagueOf === 'function' && typeof real.badgeHtml === 'function' ? real : stubLeagues();
+/** The league numbers (leagues.js); boardsview, profileview, share and hub take them from here. */
+export { LG };
 
 const QUERY = {
   top: () => ({ orderBy: 'child', child: 'tr', limitToLast: BOARD.top }),

@@ -2,12 +2,7 @@
    (ui/boardsview.js, ui/profileview.js), the emote dock and bubbles (ui/emotes.js) and the PICTURE SAVED! sheet
    (share.js). Loaded with the online chunk only. No backdrop-filter, no CSS filter: cheap on Low graphics. */
 
-/* ---------- league badge (the stub of boards.js; leagues.js draws its own SVG in the same boxes) ---------- */
-.lg-badge { position: relative; display: inline-block; flex: none; width: 22px; height: 24px; background: var(--lge, #6b3a12);
-  clip-path: polygon(50% 0, 100% 14%, 96% 58%, 50% 100%, 4% 58%, 0 14%); }
-.lg-badge::after { content: ''; position: absolute; inset: 16%; background: var(--lg, #d08a4c); clip-path: inherit; }
-.lg-badge.lg-md { width: 40px; height: 44px; }
-.lg-badge.lg-lg { width: 96px; height: 104px; }
+/* ---------- league badge boxes (leagues.js badgeHtml draws the SVG; rank.css styles .lg-badge) ---------- */
 .on-me-bg, .bd-bg, .pf-badge { display: grid; place-items: center; flex: none; }
 .on-me-bg > *, .bd-bg > *, .pf-badge > * { max-width: 100%; max-height: 100%; }
 .bd-bg { width: 26px; height: 28px; }

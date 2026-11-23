@@ -5,34 +5,17 @@
 // Rebuilt on enter() and when the profile object or the history changes (flow 'change'), never per frame.
 import './boards.css';
 import { icon } from '../../ui/icons.js';
-import * as SKINS from '../../data/skins.js';
+import { ONLINE_SKINS } from '../../data/skins.js';
 import { heroPreview, weaponPreview } from '../../ui/screens/shop.js';
 import { LG } from '../boards.js';
 import { censor } from '../names.js';
 import { esc } from './vswords.js';
 
-// How each online skin is earned (STAGE4 table). The skin data itself is skins.js ONLINE_SKINS (builder PROG); until
-// that exists the stub below has the same ids with a palette of its own (the integrator drops it).
-export const SKIN_HINTS = {
-  'on-silver': { kind: 'hero', hint: 'Reach SILVER league online', field: 'pk', min: 300 },
-  'on-wins10': { kind: 'weapon', hint: 'Win 10 online matches', field: 'w', min: 10 },
-  'on-streak5': { kind: 'weapon', hint: 'Win 5 online matches in a row', field: 'bs', min: 5 },
-  'on-champion': { kind: 'hero', hint: 'Reach STORM CHAMPION online', field: 'pk', min: 1800 },
-};
-const t = (color, core) => ({ color, core, trail: color });
-const STUB_SKINS = [
-  { id: 'on-silver', name: 'Silver Storm', rarity: 'epic', online: true,
-    pip: { helmet: '#f4f7fb', visor: '#4dc3ff', suit: '#aab6c8', scarf: '#4d5f8a', jet: '#cfd8e6', glow: '#e8f6ff' } },
-  { id: 'on-wins10', name: 'Victory Gold', rarity: 'epic', online: true,
-    tiers: [t('#ffe066', '#fff'), t('#ffd34d', '#fff'), t('#ffc531', '#fff'), t('#ffb21f', '#fff'), t('#ffd34d', '#fff'), t('#fff3b0', '#fff')] },
-  { id: 'on-streak5', name: 'Hot Streak', rarity: 'epic', online: true,
-    tiers: [t('#ff8a3d', '#fff'), t('#ff6a1f', '#fff'), t('#ff3b1f', '#fff'), t('#ff2a4e', '#fff'), t('#ff8a1f', '#fff'), t('#ffe14d', '#fff')] },
-  { id: 'on-champion', name: 'Storm Champion', rarity: 'legendary', online: true,
-    pip: { helmet: '#2b1a5e', visor: '#ffd34d', suit: '#8a5cff', scarf: '#ffd34d', jet: '#3b2a8f', glow: '#b49dff' } },
-];
-/** The four online skins: PROG's data when skins.js has it, else the stub. */
-export const onlineSkins = () => (Array.isArray(SKINS.ONLINE_SKINS) && SKINS.ONLINE_SKINS.length ? SKINS.ONLINE_SKINS : STUB_SKINS);
-const isHero = (s) => !!s.pip || (SKINS.HERO_BY_ID && SKINS.HERO_BY_ID[s.id] === s) || (SKIN_HINTS[s.id] && SKIN_HINTS[s.id].kind === 'hero');
+// How each online skin is earned: skins.js ONLINE_SKINS[].earn (the same source as leagues.js SKIN_RULES).
+export const SKIN_HINTS = Object.fromEntries(ONLINE_SKINS.map((s) => [s.id, { kind: s.kind, hint: s.earn.hint, field: s.earn.field, min: s.earn.min }]));
+/** The four online skins (skins.js). */
+export const onlineSkins = () => ONLINE_SKINS;
+const isHero = (s) => s.kind === 'hero';
 
 const fmt = (n) => Math.max(0, Math.round(Number(n) || 0)).toLocaleString('en-US');
 const int = (v) => Math.max(0, Math.floor(Number(v) || 0));

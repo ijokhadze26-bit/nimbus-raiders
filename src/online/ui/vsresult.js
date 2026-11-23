@@ -15,10 +15,8 @@ import { icon } from '../../ui/icons.js';
 import { SLOT_COLORS } from '../game/vsdata.js';
 import { verdictWords, rematchWords, leftWords, clockTenths, metres, esc, up, nameFit } from './vswords.js';
 import { mountRankLine } from './rankline.js';
+import { shareResult } from '../share.js';
 
-// share.js is the other stage-4 builder's: found when it exists, a quiet stub until the merge
-const SHARE = Object.values(import.meta.glob('../share.js', { eager: true }))[0] || {};
-const shareResult = SHARE.shareResult || (async () => ({ ok: false, via: 'none' }));
 
 const RIBBON = { win: 'ribbon-gold', lose: 'ribbon-red', draw: 'ribbon-blue' };
 const ICON = {
