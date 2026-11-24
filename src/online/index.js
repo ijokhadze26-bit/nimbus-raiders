@@ -28,6 +28,7 @@ import { createFollowClock } from './clock.js';
 import { createFlow } from './flow.js';
 import { createOnlineScreen } from './ui/hub.js';
 import { installMatchUi } from './ui/matchui.js'; // the match screens: VS card, versus bar, LEAVE MATCH?, the 'vsresult' screen
+import { installWatch } from './watchflow.js'; // stage 5: watching a friend room (flow.watch, flow.watchRoom)
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -99,6 +100,7 @@ export async function installOnline(game, ui, opts = {}) {
       const test = !!(import.meta.env && import.meta.env.DEV) || !!(game.params && game.params.test);
       const real = !opts.hub && !opts.net;
       const flow = createFlow(game, ui, { transport: made.transport, session, clock, trusted: real || test });
+      installWatch(flow, { game, ui, transport: made.transport, session });
       on = game.online = { flow, hub: test ? made.hub || opts.hub || null : null };
       ui.addScreen('online', createOnlineScreen(ui, flow));
       installMatchUi(game, ui, flow);

@@ -5,16 +5,20 @@
 //   quick  FINDING A RIVAL... / RIVAL FOUND! while flow.mode is 'quick'               (ui/finding.js)
 //   lobby  room code + share link, both seats with their picks, READY, LEAVE          (ui/lobby.js)
 //   boards LEADERBOARDS (TOP 100 / THIS WEEK / LONGEST, my rank); profile MY PROFILE     (ui/boardsview.js, stage 4)
+//   watch  WATCHING a friend room: its lobby, then the live cards of every player      (ui/watchview.js, stage 5)
 // Which view shows follows the FLOW (src/online/flow.js): every 'change' re-checks it. A view is
 // { el, title, enter(), sync(), leave(), onAct(act, btn), onBack() }: `el` is built once, sync() only touches what
 // changed (a text box must never be rebuilt while someone is typing in it).
 // Opened with ui.nav('online', { room }) - `room` is the code from a friend's link: joined as soon as I have a name.
+// ui.nav('online', { room, watch: true }) (a WATCH LINK) watches that room as soon as I am connected, name or not.
+// The notices ROOM IS FULL / MATCH ALREADY STARTED carry a WATCH button for the code I tried (stage 5).
 import { screenEl, el, bump } from '../../ui/ui.js';
 import { icon } from '../../ui/icons.js';
 import { createNameView, onEnter } from './name.js';
 import { createLobbyView } from './lobby.js';
 import { createFindingView } from './finding.js';
 import { createBoardsView, createProfileView } from './boardsview.js';
+import { createWatchView } from './watchview.js';
 import { LG } from '../boards.js';
 
 const GATES = {
@@ -24,6 +28,8 @@ const GATES = {
 };
 const BUSY = { create: 'MAKING YOUR ROOM...', join: 'JOINING THE ROOM...' };
 const CODE_CHARS = /[^A-Za-z]/g;
+const WATCHABLE = new Set(['full', 'playing']);
+const WATCH_BTN = '<button type="button" class="btn btn-blue btn-sm on-watch" data-act="watch">WATCH</button>';
 
 function createGateView(ui, flow) {
   const root = el('div', 'on-card on-gate pop', '<div class="on-h ol"></div><p class="on-p"></p><button type="button" class="btn btn-blue btn-md" data-act="back">BACK</button>');
@@ -48,7 +54,7 @@ function createHubView(ui, flow, page) {
     <button type="button" class="btn btn-purple btn-md on-boards pop" data-act="boards">${icon('trophy')}<span>LEADERBOARDS</span></button>
     <div class="on-card pop">
       <div class="on-h ol">PLAY A FRIEND</div>
-      <p class="on-p">Make a room and send the code to a friend. Last squad standing wins!</p>
+      <p class="on-p">Make a room for up to 4 players and send the code to your friends. Last squad standing wins!</p>
       <button type="button" class="btn btn-green btn-lg on-create" data-act="create">CREATE ROOM</button>
       <div class="on-or"><span>OR TYPE A FRIEND'S CODE</span></div>
       <div class="on-join">
@@ -67,7 +73,7 @@ function createHubView(ui, flow, page) {
     </div>
     <ol class="on-how">
       <li>QUICK MATCH finds you a rival in seconds.</li>
-      <li>Pick your hero and weapon. Both tap READY.</li>
+      <li>Pick your hero and weapon. Everyone taps READY.</li>
       <li>Same road for both. The last squad standing wins!</li>
     </ol>`;
   const code = root.querySelector('.on-code'), msg = root.querySelector('.on-msg'), nameEl = root.querySelector('.on-me-n');
@@ -75,11 +81,13 @@ function createHubView(ui, flow, page) {
   let shownTr = null; // (the badge is redrawn only when my trophies change)
   const buttons = [...root.querySelectorAll('button')];
   let local = ''; // a hint of my own ("type 4 letters") shown until the next action
+  let tried = '', shownMsg = null; // the code of my last JOIN (a full / running room can be watched); what .on-msg shows
   code.addEventListener('input', () => { code.value = code.value.replace(CODE_CHARS, '').toUpperCase().slice(0, 4); if (local) { local = ''; view.sync(); } });
   const join = () => {
     const c = code.value.trim().toUpperCase();
     if (c.length !== 4) { local = 'Type the 4 letters of the room code.'; flow.clearNotice(); view.sync(); bump(code); ui.vibrate(30); return; }
     local = '';
+    tried = c;
     flow.joinRoom(c);
   };
   onEnter(code, join);
@@ -104,10 +112,11 @@ function createHubView(ui, flow, page) {
       for (const b of buttons) b.classList.toggle('is-disabled', !!flow.busy || away);
       const n = flow.notice;
       msg.classList.toggle('bad', !flow.busy && !away && (!!n || !!local));
-      if (flow.busy) msg.textContent = BUSY[flow.busy] || 'ONE MOMENT...';
-      else if (away) msg.textContent = 'RECONNECTING... one moment.';
-      else if (n) msg.innerHTML = `<b>${n.title}</b><span>${n.text}</span>`; // (fixed sentences from flow.js, never player text)
-      else msg.textContent = local;
+      // (fixed sentences from flow.js / watchflow.js, never player text; a full or running room offers WATCH)
+      const html = flow.busy ? BUSY[flow.busy] || 'ONE MOMENT...' : away ? 'RECONNECTING... one moment.'
+        : n ? `<b>${n.title}</b><span>${n.text}</span>${WATCHABLE.has(n.kind) && flow.watchRoom ? WATCH_BTN : ''}` : null;
+      const shown = html === null ? `t:${local}` : `h:${html}`;
+      if (shown !== shownMsg) { shownMsg = shown; if (html === null) msg.textContent = local; else msg.innerHTML = html; }
     },
     onAct(act) {
       if (act === 'quick') { local = ''; flow.clearNotice(); flow.quickMatch(); }
@@ -115,9 +124,10 @@ function createHubView(ui, flow, page) {
       else if (act === 'join') join();
       else if (act === 'rename') { flow.clearNotice(); page.rename(); }
       else if (act === 'boards' || act === 'profile') { flow.clearNotice(); page.open(act); }
+      else if (act === 'watch') { const c = tried || code.value.trim().toUpperCase(); if (c.length === 4) flow.watchRoom(c); }
     },
     /** Test hook / deep link: put a code in the box. */
-    setCode(c) { code.value = String(c || '').replace(CODE_CHARS, '').toUpperCase().slice(0, 4); },
+    setCode(c) { code.value = String(c || '').replace(CODE_CHARS, '').toUpperCase().slice(0, 4); tried = code.value; },
   };
   return view;
 }
@@ -134,6 +144,7 @@ export function createOnlineScreen(ui, flow) {
     <div class="on-scroll on-body"></div>`;
   const body = root.querySelector('.on-body'), title = root.querySelector('.on-title'), net = root.querySelector('.on-net');
   let cur = null, shown = false, off = null, naming = false, joinCode = null, sub = null; // sub: 'boards' | 'profile' | null
+  let watchCode = null, offWatch = null; // a WATCH LINK's room, watched as soon as I am connected
 
   const page = {
     /** Hub -> the name view to change my name. */
@@ -142,16 +153,28 @@ export function createOnlineScreen(ui, flow) {
     /** Hub -> LEADERBOARDS / MY PROFILE; BACK there closes it. */
     open(name) { sub = name === 'boards' || name === 'profile' ? name : null; refresh(); },
     close() { sub = null; refresh(); },
+    /** The notice of a watch link that failed for a page with no name yet (shown by the watch view). */
+    watchFail: null,
   };
   const views = { gate: createGateView(ui, flow), name: createNameView(ui, flow, page), hub: null, lobby: createLobbyView(ui, flow, page), quick: createFindingView(ui, flow) };
   views.hub = createHubView(ui, flow, page);
   views.boards = createBoardsView(ui, flow, page);
   views.profile = createProfileView(ui, flow, page);
+  views.watch = createWatchView(ui, flow, page);
 
-  const want = () => (flow.gate ? 'gate' : !flow.name || naming ? 'name' : flow.mode === 'quick' && !flow.link ? 'quick' : flow.room ? 'lobby' : sub || 'hub');
+  const watching = () => !!(flow.watch && flow.watch.state) || (!!page.watchFail && !flow.name);
+  const want = () => (flow.gate ? 'gate' : watching() ? 'watch' : !flow.name || naming ? 'name' : flow.mode === 'quick' && !flow.link ? 'quick' : flow.room ? 'lobby' : sub || 'hub');
 
   function refresh() {
     if (!shown) return;
+    // a WATCH LINK: watch that room as soon as I am connected (no name needed); a nameless page that cannot gets the
+    // notice on the watch view, a named one on the hub
+    if (watchCode && flow.net === 'on' && !flow.gate && !flow.busy && flow.watchRoom) {
+      const c = watchCode;
+      watchCode = null;
+      page.watchFail = null;
+      flow.watchRoom(c).then((ok) => { if (!ok && !flow.name && flow.notice) page.watchFail = flow.notice; refresh(); });
+    }
     const name = want();
     if (name !== cur) {
       if (cur) views[cur].leave?.();
@@ -174,17 +197,22 @@ export function createOnlineScreen(ui, flow) {
     el: root,
     show(opts) {
       shown = true;
-      if (opts && opts.room) joinCode = opts.room;
+      if (opts && opts.room && opts.watch) watchCode = opts.room;
+      else if (opts && opts.room) joinCode = opts.room;
       if (!off) off = flow.on('change', refresh);
+      if (!offWatch && flow.watch) offWatch = flow.watch.on('change', refresh);
       naming = false; sub = null;
       refresh();
     },
     hide() {
       shown = false;
       if (off) { off(); off = null; }
+      if (offWatch) { offWatch(); offWatch = null; }
       if (cur) views[cur].leave?.();
-      cur = null; joinCode = null; sub = null;
+      cur = null; joinCode = null; sub = null; watchCode = null; page.watchFail = null;
     },
+    /** ui.update calls the top screen's every frame: the watch view's cards run on it. */
+    update(dt) { if (cur) views[cur].update?.(dt); },
     onAct(act, btn) {
       if (act === 'back') { this.onBack(); return; }
       if (cur) views[cur].onAct?.(act, btn);
