@@ -412,7 +412,7 @@ test('a watcher gets states, falls and the final table, and sends nothing', asyn
   const w = world();
   const { games, rooms, to } = await arena(w);
   const e = await w.player('uidE', 'Echo');
-  const re = await w.settle(joinRoom({ transport: e.tp, code: rooms[0].code, profile: e.profile, clock: w.clock }));
+  const re = await w.settle(joinRoom({ transport: e.tp, code: rooms[0].code, profile: e.profile, watch: true, clock: w.clock }));
   await w.clock.advance(50);
   eq([re.state.me, re.state.watching, re.state.mid], [null, true, rooms[0].state.mid]);
   const link = createMatch({ transport: e.tp, room: re, timer: w.clock });

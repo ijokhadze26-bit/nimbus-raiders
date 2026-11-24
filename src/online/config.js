@@ -45,6 +45,8 @@ export const NET = Object.freeze({
   touchMs: 1800000,  // an open lobby refreshes the room's ts this often (a room untouched for 2 hours may be cleared)
   leaveMs: 2000,     // room.leave() waits this long at most for its last write (offline it never lands)
   maxWatchers: 4,
+  friendMax: 4,      // seats of every friend room (flow.createRoom); quick rooms keep 2
+  staleMs: 20000,    // no state / heartbeat from ANY running player this long -> 'stale' (a fallen player's or a watcher's link)
 });
 
 export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no I, no O

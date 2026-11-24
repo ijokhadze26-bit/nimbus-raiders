@@ -13,6 +13,16 @@
 //   'verdict' also has           void (true when a rival's stream was implausible: SPEC4 section 10),
 //                                provisional, revised (see below)
 //   'final' ({ places })         the whole ranking once it can no longer change (3-4 players, watchers)
+//   link.final                   null | those places (a listener added later reads them here)
+//   'feed' (e) + link.feeds      EVERY event of the match once, mine and other players' too, before the 'event'
+//                                filter: { k, a, f, to, q, id (the push key) }; a listener added later is first given
+//                                the earlier ones in key order (stage 5: a fallen player's and a watcher's view)
+//   'stale' + link.stale         once, NET.staleMs after the last state / heartbeat of ANY player still running, on a
+//                                listen-only link or after my own fall (never while I am standing)
+//   link.snapshot()              { t, states: { [slot]: decoded state }, outs: { [slot]: { T, d, by } } (mine too),
+//                                silent: { [slot]: seconds since heard } }: what this link knows right now
+//   'peer'                       also on a listen-only link (countdown always null there; it never closes a seat)
+//   link.left                    true once the link was left
 //   verdict.reason is one of     'standing' | 'fell' | 'distance' | 'draw' | 'dc' | 'quit' | 'cap' | 'offline'
 //                                ('dc' on a lose = my own connection was lost: show CONNECTION LOST)
 //
@@ -84,8 +94,9 @@ export function createMatch({ transport: tp, room, cfg = {}, timer = realClock }
   // out: what my listener shows for my seat; rec: my fall record once it is known to be the server's copy
   const my = { fell: false, t10: 0, d: 0, by: 'dead', acked: false, sure: false, out: null, rec: null, tries: 0, retryAt: 0, fellAt: 0, liveT10: -1 };
   const seenEv = new Set();
+  const feedLog = [];                              // every event once, in arrival (key) order, for a late 'feed' listener
 
-  let left = false, draining = false, given = null, finalSent = false; // given: null | 'provisional' | 'final'
+  let left = false, draining = false, given = null, finalSent = false, stale = false; // given: null | 'provisional' | 'final'
   let buf = [], last = null, seq = 0, halvings = 0, stride = 1, skip = 0, evQ = 0;
   let nextFlush = 0, nextHb = 0, offAt = null, stopTimer = null, lastOuts = {};
 
@@ -200,8 +211,12 @@ export function createMatch({ transport: tp, room, cfg = {}, timer = realClock }
   }
 
   function onEvent(v, key) {
-    if (!v || seenEv.has(key) || v.f === me) return;
+    if (!v || seenEv.has(key)) return;
     seenEv.add(key);
+    const e = { k: v.k, a: v.a, f: v.f, to: v.to, q: v.q ?? 0, id: key };
+    feedLog.push(e);
+    emit('feed', { ...e });
+    if (v.f === me) return;
     if (me !== null && v.to !== -1 && v.to !== me) return;
     emit('event', { k: v.k, a: v.a, to: v.to, f: v.f, q: v.q ?? 0 });
   }
@@ -242,7 +257,7 @@ export function createMatch({ transport: tp, room, cfg = {}, timer = realClock }
     }
     if (!finalSent && !st.presumed) {
       const places = finalPlaces(st);
-      if (places) { finalSent = true; emit('final', { places }); }
+      if (places) { finalSent = true; link.final = places; emit('final', { places }); }
     }
   }
 
@@ -274,6 +289,16 @@ export function createMatch({ transport: tp, room, cfg = {}, timer = realClock }
       if (my.fell && !my.rec && my.retryAt && now >= my.retryAt) writeOut();
     }
 
+    if (on && me === null && !finalSent) { // a listen-only link: the same silence chips, but it never closes a seat
+      for (const p of P.values()) {
+        if (p.out) continue;
+        const silent = (now - p.heard) / 1000;
+        const chipS = NET.silentS + (p.heard > p.stateAt ? NET.hbSlackS : 0);
+        const cd = silent >= chipS && now >= t0 + 1000 ? Math.max(0, Math.ceil(NET.silentS + NET.countdownS - silent)) : null;
+        if (cd !== p.cd) { p.cd = cd; emit('peer', p.slot, { silent: cd === null ? 0 : silent, countdown: null }); }
+      }
+    }
+    if (on && !stale && !finalSent && (me === null || my.fell) && now >= t0) checkStale(now);
     if (on && me !== null && !finalSent) { // once the ranking is final nobody needs forfeiting
       for (const p of P.values()) {
         if (p.out) continue;
@@ -305,6 +330,35 @@ export function createMatch({ transport: tp, room, cfg = {}, timer = realClock }
     }
   }
 
+  /** Every player still running has been silent for NET.staleMs: the end of the match will never be heard. */
+  function checkStale(now) {
+    let running = 0;
+    for (const p of P.values()) {
+      if (p.out) continue;
+      running++;
+      if (now - p.heard < NET.staleMs) return;
+    }
+    if (!running) return;
+    stale = true; link.stale = true;
+    emit('stale');
+  }
+
+  /** What this link knows right now (a view attached mid-match starts from it). Allocates: not for every frame. */
+  function snapshot() {
+    const now = tp.now(), out = { t: clock(), states: {}, outs: {}, silent: {} };
+    for (const p of P.values()) {
+      if (p.last) out.states[p.slot] = { ...p.last };
+      if (p.out) out.outs[p.slot] = { T: p.out.T, d: p.out.d, by: p.out.by };
+      out.silent[p.slot] = Math.max(0, (now - p.heard) / 1000);
+    }
+    if (me !== null) {
+      if (last) out.states[me] = { ...last };
+      const rec = my.rec || my.out;
+      if (rec) out.outs[me] = { T: rec.T, d: rec.d, by: rec.by };
+    }
+    return out;
+  }
+
   function stop() {
     left = true;
     draining = false;
@@ -318,6 +372,8 @@ export function createMatch({ transport: tp, room, cfg = {}, timer = realClock }
     seed, slot: me, peers, ranked: false,
     mid, t0, code, slots, flushMs, stats,
     clock,
+    feeds: true, final: null, stale: false, snapshot,
+    get left() { return left; },
 
     push(s) {
       if (left || me === null || my.fell || given !== null || !s) return;
@@ -353,6 +409,8 @@ export function createMatch({ transport: tp, room, cfg = {}, timer = realClock }
     on(type, cb) {
       if (!handlers.has(type)) handlers.set(type, new Set());
       handlers.get(type).add(cb);
+      // a feed listener added mid-match first hears the earlier events, in key order
+      if (type === 'feed') for (const e of feedLog.slice()) { if (left || !handlers.get(type).has(cb)) break; try { cb({ ...e }); } catch (x) { console.error(x); } }
       return () => { const set = handlers.get(type); if (set) set.delete(cb); };
     },
 

@@ -3,8 +3,9 @@
 //   node scripts/rules-probe.mjs --live    against the real database, once the owner has made the account
 // It only uses the transport interface and three signed-in players A, B, C, so it needs no console
 // access. The steps build on each other (allowed writes really happen), so the order matters.
-// Real waits add up to about 53 s on the live run; the hub run uses a virtual clock. The last 20 rows (stage 4) were
-// appended: a draw, a human close and a bot close that raise the best survival time.
+// Real waits add up to about 53 s on the live run (67 s with stage 5); the hub run uses a virtual clock. The stage-4
+// rows (a draw, a human close and a bot close that raise the best survival time) and the 11 stage-5 rows (a match of
+// three in a 4-seat friend room: seats 2 and 3, out/2, a dc of out/3, OVER with three) were appended.
 
 import { TS, isDenied } from '../../src/online/transport.js';
 import { makeCode } from '../../src/online/names.js';
@@ -336,6 +337,27 @@ export async function runVectors({ A, B, C, wait, rand = Math.random }) {
   await allow('a draw gives the stake back', 'A', async (t) => { const { rest, sk } = await now(t, uA); return t.set(uA, { ...rest, tr: rest.tr + sk.s, l: rest.l - 1, st: sk.st }); });
   await deny('close with a survival time above my own fall', 'B', async (t) => { const { rest } = await now(t, uB); return t.set(uB, { ...rest, bt: 6 }); });
   await allow('close with my own fall time as my best', 'B', async (t) => { const { rest } = await now(t, uB); return t.set(uB, { ...rest, bt: Math.max(rest.bt, 5) }); });
+
+  // ------------------------------------------------------------------ stage 5 (appended): never run live before
+  // a 4-seat friend room whose seats 2 and 3 are taken, a match of three in it, out/2, a dc of out/3 after 13 s and
+  // OVER with three runners. The third player hosts; the other two take seats 2 and 3. Extra real waits: about 13.5 s.
+  let code5 = makeCode(rand);
+  while ([code, qcode, code4, qcode2].includes(code5)) code5 = makeCode(rand);
+  const R5 = `rooms/${code5}`, mid5 = C.newId(), M5 = `matches/${mid5}`;
+  await allow('reserve a room code (third player)', 'C', (t) => t.set(`host/${U.C}`, code5));
+  await allow('a 4-seat friend room (third player hosts)', 'C', (t) => t.set(R5, roomVal(U.C, 'friend', 4)));
+  await allow('take seat 2 of a 4-seat room', 'A', (t) => t.set(`${R5}/sl/2`, U.A));
+  await allow('take seat 3 of a 4-seat room (second player)', 'B', (t) => t.set(`${R5}/sl/3`, U.B));
+  await allow('a match record of three in a 4-seat room', 'C', (t) => t.set(M5, { code: code5, k: 'friend', ts: TS, u: { 0: U.C, 2: U.A, 3: U.B }, us: { [U.C]: 0, [U.A]: 2, [U.B]: 3 } }));
+  const match5At = A.now();
+  await allow('the 4-seat room goes live with three', 'C', (t) => t.update(live(R5, mid5)));
+  await until(match5At + 3200);
+  await allow('seat 2 falls', 'A', (t) => t.set(`${M5}/out/2`, out(5, 30)));
+  await deny('back to the lobby while two still run', 'C', (t) => t.update(lobby(R5, 1)));
+  await until(match5At + 13500);
+  await deny('a fallen player forfeits a silent runner', 'A', (t) => t.set(`${M5}/out/3`, out(100, 150, 'dc')));
+  await allow('forfeit seat 3 after 13 s of silence', 'C', (t) => t.set(`${M5}/out/3`, out(100, 150, 'dc')));
+  await allow('back to the lobby once only one still runs', 'C', (t) => t.update(lobby(R5, 1)));
   return results;
 }
 

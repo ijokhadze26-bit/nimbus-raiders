@@ -23,7 +23,7 @@ export function clockTenths(s) {
 
 export const metres = (d) => `${Math.max(0, Math.round(d || 0)).toLocaleString('en-US')}m`;
 
-const ORD = ['', '1ST', '2ND', '3RD', '4TH'];
+export const ORD = ['', '1ST', '2ND', '3RD', '4TH'];
 
 // [headline, plain words]. `many` = a match of 3 or 4 players.
 const WHY = {
@@ -82,11 +82,14 @@ export function rematchWords(rs) {
     return { label: 'REMATCH', note, off: true, hot: false, waiting: false };
   }
   if (rs.mine) {
-    const who = rs.waitingFor || (others.find((o) => o.here && !o.wants) || {}).name;
-    return { label: 'REMATCH', note: who ? `WAITING FOR ${up(who)}` : 'STARTING...', off: true, hot: false, waiting: true };
+    // (a player who left is not waited for: only the ones still here)
+    const slow = others.filter((o) => o.here && !o.wants);
+    const who = slow.length > 1 ? `${slow.length} FRIENDS` : slow.length ? up(slow[0].name) : rs.waitingFor ? up(rs.waitingFor) : '';
+    return { label: 'REMATCH', note: who ? `WAITING FOR ${who}` : 'STARTING...', off: true, hot: false, waiting: true };
   }
-  const keen = others.filter((o) => o.here && o.wants);
-  const note = !keen.length ? '' : keen.length > 1 ? 'EVERYONE WANTS A REMATCH' : `${up(keen[0].name)} WANTS A REMATCH`;
+  const here = others.filter((o) => o.here), keen = here.filter((o) => o.wants);
+  const note = !keen.length ? '' : keen.length === 1 ? `${up(keen[0].name)} WANTS A REMATCH`
+    : keen.length === here.length ? 'EVERYONE WANTS A REMATCH' : `${keen.length} FRIENDS WANT A REMATCH`;
   return { label: 'REMATCH', note, off: false, hot: keen.length > 0, waiting: false };
 }
 

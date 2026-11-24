@@ -131,6 +131,25 @@ test('4 players: a three-way tie at the top goes to the furthest', () => {
   eq(judge({ me: 2, slots, outs }).place, 2);
 });
 
+test('3-4 players: equal distance inside 1 s for first is a draw for both, everyone else by time', () => {
+  const slots = [0, 1, 2, 3];
+  const outs = { 3: rank(30, 400), 2: rank(30.4, 300), 0: rank(90, 1200), 1: rank(90.6, 1200) };
+  eq(finalPlaces({ slots, outs }).map((p) => p.slot), [0, 1, 2, 3], 'the draw lists the lower seat first');
+  const a = judge({ me: 0, slots, outs }), b = judge({ me: 1, slots, outs });
+  eq([a.result, a.place, a.reason, b.result, b.place, b.reason], ['draw', 1, 'draw', 'draw', 1, 'draw']);
+  eq(a.places, b.places, 'one table');
+  eq([judge({ me: 2, slots, outs }).place, judge({ me: 3, slots, outs }).place], [3, 4], '0.4 s apart below first: time decides');
+  // three players: the draw for first waits for nobody once all three fell
+  const three = { 2: rank(10, 90), 0: rank(50, 600), 1: rank(50.9, 600) };
+  eq([judge({ me: 0, slots: [0, 1, 2], outs: three }).result, judge({ me: 2, slots: [0, 1, 2], outs: three }).place], ['draw', 3]);
+});
+
+test('3-4 players: the same time below first place goes to the further one, then the lower seat', () => {
+  const slots = [0, 1, 2, 3];
+  const outs = { 1: rank(20, 200), 3: rank(20, 260), 2: rank(20, 260), 0: rank(70, 900) };
+  eq(finalPlaces({ slots, outs }).map((p) => p.slot), [0, 2, 3, 1]);
+});
+
 test('plausibility: a stream that cannot be real', () => {
   const s = (t, dist, n = 50) => ({ t, dist, n });
   eq(plausible(null, s(10, 150), 10.2), null);

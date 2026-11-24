@@ -1,5 +1,7 @@
-// ONLINE page, lobby view: the room code in big letters with COPY LINK / SHARE, both seats (name, hero, weapon,
-// outfit and gun paint), my pick with CHANGE, READY / NOT READY and LEAVE. Everything shown comes from the room
+// ONLINE page, lobby view: the room code in big letters with COPY LINK / SHARE / WATCH LINK, the 4 seats of a friend
+// room in a 2x2 grid (my seat first, then the others by seat: name with the seat colour of its ghost, hero + weapon,
+// READY tick; an empty one waits for a friend), "2 WATCHING" under them, my pick with CHANGE, READY / NOT READY and
+// LEAVE. The match starts when everyone seated (2-4) is READY (room.js). Everything shown comes from the room
 // state of room.js through the flow; nothing a rival sends is ever put into the page as HTML: a hero / weapon /
 // skin id is looked up in the game's own tables (an unknown one shows the starter), names are text.
 // CHANGE opens the picker in place: the same chips as the LOADOUT page (ui/screens/armory.js chipHtml); only heroes
@@ -15,29 +17,35 @@ import { HERO_DEFS, heroDef } from '../../data/heroes.js';
 import { WEAPON_DEFS, weaponDef } from '../../data/weapons.js';
 import { HERO_BY_ID, WEAPON_SKIN_BY_ID } from '../../data/skins.js';
 import { isHeroUnlocked, isWeaponUnlocked, lockText } from '../../save/unlocks.js';
+import { SLOT_COLORS } from '../game/vsdata.js';
 
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' };
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ESC[c]);
 const DOTS = '<i class="on-dots"><b></b><b></b><b></b></i>';
 export const HOST_GRACE_MS = 20000;
 
-/** One seat as HTML. `seat` is a room.js seat or null (nobody there: waiting for a friend, or the host has gone). */
-function seatHtml(seat, mine, hostLeft) {
+/** One seat tile as HTML. `seat` is a room.js seat or null (nobody there: waiting for a friend, or the host has gone). */
+function seatHtml(seat, mine, hostLeft, slot) {
+  const sc = `--sc:${SLOT_COLORS[slot % SLOT_COLORS.length]}`;
   if (!seat) {
-    return `<div class="on-seat empty"><div class="on-seat-tag">RIVAL</div>${hostLeft === 'gone' ? '<div class="on-wait">NOBODY HERE</div>'
+    return `<div class="on-seat empty" data-slot="${slot}" style="${sc}">${hostLeft === 'gone' ? '<div class="on-wait">NOBODY HERE</div>'
       : hostLeft ? `<div class="on-wait">WAITING FOR THE HOST${DOTS}</div>`
       : `<div class="on-wait">WAITING FOR A FRIEND${DOTS}</div><div class="on-seat-skin">Send them the code!</div>`}</div>`;
   }
   const h = heroDef(seat.he), w = weaponDef(seat.we);
   const outfit = (HERO_BY_ID[seat.hs] || HERO_BY_ID.classic).name, paint = (WEAPON_SKIN_BY_ID[seat.ws] || WEAPON_SKIN_BY_ID.factory).name;
-  return `<div class="on-seat${mine ? ' me' : ''}${seat.rdy ? ' ready' : ''}">
-    <div class="on-seat-tag">${mine ? 'YOU' : 'RIVAL'}</div>
-    <div class="on-seat-name">${esc(seat.n)}</div>
+  return `<div class="on-seat${mine ? ' me' : ''}${seat.rdy ? ' ready' : ''}" data-slot="${slot}" style="${sc}">
+    ${mine ? '<div class="on-seat-tag">YOU</div>' : ''}
+    <div class="on-seat-name"><i class="on-dot"></i><span>${esc(seat.n)}</span></div>
     <div class="on-seat-pick"><span class="on-ico">${heroIcon(h.id)}</span><span class="on-ico">${weaponIcon(w.id)}</span></div>
-    <div class="on-seat-txt"><b>${esc(h.name)}</b><span>${esc(w.name)}</span></div>
-    <div class="on-seat-skin">${esc(outfit)} · ${esc(paint)}</div>
+    <div class="on-seat-txt" title="${esc(outfit)} · ${esc(paint)}"><b>${esc(h.name)}</b> · <span>${esc(w.name)}</span></div>
     <div class="on-seat-state">${seat.rdy ? `${icon('check')}READY` : 'NOT READY'}</div>
   </div>`;
+}
+
+/** The line under the seats: who the match still waits for (`names`: the seated players who are not READY). */
+function waitingWords(names) {
+  return names.length > 1 ? `WAITING FOR ${names.length} FRIENDS...` : `WAITING FOR ${String(names[0] || 'your friend').toUpperCase()}...`;
 }
 
 async function copyText(text) {
@@ -63,11 +71,13 @@ export function createLobbyView(ui, flow) {
       <div class="btn-row on-sharerow">
         <button type="button" class="btn btn-blue btn-sm" data-act="copy">COPY LINK</button>
         <button type="button" class="btn btn-purple btn-sm on-share" data-act="share">SHARE</button>
+        <button type="button" class="btn btn-blue btn-sm on-watchlink" data-act="copywatch">WATCH LINK</button>
       </div>
       <div class="on-linktxt" hidden></div>
     </div>
     <div class="on-banner" role="status" hidden></div>
     <div class="on-seats"></div>
+    <div class="on-watchers" hidden></div>
     <div class="on-card on-picker" hidden>
       <div class="on-sub">HERO</div>
       <div class="chip-row on-heroes" role="toolbar" aria-label="Hero"></div>
@@ -89,6 +99,7 @@ export function createLobbyView(ui, flow) {
   const tiles = $('.on-tiles'), seatsEl = $('.on-seats'), banner = $('.on-banner'), picker = $('.on-picker'), foot = $('.on-foot');
   const readyBtn = $('.on-ready'), changeBtn = $('.on-change'), status = $('.on-status'), lockLine = $('.on-lockline');
   const copyBtn = $('[data-act="copy"]'), shareBtn = $('.on-share'), linkTxt = $('.on-linktxt'), shareRow = $('.on-sharerow');
+  const watchBtn = $('.on-watchlink'), watchersEl = $('.on-watchers');
   const heroesRow = $('.on-heroes'), weaponsRow = $('.on-weapons');
   let picking = false, lastSeats = '', lastCode = '', copyT = 0, lastChips = '';
   let awayAt = 0, awayT = 0; // when the host's seat went empty (0: it is not), and the timer that ends the grace
@@ -130,7 +141,7 @@ export function createLobbyView(ui, flow) {
   const view = {
     el: root, title: 'FRIEND ROOM',
     graceMs: HOST_GRACE_MS,
-    enter() { picking = false; lastSeats = ''; lastCode = ''; awayAt = 0; linkTxt.hidden = true; copyBtn.textContent = 'COPY LINK'; },
+    enter() { picking = false; lastSeats = ''; lastCode = ''; awayAt = 0; linkTxt.hidden = true; copyBtn.textContent = 'COPY LINK'; watchBtn.textContent = 'WATCH LINK'; },
     leave() { clearTimeout(copyT); clearTimeout(awayT); awayAt = 0; picking = false; },
     sync() {
       const room = flow.room, st = room && room.state;
@@ -142,14 +153,20 @@ export function createLobbyView(ui, flow) {
       else if (!awayAt) { awayAt = Date.now(); clearTimeout(awayT); awayT = setTimeout(() => view.sync(), view.graceMs + 50); }
       const hostGone = !!st.hostLeft && Date.now() - awayAt >= view.graceMs;
       const hostState = hostGone ? 'gone' : st.hostLeft ? 'away' : '';
-      const rivals = st.seats.filter((s, i) => i !== me);
-      const rival = rivals.find(Boolean) || null;
-      // my seat first, then the others (a seat I do not hold right now shows as "getting it back")
-      const html = (mine ? seatHtml(mine, true) : `<div class="on-seat me empty"><div class="on-seat-tag">YOU</div><div class="on-wait">GETTING YOUR SEAT BACK${DOTS}</div></div>`)
-        + '<div class="on-vs ol">VS</div>' + rivals.map((s) => seatHtml(s, false, hostState)).join('');
-      if (html !== lastSeats) { lastSeats = html; seatsEl.innerHTML = html; }
-      const who = ((rival && rival.n) || 'your friend').toUpperCase();
-      const ready = !!(mine && mine.rdy), all = !!(mine && rival) && st.seats.filter(Boolean).every((s) => s.rdy);
+      const others = st.seats.map((s, i) => ({ s, i })).filter((x) => x.i !== me);
+      const friends = others.filter((x) => x.s).map((x) => x.s);
+      // the host's words go on one empty tile only (the lowest), the others still wait for friends
+      const hostTile = st.hostLeft ? (others.find((x) => !x.s) || {}).i : null;
+      // my seat first, then the others by seat (a seat I do not hold right now shows as "getting it back")
+      const html = (mine ? seatHtml(mine, true, '', me) : `<div class="on-seat me empty"><div class="on-seat-tag">YOU</div><div class="on-wait">GETTING YOUR SEAT BACK${DOTS}</div></div>`)
+        + others.map((x) => seatHtml(x.s, false, x.i === hostTile ? hostState : '', x.i)).join('');
+      if (html !== lastSeats) { lastSeats = html; seatsEl.innerHTML = html; seatsEl.dataset.n = String(st.seats.length); }
+      const ready = !!(mine && mine.rdy), all = !!mine && friends.length > 0 && st.seats.filter(Boolean).every((s) => s.rdy);
+      const slow = friends.filter((s) => !s.rdy).map((s) => s.n);
+      const watchers = st.spectators | 0;
+      watchersEl.hidden = !watchers;
+      const wtxt = watchers ? `${watchers} WATCHING` : '';
+      if (watchersEl.textContent !== wtxt) watchersEl.textContent = wtxt;
       if (ready && picking) picking = false;
       seatsEl.hidden = picking; picker.hidden = !picking;
       if (picking) renderChips();
@@ -173,9 +190,10 @@ export function createLobbyView(ui, flow) {
       status.textContent = picking ? 'Pick a hero and a weapon you own.'
         : st.hostLeft ? '' : !mine ? 'One moment...'
           : all ? 'STARTING...'
-            : !rival ? 'Share the code. The match starts when you are both ready.'
-              : ready ? `WAITING FOR ${who}... Tap NOT READY to change your hero.`
-                : rival.rdy ? `${who} IS READY! Tap READY to start.` : 'Tap READY when you are set. The match starts when you are both ready.';
+            : !friends.length ? 'Share the code. Up to 4 can play!'
+              : ready ? waitingWords(slow)
+                : !slow.length ? `${friends.length > 1 ? 'EVERYONE ELSE' : String(friends[0].n).toUpperCase()} IS READY! Tap READY to start.`
+                  : 'Tap READY when you are set. The match starts when everyone is ready.';
       status.classList.toggle('go', all);
     },
     onAct(act, btn) {
@@ -186,15 +204,16 @@ export function createLobbyView(ui, flow) {
       else if (act === 'pick-done') openPicker(false);
       else if (act === 'pick-hero') pick('hero', btn.dataset.id);
       else if (act === 'pick-weapon') pick('weapon', btn.dataset.id);
-      else if (act === 'copy') {
-        const link = flow.shareLink();
+      else if (act === 'copy' || act === 'copywatch') {
+        const w = act === 'copywatch', b = w ? watchBtn : copyBtn, label = w ? 'WATCH LINK' : 'COPY LINK';
+        const link = flow.shareLink(w ? { watch: true } : undefined);
         copyText(link).then((ok) => {
-          copyBtn.textContent = ok ? 'LINK COPIED!' : 'COPY LINK';
+          b.textContent = ok ? (w ? 'WATCH LINK COPIED!' : 'LINK COPIED!') : label;
           // no clipboard on this browser: show the link so it can be copied by hand
           linkTxt.hidden = ok; linkTxt.textContent = ok ? '' : link;
-          bump(copyBtn);
+          bump(b);
           clearTimeout(copyT);
-          copyT = setTimeout(() => { copyBtn.textContent = 'COPY LINK'; }, 1800);
+          copyT = setTimeout(() => { copyBtn.textContent = 'COPY LINK'; watchBtn.textContent = 'WATCH LINK'; }, 1800);
         });
       } else if (act === 'share') {
         const code = st ? st.code : '';
