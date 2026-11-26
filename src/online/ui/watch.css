@@ -121,6 +121,7 @@
 .wv-fallen .wv-feed { background: rgba(27, 58, 138, 0.08); border-color: rgba(27, 58, 138, 0.2); }
 .wv-fallen .wv-feed li { color: #24468f; }
 .wv-fallen .wv-fe { color: #0f7a3a; }
+.wv-fallen .wv-feed li b:not(.wv-fe) { paint-order: stroke fill; -webkit-text-stroke: 3px var(--outline); } /* pale kinds (FOG) on a light panel */
 
 /* ---------- the ONLINE page's watch view (watchview.js) ---------- */
 .wv-page { width: min(400px, 100%); display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
@@ -139,3 +140,6 @@
 .wv-page .wv-leave { align-self: center; min-width: 170px; }
 .wv-gone .on-h { color: #fff; }
 .wv-head.wv-small { font-size: 19px; -webkit-text-stroke-width: 4px; }
+
+/* the hub: WATCH under ROOM IS FULL / MATCH ALREADY STARTED (hub.js) */
+.on-msg .on-watch { margin-top: 6px; min-width: 132px; }

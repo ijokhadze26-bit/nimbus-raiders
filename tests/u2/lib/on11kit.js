@@ -3,13 +3,20 @@
 // (on2kit / on6kit) plus plain players made of transport + session + room.js / match.js that run a scripted road.
 // Never the real service. Import with: const W = await import('/tests/u2/lib/on11kit.js');
 import { makeHub, player, page, until, wait, layout } from '/tests/u2/lib/on2kit.js';
-import { openHub, boxes, shot } from '/tests/u2/lib/on6kit.js';
+import { openHub, boxes, shot as shot6 } from '/tests/u2/lib/on6kit.js';
 import { createRoom, joinRoom } from '/src/online/room.js';
 import { createMatch } from '/src/online/match.js';
 import { defaultCurve } from '/src/online/game/testlink.js';
 import { sabEncode } from '/src/online/game/sabdata.js';
 
-export { makeHub, player, page, until, wait, layout, openHub, boxes, shot };
+export { makeHub, player, page, until, wait, layout, openHub, boxes };
+
+/** A screenshot (only under the screenshot harness): a few real frames first, so pop-in animations have played. */
+export async function shot(name) {
+  if (typeof window.__shot !== 'function') return;
+  for (let i = 0; i < 8; i++) await new Promise((r) => requestAnimationFrame(r));
+  await shot6(name);
+}
 
 /** A stand-in for where the cards live: the ONLINE page's body (spectator) or a result panel (fallen). */
 export function fixture(mode = 'spectator') {

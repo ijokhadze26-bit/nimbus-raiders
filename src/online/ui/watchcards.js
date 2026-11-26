@@ -44,6 +44,13 @@ function cardHtml(p, mine) {
     + '<div class="wv-emo"></div></div>';
 }
 
+/** The text of an element with a space between its pieces (tests). */
+function words(n) {
+  const out = [], walk = document.createTreeWalker(n, NodeFilter.SHOW_TEXT);
+  while (walk.nextNode()) { const t = walk.currentNode.textContent.trim(); if (t) out.push(t); }
+  return out.join(' ').replace(/\s+/g, ' ');
+}
+
 export function mountWatchView(host, watch, { mode = 'spectator', mySlot = null } = {}) {
   const spectator = mode !== 'fallen';
   const n = watch.players.length;
@@ -173,7 +180,7 @@ export function mountWatchView(host, watch, { mode = 'spectator', mySlot = null 
           left: c.leftEl.textContent, danger: c.bars.filter((b) => b.className === 'on').length, emote: c.emoEl.classList.contains('on'),
           flags: c.flEl.children.length })),
         feed: [...feedEl.children].map((li) => li.textContent.replace(/\s+/g, ' ').trim()),
-        table: shownTable ? [...table.querySelectorAll('.wv-rows li')].map((li) => li.textContent.replace(/\s+/g, ' ').trim()) : null,
+        table: shownTable ? [...table.querySelectorAll('.wv-rows li')].map(words) : null,
         head: shownTable ? table.querySelector('.wv-win').textContent : null,
       }),
       flush: () => { acc = WATCH.stepS; update(0); },

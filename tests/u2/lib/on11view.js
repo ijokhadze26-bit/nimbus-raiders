@@ -35,9 +35,9 @@ export async function viewScenario(g) {
     link.test.silence(0, true);
     link.test.sab(1, SAB.code.freeze, 2);
     link.test.sab(0, SAB.code.red, 3);
-    step(link, watch, view, 15);
-    link.test.emote(3, 1);
+    step(link, watch, view, 16.5);
     link.test.sab(2, SAB.code.speed, 0);
+    link.test.emote(3, 1);
     step(link, watch, view, 17.5);
     view.test.flush();
     const r = view.test.read();
@@ -76,7 +76,7 @@ export async function viewScenario(g) {
     const e = view.test.read();
     if (!e.table || e.table.length !== 4) fails.push(`4: final table ${JSON.stringify(e.table)}`);
     else {
-      if (!/^1ST BENJAMIN REX/.test(e.table[0]) || !/^2ND ANN OFFLINE/.test(e.table[1]) || !/^3RD CYD/.test(e.table[2]) || !/^4TH DOT/.test(e.table[3])) fails.push(`4: table order ${JSON.stringify(e.table)}`);
+      if (!/^1ST BENJAMIN REX STILL STANDING$/.test(e.table[0]) || !/^2ND ANN OFFLINE 0:26\.0 241m$/.test(e.table[1]) || !/^3RD CYD/.test(e.table[2]) || !/^4TH DOT/.test(e.table[3])) fails.push(`4: table order ${JSON.stringify(e.table)}`);
       if (e.head !== 'BENJAMIN REX WINS!') fails.push(`4: head ${e.head}`);
     }
     if (!fx.host.querySelector('.wv-rows li.gold[data-slot="1"]')) fails.push('4: winner row not gold');

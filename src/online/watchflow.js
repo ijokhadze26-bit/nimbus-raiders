@@ -23,7 +23,7 @@ export const WATCH_NOTICES = {
   ...NOTICES,
   watchfull: ['TOO MANY WATCHERS', '4 people are watching this room already. Try again later!'],
 };
-const FAIL = { 'not-found': 'notfound', full: 'watchfull', closed: 'closed' };
+const FAIL = { 'not-found': 'notfound', full: 'watchfull', closed: 'closed', hostaway: 'hostaway' };
 
 export function installWatch(flow, { game, ui, transport, session } = {}) {
   const handlers = new Map();

@@ -116,7 +116,11 @@ function createHubView(ui, flow, page) {
       const html = flow.busy ? BUSY[flow.busy] || 'ONE MOMENT...' : away ? 'RECONNECTING... one moment.'
         : n ? `<b>${n.title}</b><span>${n.text}</span>${WATCHABLE.has(n.kind) && flow.watchRoom ? WATCH_BTN : ''}` : null;
       const shown = html === null ? `t:${local}` : `h:${html}`;
-      if (shown !== shownMsg) { shownMsg = shown; if (html === null) msg.textContent = local; else msg.innerHTML = html; }
+      if (shown !== shownMsg) {
+        shownMsg = shown;
+        if (html === null) msg.textContent = local; else msg.innerHTML = html;
+        if (html && html.includes(WATCH_BTN)) msg.lastElementChild.scrollIntoView?.({ block: 'center' }); // (a small phone: WATCH in sight)
+      }
     },
     onAct(act) {
       if (act === 'quick') { local = ''; flow.clearNotice(); flow.quickMatch(); }
