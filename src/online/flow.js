@@ -290,9 +290,12 @@ export function createFlow(game, ui, { transport, session, clock, trusted = true
       out.can = !!seat && out.others.some((o) => o.here);
       // 3-4 players: two or more never got a fall record (they closed the game mid-match). The rules (OVER) keep the
       // room live until the match's time cap, so no REMATCH: the words say why instead of a STARTING... that never comes
+      // (the final table settles it; without one, the fall records this link heard)
       const vs = game.versus, l = flow.link;
-      const runs = players.length > 2 && vs && vs.peer ? rivals.filter((p) => { const q = vs.peer(p.slot); return !!q && q.alive; }) : [];
-      if (runs.length + (vs && !vs.fallen ? 1 : 0) > 1 && !(l && l.t0 && transport.now() - (l.t0 - NET.goMs) > NET.capMs)) {
+      let snap = null;
+      if (players.length > 2 && !(vs && vs.final) && l && typeof l.snapshot === 'function') { try { snap = l.snapshot(); } catch { snap = null; } }
+      const runs = snap ? players.filter((p) => !(snap.outs && snap.outs[p.slot])) : [];
+      if (runs.length > 1 && !(l.t0 && transport.now() - (l.t0 - NET.goMs) > NET.capMs)) {
         out.can = false;
         // 'on': one of them is still in the room (maybe still playing); 'left': they all closed the game
         out.stuck = runs.some((p) => st.seats.some((s) => s && s.uid === p.uid)) ? 'on' : 'left';
