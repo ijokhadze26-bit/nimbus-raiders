@@ -264,7 +264,7 @@ try {
   toResult();
   rs = rows();
   ok(onResult() && ribbon() === 'YOU LOSE' && head() === 'YOU CAME 2ND OF 4', `four players: ${ribbon()} / ${head()}`);
-  ok(rs.length === 4 && rs.map((r) => r.slot).join('') === '1032' && rs.map((r) => r.pl).join('') === '1234' && rs[1].me && rs[0].text.includes('STILL STANDING') && rs[3].text.includes('LEFT') && rs[2].text.includes('ZOE'), 'four rows: ' + JSON.stringify(rs));
+  ok(rs.length === 4 && rs.map((r) => r.slot).join('') === '1032' && rs.map((r) => r.pl).join('') === '1234' && rs[1].me && rs[0].text.includes('LAST STANDING') && rs[3].text.includes('LEFT') && rs[2].text.includes('ZOE'), 'four rows: ' + JSON.stringify(rs));
   const pb = panel().getBoundingClientRect(), appB = document.getElementById('app').getBoundingClientRect();
   await k.wait(600);
   const pb2 = panel().getBoundingClientRect();
