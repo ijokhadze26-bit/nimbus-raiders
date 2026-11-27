@@ -90,9 +90,9 @@
   width: 52px; height: 58px; border-radius: 14px; display: grid; place-items: center; font: 400 38px/1 var(--font-display); color: #7a3a00;
   background: linear-gradient(180deg, #fff6c4, #ffc531); border: 3px solid #a85400; box-shadow: 0 4px 0 #a85400, inset 0 2px 0 rgba(255, 255, 255, 0.7);
 }
-.on-sharerow { flex-wrap: nowrap; gap: 8px; }
-.on-sharerow .btn { min-width: 104px; padding-inline: 10px; }
-.on-sharerow .on-watchlink { min-width: 0; font-size: 14px; }
+.on-card .on-sharerow { flex-wrap: nowrap; gap: 8px; width: 100%; }
+.on-sharerow .btn { flex: 1 1 0; min-width: 0; max-width: 132px; padding-inline: 6px; white-space: nowrap; }
+.on-sharerow .on-watchlink { font-size: 14px; white-space: normal; line-height: 1; } /* WATCH LINK COPIED! may take two lines */
 .on-linktxt { font: 800 12px/1.3 var(--font-body); color: #24468f; word-break: break-all; user-select: text; -webkit-user-select: text; }
 
 /* ---------- lobby: banner, seats ---------- */
@@ -165,7 +165,7 @@
   .on-ico { width: 42px; height: 42px; font-size: 30px; }
   .on-seat { min-height: 110px; }
   .on-seat-name { font-size: 16px; }
-  .on-sharerow .btn { min-width: 92px; padding-inline: 8px; font-size: 15px; }
+  .on-sharerow .btn { padding-inline: 4px; font-size: 15px; }
   .on-sharerow .on-watchlink { font-size: 13px; }
   .on-change { width: 132px; font-size: 19px; }
   .on-ready { width: 156px; }
@@ -173,9 +173,21 @@
 @container (max-height: 660px) {
   .on-hub, .on-lobby { gap: 9px; }
   .on-seats { gap: 10px 8px; }
-  .on-seat { min-height: 104px; padding-bottom: 6px; gap: 2px; }
-  .on-ico { width: 36px; height: 36px; font-size: 26px; }
-  .on-tile { height: 48px; font-size: 32px; }
+  /* a short phone: each seat is name / icons + READY side by side / hero · weapon (4 seats and LEAVE fit 360x640) */
+  .on-seat { min-height: 84px; padding: 9px 6px 6px; gap: 2px; }
+  .on-seat:not(.empty) { display: grid; grid-template-columns: auto auto; grid-template-areas: 'name name' 'pick state' 'txt txt'; justify-content: center; align-items: center; column-gap: 7px; row-gap: 3px; }
+  .on-seat-name { grid-area: name; }
+  .on-seat-pick { grid-area: pick; gap: 4px; }
+  .on-seat-state { grid-area: state; margin-top: 0; padding-inline: 6px; }
+  .on-seat-txt { grid-area: txt; min-width: 0; text-align: center; }
+  .on-ico { width: 32px; height: 32px; font-size: 24px; border-radius: 10px; }
+  .on-seat-state { font-size: 11px; white-space: nowrap; }
+  .on-lobby { gap: 7px; }
+  .on-lobby .on-fine { display: none; }
+  .on-lobby .on-foot { gap: 6px; }
+  .on-roomcard { gap: 7px; }
+  .on-sharerow .btn { min-height: 38px; }
+  .on-tile { height: 44px; font-size: 30px; }
   .on-status { min-height: 18px; }
   .on-card { padding-top: 10px; padding-bottom: 12px; gap: 8px; }
   .on-fine { font-size: 11.5px; }
