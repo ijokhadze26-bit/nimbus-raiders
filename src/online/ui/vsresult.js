@@ -23,23 +23,8 @@ import { verdictWords, rematchWords, leftWords, clockTenths, metres, esc, up, na
 import { mountRankLine } from './rankline.js';
 import { shareResult } from '../share.js';
 
-// The watch model and its cards are builder WATCH's (src/online/game/watch.js, ui/watchview.js): found here without a
-// hard import until the stage-5 merge, with stand-ins of the same shape (the integrator turns these into imports).
-const firstOf = (mods) => Object.values(mods)[0] || {};
-const WATCH_MOD = firstOf(import.meta.glob('../game/watch.js', { eager: true }));
-const VIEW_MOD = firstOf(import.meta.glob('./watchview.js', { eager: true }));
-const createWatch = WATCH_MOD.createWatch || (({ link }) => ({
-  final: link.final ?? null, stale: !!link.stale,
-  on: (t, cb) => { try { return link.on(t, cb); } catch { return () => {}; } }, update() {}, dispose() {},
-}));
-const mountWatchView = VIEW_MOD.mountWatchView || ((host) => {
-  const el = document.createElement('div');
-  el.className = 'wv-stub';
-  el.textContent = 'WATCHING THE REST OF THE MATCH...';
-  host.appendChild(el);
-  return { el, update() {}, dispose() { el.remove(); } };
-});
-
+import { createWatch } from '../game/watch.js';
+import { mountWatchView } from './watchview.js';
 
 const RIBBON = { win: 'ribbon-gold', lose: 'ribbon-red', draw: 'ribbon-blue' };
 const ICON = {

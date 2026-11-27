@@ -116,7 +116,7 @@ export function mountEmotes(ctx) {
   }
   function place(target, a, mine) {
     const b = document.createElement('div');
-    const kind = target && target.matches('li') ? 'side' : mine ? 'up' : 'down';
+    const kind = target && target.matches('li, .wv-card') ? 'side' : mine ? 'up' : 'down';
     b.className = `emo-bub ${kind}${mine ? ' mine' : ''}`;
     b.innerHTML = SVGS[a];
     const bb = { el: b, target, kind, mine: !!mine, end: T + EMOTE.showMs / 1000, x: null, y: null };
@@ -128,7 +128,7 @@ export function mountEmotes(ctx) {
   function showRival(slot, a) {
     if (muted) return;
     const res = onResult();
-    const target = res ? ui.root.querySelector(`.screen-vsresult .vsr-places li[data-slot="${slot}"]`)
+    const target = res ? ui.root.querySelector(`.screen-vsresult .vsr-places li[data-slot="${slot}"], .screen-vsresult .wv-card[data-slot="${slot}"]`)
       : ui.hud.el.querySelector(`.vs-rivals .vs-r[data-slot="${slot}"]`) || ui.hud.el.querySelector('.vs-rivals .vs-r');
     if (!target || !target.getClientRects().length) return;
     place(target, a, false);

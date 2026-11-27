@@ -244,8 +244,8 @@
 }
 
 /* stage 5: the result screen while my squad is down and the others still run (vsresult.js "watching"); the cards
-   inside .vsr-watch are watchview.js's (watch.css); .wv-stub stands in for them until the stage-5 merge */
+   inside .vsr-watch are watchview.js's (watch.css). An emote there bubbles from emotes.js (mute, sound), not the card's own */
 .vsr.watching { gap: 8px; }
 .vsr-wline { font: 400 15px/1.2 var(--font-display); letter-spacing: 1px; color: #4a6aa8; text-align: center; }
 .vsr-watch { width: 100%; min-height: 60px; max-height: 58cqh; overflow-y: auto; overscroll-behavior: contain; }
-.wv-stub { display: grid; place-items: center; min-height: 90px; padding: 10px; border-radius: 14px; border: 3px dashed #9bb4e6; font: 400 15px/1.25 var(--font-display); letter-spacing: 0.5px; color: #3a5aa6; text-align: center; }
+.vsr-watch .wv-emo { display: none; }
