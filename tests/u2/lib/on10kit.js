@@ -14,7 +14,7 @@ export async function friends(hub, code, n = 3, names = NAMES) {
     const p = await player(hub, `fr-${i + 1}`, names[i]);
     const f = { ...p, name: names[i], room: null, link: null, timer: 0, fallen: false };
     f.room = await p.join(code, { he: ['cinder', 'rime', 'vex'][i] || 'pip', we: ['emberstorm', 'blaster', 'thunderclap'][i] || 'blaster' });
-    f.room.on('start', () => { f.stopPlay(); f.link = p.match(f.room); f.fallen = false; f.play(); });
+    f.room.on('start', () => { f.stopPlay(); if (f.link) f.link.leave(); f.link = p.match(f.room); f.fallen = false; f.play(); });
     /** Push a plausible state 10 times a second on the match clock (real time), until they fall or stop. */
     f.play = () => {
       f.stopPlay();
