@@ -11,8 +11,8 @@ export const scenarios = [
       const code = await duo.lobby(A, B, ['Ann', 'Ben']);
       note(`room ${code}`);
       const [a, b] = [await A.view(), await B.view()];
-      eq(a.room.seats.map((s) => s && s.n), ['Ann', 'Ben'], 'the host page shows both players');
-      eq(b.room.seats.map((s) => s && s.n), ['Ann', 'Ben'], 'the joining page shows both players');
+      eq(a.room.seats.map((s) => s && s.n), ['Ann', 'Ben', null, null], 'the host page shows both players (of 4 seats)');
+      eq(b.room.seats.map((s) => s && s.n), ['Ann', 'Ben', null, null], 'the joining page shows both players (of 4 seats)');
       eq([a.room.me, b.room.me], [0, 1], 'seats');
       ok(/ANN|Ann/.test(await B.text('.on-seats')) && /Ben/i.test(await A.text('.on-seats')), 'both names are on both lobby screens');
       eq(duo.hub.admin.get(`rooms/${code}/sl`), { 0: 'A', 1: 'B' }, 'the hub holds both seats');
@@ -23,17 +23,26 @@ export const scenarios = [
       await B.click('[data-act="pick-done"]');
       await duo.until(async () => (await A.view()).room.seats[1].we === picked, `A to see B's new weapon (${picked})`);
       await A.shot('lobby'); await B.shot('lobby');
-      // a third player with the same code is told the room is full
+      // a third player with the same code sits (a friend room takes 4); with the 4th seat taken too (seeded as the
+      // owner's console would), the 5th is told the room is full and nothing is written for them
       const C = await duo.page('C');
       await duo.signIn(C, 'Cyd');
       await C.type('.on-code', code);
       await C.key('Enter');
-      await duo.until(async () => (await C.view()).notice === 'full', 'C: ROOM IS FULL');
-      ok(/ROOM IS FULL/.test(await C.text('.on-hub .on-msg')), 'C reads ROOM IS FULL');
+      await duo.until(async () => (await C.view()).view === 'lobby' && (await A.view()).room.seats[2], 'C sits in seat 3');
+      eq((await C.view()).room.me, 2, 'C\'s seat');
+      duo.hub.admin.update({ [`rooms/${code}/sl/3`]: 'X', [`rooms/${code}/p/3`]: { n: 'Dan', tr: 0, he: 'pip', we: 'thunderclap', hs: 'classic', ws: 'factory' } });
+      const D = await duo.page('D');
+      await duo.signIn(D, 'Eve');
+      await D.type('.on-code', code);
+      await D.key('Enter');
+      await duo.until(async () => (await D.view()).notice === 'full', 'D: ROOM IS FULL');
+      ok(/ROOM IS FULL/.test(await D.text('.on-hub .on-msg')), 'D reads ROOM IS FULL');
+      eq(duo.hub.admin.get(`rooms/${code}/sp`), null, 'no watcher marker for the 5th');
       // a wrong code
-      await C.type('.on-code', code === 'ZZZZ' ? 'YYYY' : 'ZZZZ');
-      await C.key('Enter');
-      await duo.until(async () => (await C.view()).notice === 'notfound', 'C: ROOM NOT FOUND');
+      await D.type('.on-code', code === 'ZZZZ' ? 'YYYY' : 'ZZZZ');
+      await D.key('Enter');
+      await duo.until(async () => (await D.view()).notice === 'notfound', 'D: ROOM NOT FOUND');
       // LEAVE ROOM on the joining page: the host waits for a friend again
       await B.click('[data-act="leave"]');
       await duo.until(async () => (await B.view()).view === 'hub' && (await A.view()).room.seats[1] === null, 'B back on the hub and its seat free');

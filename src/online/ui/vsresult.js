@@ -72,6 +72,7 @@ export function createVsResult(ctx) {
   /** The places to show: the final table once it is there, else the verdict's, with later falls this link heard. */
   function places(res) {
     const vs = game.versus;
+    if (ctx.players().length <= 2) return res.places || []; // (2 players: the verdict's places, exactly as before)
     if (vs && vs.final) return vs.final;
     const list = (res.places || []).map((p) => ({ ...p }));
     let snap = null;
@@ -223,7 +224,7 @@ export function createVsResult(ctx) {
   game.events.on('versus:final', () => {
     if (ui.current !== 'vsresult') return;
     if (watching) end();
-    else if (!shownFinal) render();
+    else if (!shownFinal && ctx.players().length > 2) render();
   });
 
   game.events.on('versus:revised', () => {

@@ -189,8 +189,6 @@ export const scenarios = [
     async run(duo, { ok, eq, note }) {
       const A = await duo.page('A'), B = await duo.page('B'), C = await duo.page('C', { size: [360, 640] });
       await duo.signIn(A, 'Ann'); await duo.signIn(B, 'Ben'); await duo.signIn(C, 'Cyd');
-      // (the friend screens make 2-seat rooms in this stage; the room record and the rules take 4: A's room is made with 4)
-      await A.ev(() => { const tp = window.__game.online.flow.transport, set = tp.set; tp.set = function set4(p, v) { return set.call(this, p, /^rooms\/[A-Z]{4}$/.test(p) && v && v.max === 2 ? { ...v, max: 4 } : v); }; });
       const code = await duo.create(A);
       await duo.join(B, code);
       await duo.join(C, code);
