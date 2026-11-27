@@ -126,7 +126,8 @@ export function createTestLink(opts = {}) {
   }
 
   function rivalOut(r, o) {
-    if (r.out || test.done) return;
+    // (after my verdict the others' falls still come: with 3-4 players the fallen one watches the rest, like match.js)
+    if (r.out || (test.done && rivals.length < 2)) return;
     r.out = { T: o.T ?? o.t ?? clock(), d: Math.round(o.d ?? r.curve(o.T ?? clock()).dist), by: o.by || 'dead' };
     emit('out', r.slot, { ...r.out });
     decide();

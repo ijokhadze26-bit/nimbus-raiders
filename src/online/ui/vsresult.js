@@ -160,7 +160,10 @@ export function createVsResult(ctx) {
   function placesHtml(res) {
     const { rows } = ranking(res);
     if (!rows.length) return '';
-    const draw = res.result === 'draw';
+    // a draw for first: mine, or (3-4 players) two others with the same distance inside the tie window of 1 s
+    const [a, b] = rows;
+    const draw = res.result === 'draw' || (!!b && !a.standing && !b.standing && a.T != null && b.T != null
+      && Math.abs(a.T - b.T) <= 1 && Math.round(a.d) === Math.round(b.d));
     return `<ol class="vsr-places"><li class="vsr-h"><span></span><span></span><span>TIME</span><span>DISTANCE</span></li>${rows.map((r, i) => {
       const tag = leftWords(r.by);
       const nums = r.standing ? '<span class="vsr-note">STILL STANDING</span>'

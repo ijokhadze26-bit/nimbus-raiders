@@ -157,6 +157,7 @@
 /* three or four players: a 2 x 2 grid of small cards, the number over the middle */
 .vs-card.n3 .vc-players, .vs-card.n4 .vc-players { display: grid; grid-template-columns: 1fr 1fr; gap: 58px 8px; align-items: stretch; }
 .n3 .vc-p, .n4 .vc-p { padding: 0 6px 6px; gap: 5px; border-radius: 18px; border-width: 3px; }
+.vs-card.n3 .vc-p:nth-child(3) { grid-column: 1 / -1; justify-self: center; width: calc(50% - 4px); } /* 3 players: 2 + 1 in the middle */
 .n3 .vc-head, .n4 .vc-head { margin: 0 -6px; padding: 3px 8px 5px; gap: 4px; }
 .n3 .vc-name, .n4 .vc-name { font-size: 16px; -webkit-text-stroke-width: 4px; }
 .n3 .vc-you, .n4 .vc-you { font-size: 10px; padding: 1px 5px 2px; }
