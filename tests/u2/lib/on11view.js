@@ -143,6 +143,5 @@ export async function viewScenario(g) {
     view.dispose(); watch.dispose(); fx.remove();
   }
 
-  if (fails.length) throw new Error(fails.join('\n'));
-  return { ok: true, size, small, notes };
+  return { pass: fails.length === 0, fails, size, small, notes };
 }

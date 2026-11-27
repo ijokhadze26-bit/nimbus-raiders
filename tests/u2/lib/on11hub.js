@@ -107,6 +107,5 @@ export async function hubScenario(g) {
     if (g.online && g.online.flow && g.online.flow.stopWatching) g.online.flow.stopWatching();
     g.ui.nav('title');
   }
-  if (fails.length) throw new Error(fails.join('\n'));
-  return { ok: true, size, notes };
+  return { pass: fails.length === 0, fails, size, notes };
 }

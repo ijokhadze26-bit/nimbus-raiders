@@ -176,6 +176,5 @@ export async function spectateScenario(g) {
     if (flow.stopWatching) flow.stopWatching();
     g.ui.nav('title');
   }
-  if (fails.length) throw new Error(fails.join('\n'));
-  return { ok: true, size, notes };
+  return { pass: fails.length === 0, fails, size, notes };
 }
