@@ -38,7 +38,8 @@ function seatHtml(seat, mine, hostLeft, slot) {
     ${mine ? '<div class="on-seat-tag">YOU</div>' : ''}
     <div class="on-seat-name"><i class="on-dot"></i><span>${esc(seat.n)}</span></div>
     <div class="on-seat-pick"><span class="on-ico">${heroIcon(h.id)}</span><span class="on-ico">${weaponIcon(w.id)}</span></div>
-    <div class="on-seat-txt" title="${esc(outfit)} · ${esc(paint)}"><b>${esc(h.name)}</b> · <span>${esc(w.name)}</span></div>
+    <div class="on-seat-txt"><b>${esc(h.name)}</b> · <span>${esc(w.name)}</span></div>
+    <div class="on-seat-skin">${esc(outfit)} · ${esc(paint)}</div>
     <div class="on-seat-state">${seat.rdy ? `${icon('check')}READY` : 'NOT READY'}</div>
   </div>`;
 }

@@ -259,6 +259,8 @@ try {
   link.test.rivalFall(2, { T: 2.2, d: 20, by: 'quit' });
   link.test.rivalFall(3, { T: 4.5, d: 44 });
   link.test.verdict({ result: 'lose', place: 2, places: P([[1, null, null, null], [0, t4, versus.myD, 'dead'], [3, 4.5, 44, 'dead'], [2, 2.2, 20, 'quit']]), reason: 'fell' });
+  // (stage 5: the 2nd place's verdict comes with the whole table, match.js 'final'; without it the result would watch)
+  link.test.final(P([[1, null, null, null], [0, t4, versus.myD, 'dead'], [3, 4.5, 44, 'dead'], [2, 2.2, 20, 'quit']]));
   toResult();
   rs = rows();
   ok(onResult() && ribbon() === 'YOU LOSE' && head() === 'YOU CAME 2ND OF 4', `four players: ${ribbon()} / ${head()}`);
