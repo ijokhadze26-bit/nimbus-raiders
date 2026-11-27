@@ -17,6 +17,9 @@
 //                                  src/online/match.js): `result` is then replaced and 'versus:revised' is emitted,
 //                                  also after the result screen is up (the verdict listener lives as long as the link)
 //   picks                          my own { hero, weapon, heroSkin, weaponSkin } of this match (for the VS card)
+//   final                          null | the whole table of a 3-4 player match once it can no longer change (link
+//                                  'final': places as verdict.js gives them); 'versus:final' { places } is emitted, also
+//                                  after the result screen is up (that listener lives as long as the link, like the verdict's)
 //   stop()                         leaves the match (my fall is reported as 'quit' when I was alive)
 //   simulate(seconds, dt)          tests / calibration: pump without rendering
 //   sab                            the sabotage of this match (sabotage.js: view(), send(), test; sab:* events)
@@ -37,7 +40,7 @@ export class Versus {
     this.game = game;
     this.live = false;
     this.link = null;
-    this.result = null; this.picks = {}; this.offVerdict = null;
+    this.result = null; this.picks = {}; this.offVerdict = null; this.final = null; this.offFinal = null;
     this.t = 0; this.simT = 0;
     this.ramp = new Ramp(game);
     this.ghost = new Ghost(game);
@@ -67,6 +70,7 @@ export class Versus {
     if (this.live) this.stop({ toTitle: false });
     const g = this.game;
     if (this.offVerdict) { this.offVerdict(); this.offVerdict = null; } // (the last match's late verdict no longer counts)
+    if (this.offFinal) { this.offFinal(); this.offFinal = null; }
     this.link = link; // (the link of a finished match is not left here: after a result it belongs to the UI)
     this.picks = { hero: picks.hero || null, weapon: picks.weapon || null, heroSkin: picks.heroSkin || null, weaponSkin: picks.weaponSkin || null };
     this.seed = link.seed >>> 0;
@@ -88,6 +92,8 @@ export class Versus {
       link.on('event', (e) => this.sab.onEvent(e)),
     ];
     this.offVerdict = link.on('verdict', (o) => this.onVerdict(o));
+    this.final = link.final || null;
+    try { this.offFinal = link.on('final', (o) => this.onFinal(o)); } catch { this.offFinal = null; } // (a link without 'final')
     this.live = true;
     g.beginRun({ ...endlessDef(1), name: 'ONLINE', versus: true }, 'versus', this.seed, { hero: picks.hero, weapon: picks.weapon, mods: ['noUpgrades'] });
     // bought Raider types (Shield Bearer / Medic / Heavy Gunner) are shop upgrades too: off for everyone
@@ -122,7 +128,11 @@ export class Versus {
     this.sab.end();
     this.ghost.clear();
     // the link kept for the result screen still delivers a revised verdict; a link that is left delivers nothing more
-    if (leave || !this.link) { if (typeof this.offVerdict === 'function') this.offVerdict(); this.offVerdict = null; }
+    if (leave || !this.link) {
+      if (typeof this.offVerdict === 'function') this.offVerdict();
+      if (typeof this.offFinal === 'function') this.offFinal();
+      this.offVerdict = null; this.offFinal = null;
+    }
     if (leave && this.link) { const l = this.link; this.link = null; l.leave(); }
   }
 
@@ -322,6 +332,13 @@ export class Versus {
     const g = this.game;
     if (g.lastResult && g.lastResult.mode === 'versus') g.lastResult.win = o.result === 'win';
     g.events.emit('versus:revised', this.result);
+  }
+
+  /** The whole table of the match is known (3-4 players: the fallen ones watch until this). */
+  onFinal(o) {
+    if (!o || !Array.isArray(o.places) || this.final) return;
+    this.final = o.places;
+    this.game.events.emit('versus:final', { places: o.places });
   }
 
   /** Last squad standing: the run ends as a win (no payout, nothing saved). */

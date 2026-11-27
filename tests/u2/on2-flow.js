@@ -86,7 +86,7 @@ try {
   const roomB = await buddy.join(code, { he: 'cinder', we: 'emberstorm' });
   await K.until(() => /Buddy/.test(P.text('.on-seats')));
   const rival = P.text('.on-seat:not(.me)');
-  ok(/RIVAL/.test(rival) && /Buddy/.test(rival) && /Cinder/.test(rival) && /Emberstorm/.test(rival) && /Classic/.test(rival), 'rival seat: ' + rival);
+  ok(/Buddy/.test(rival) && /Cinder/.test(rival) && /Emberstorm/.test(rival) && /Classic/.test(rival), 'rival seat: ' + rival);
   // my pick: only what I own; a locked chip explains itself
   P.tap('[data-act="pick-open"]');
   ok(P.scr.views.lobby.picking() && !P.q('.on-picker').hidden && P.q('.on-seats').hidden, 'CHANGE HERO did not open the picker');

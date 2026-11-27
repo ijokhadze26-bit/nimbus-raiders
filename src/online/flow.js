@@ -20,7 +20,7 @@
 //   rematch()                       I want another round; the next 'start' of the room begins it
 //   leave(to = 'online')            leave the match and the room for good, then go to the hub ('online') or 'title'
 //   on(type, cb) -> off             'change': something a screen shows has changed
-//   shareLink()                     the address a friend opens to land in my room
+//   shareLink({ watch })            the address a friend opens to land in my room (watch: true adds watch=1)
 //   mode / quickMatch() / quickCancel() / quickView() / quick   QUICK MATCH (src/online/quickflow.js); in quick mode
 //                                   rematchState() / rematch() mean PLAY AGAIN (a new search), never a REMATCH
 //   reward                          { last }: trophies, coins, online skins of the last match (src/online/rewards.js)
@@ -44,8 +44,8 @@ const PENDING_KEY = 'nimbusRaiders.online.pending';
 
 export const NOTICES = {
   notfound: ['ROOM NOT FOUND', 'Check the code with your friend and try again.'],
-  full: ['ROOM IS FULL', 'That room already has all its players.'],
-  playing: ['MATCH ALREADY STARTED', 'That room is in the middle of a match. Ask your friend for a new code.'],
+  full: ['ROOM IS FULL', 'All 4 seats are taken. You can still watch the match!'],
+  playing: ['MATCH ALREADY STARTED', 'You can watch it! Ask your friends for the next room to play.'],
   closed: ['ROOM CLOSED', 'That room is gone. Make a new one!'],
   hostaway: ['THE HOST IS AWAY', "The host's internet dropped. Try again in a moment."],
   lostseat: ['YOU LOST YOUR SEAT', 'Your connection dropped and someone took your place. Join again or make a new room.'],
@@ -123,7 +123,7 @@ export function createFlow(game, ui, { transport, session, clock, trusted = true
     const inMatch = !!flow.link;
     if (flow.mode === 'quick' && !inMatch) { changed(); return; } // before its match a quick room is the queue's (quick.js)
     if (state.gone) { if (!inMatch) dropRoom('closed'); else changed(); return; }
-    // no seat for me: the room was full or already playing (watching a match comes in a later stage)
+    // no seat for me (a safety net: joinRoom throws 'full' / 'playing' instead; watching is src/online/watchflow.js)
     if (state.watching && !inMatch) { dropRoom(state.st === 'live' ? 'playing' : 'full'); return; }
     if (state.lost && !inMatch) { dropRoom('lostseat'); return; }
     if (inMatch && flow.mode !== 'quick') guardRematch(state);
@@ -225,12 +225,13 @@ export function createFlow(game, ui, { transport, session, clock, trusted = true
     },
 
     createRoom() {
-      return enter('create', () => createRoom({ transport, profile: session.profile, picks: seatPicks(), max: 2 }), () => 'nocreate');
+      return enter('create', () => createRoom({ transport, profile: session.profile, picks: seatPicks(), max: NET.friendMax }), () => 'nocreate');
     },
-    /** `code`: four letters. (A link with &watch=1 joins like any other until the watch view exists, stage 5.) */
+    /** `code`: four letters. A seat or nothing: a full lobby is 'full', a room whose match is on 'playing' (both can be
+     *  watched instead: flow.watchRoom, src/online/watchflow.js). */
     joinRoom(code) {
       return enter('join', () => joinRoom({ transport, code, profile: session.profile, picks: seatPicks() }),
-        (e) => ({ 'not-found': 'notfound', full: 'full', closed: 'closed', hostaway: 'hostaway' }[e && e.code] || 'noanswer'));
+        (e) => ({ 'not-found': 'notfound', full: 'full', playing: 'playing', closed: 'closed', hostaway: 'hostaway' }[e && e.code] || 'noanswer'));
     },
 
     /** Hero / weapon for the next match: stored like the LOADOUT page stores it, then shown to the room. */
@@ -308,11 +309,13 @@ export function createFlow(game, ui, { transport, session, clock, trusted = true
       ui.nav(to === 'title' ? 'title' : 'online');
     },
 
-    shareLink() {
+    /** The address a friend opens to land in my room; `watch: true` = the WATCH LINK (they watch, no seat). */
+    shareLink({ watch = false } = {}) {
       const code = flow.room ? flow.room.code : '';
       const q = new URLSearchParams();
       if (ui.params && ui.params.net) q.set('net', ui.params.net); // a local test network: the friend's tab needs it too
       q.set('room', code);
+      if (watch) q.set('watch', '1');
       return `${location.origin}${location.pathname}?${q.toString()}`;
     },
   };

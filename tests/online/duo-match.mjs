@@ -203,7 +203,7 @@ export const scenarios = [
       await C.click('.on-ready');
       await duo.tick(3000);
       const [a, c] = [await A.view(), await C.view()];
-      eq([a.live, c.live, a.view, a.room.seats.map((s) => s && s.n)], [false, false, 'lobby', ['Ann', 'Cyd']], 'no match started on A');
+      eq([a.live, c.live, a.view, a.room.seats.filter(Boolean).map((s) => s.n)], [false, false, 'lobby', ['Ann', 'Cyd']], 'no match started on A');
       // when A taps READY too, the two of them play
       await duo.ready(A);
       const [a2, c2] = await duo.go(A, C);

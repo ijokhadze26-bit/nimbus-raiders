@@ -63,29 +63,46 @@ test('a taken code is retried with another one', async () => {
   eq(failed, 'no-code', 'gives up after 5 collisions');
 });
 
-test('the third player in a 2-seat room becomes a watcher; two racing for one seat cannot both get it', async () => {
+test('no seat free: a plain join throws full / playing and writes nothing; watch: true watches; two racing for one seat cannot both get it', async () => {
   const w = world();
   const a = await w.player('uidA', 'Alpha');
   const ra = await w.settle(createRoom({ transport: a.tp, profile: a.profile, clock: w.clock }));
   const b = await w.player('uidB', 'Bravo');
   const c = await w.player('uidC', 'Charlie');
-  const [rb, rc] = await w.settle(Promise.all([
-    joinRoom({ transport: b.tp, code: ra.code, profile: b.profile, clock: w.clock }),
-    joinRoom({ transport: c.tp, code: ra.code, profile: c.profile, clock: w.clock }),
+  const tries = await w.settle(Promise.all([
+    joinRoom({ transport: b.tp, code: ra.code, profile: b.profile, clock: w.clock }).catch((e) => e.code),
+    joinRoom({ transport: c.tp, code: ra.code, profile: c.profile, clock: w.clock }).catch((e) => e.code),
   ]));
   await w.clock.advance(10);
-  const seated = [rb, rc].filter((r) => r.state.me === 1);
-  const watching = [rb, rc].filter((r) => r.state.watching);
-  eq([seated.length, watching.length], [1, 1]);
-  eq(ra.state.spectators, 1);
-  eq(ra.state.seats.filter(Boolean).length, 2);
+  const seated = tries.filter((r) => typeof r === 'object' && r.state.me === 1);
+  eq([seated.length, tries.filter((r) => r === 'full').length], [1, 1], 'one sits, the other is told the lobby is full');
+  eq(w.hub.admin.get(`rooms/${ra.code}/sp`), null, 'no watcher marker from a plain join');
+  eq(ra.state.spectators, 0);
   const d = await w.player('uidD', 'Delta');
   const rd = await w.settle(joinRoom({ transport: d.tp, code: ra.code, profile: d.profile, watch: true, clock: w.clock }));
   await w.clock.advance(10);
-  eq([rd.state.me, rd.state.watching, ra.state.spectators], [null, true, 2]);
+  eq([rd.state.me, rd.state.watching, ra.state.spectators], [null, true, 1]);
+  // the match starts: a plain join now says 'playing', still without a marker
+  ra.on('start', () => {}); seated[0].on('start', () => {});
+  await w.settle(Promise.all([ra.ready(true), seated[0].ready(true)]));
+  await w.clock.advance(200);
+  ok(ra.state.mid, 'live');
+  const e = await w.player('uidE', 'Echo');
+  let code = null;
+  await w.settle(joinRoom({ transport: e.tp, code: ra.code, profile: e.profile, clock: w.clock }).catch((x) => { code = x.code; }));
+  eq(code, 'playing');
+  eq(Object.keys(w.hub.admin.get(`rooms/${ra.code}/sp`) || {}), ['uidD'], 'only the real watcher has a marker');
+  // four watch: the fifth is turned away
+  for (const id of ['uidX', 'uidY', 'uidZ']) w.hub.admin.set(`rooms/${ra.code}/sp/${id}`, true);
+  await w.clock.advance(10);
+  code = null;
+  await w.settle(joinRoom({ transport: e.tp, code: ra.code, profile: e.profile, watch: true, clock: w.clock }).catch((x) => { code = x.code; }));
+  eq(code, 'full', 'the 5th watcher');
+  eq(w.hub.admin.get(`rooms/${ra.code}/sp/uidE`), null);
   await w.settle(rd.leave());
   await w.clock.advance(10);
-  eq(ra.state.spectators, 1, 'a watcher who leaves is gone');
+  eq(ra.state.spectators, 3, 'a watcher who leaves is gone');
+  eq(w.denials.length, 0);
 });
 
 test('picks show live and lock at ready', async () => {

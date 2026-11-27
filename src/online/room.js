@@ -1,7 +1,7 @@
 // Friend rooms: create, join by code, seats, picks, ready, start, rematch, leave (SPEC4 5.1, 5.2, 5.8).
 //
 //   const room = await createRoom({ transport, profile, picks })            // I am seat 0 and the host
-//   const room = await joinRoom({ transport, code, profile, picks, watch }) // lowest empty seat, else a watcher
+//   const room = await joinRoom({ transport, code, profile, picks, watch }) // lowest empty seat; watch: true = a watcher
 //   room.on('change', (state) => ...)   room.on('start', ({ mid, t0, seed }) => ...)   room.on('error', (e) => ...)
 //   room.pick({ he, we, hs, ws })   room.ready(true)   room.rematch({ ready })   room.leave()
 //
@@ -372,8 +372,9 @@ export async function createRoom({ transport: tp, uid = tp.uid, profile, picks, 
 
 /**
  * joinRoom({ transport, code, profile, picks, watch, clock, autoStart }) -> room
- * Takes the lowest empty seat; when the room is full or already playing (or watch is true) joins as a
- * watcher (state.watching). Throws err.code 'not-found' for a wrong code, 'full' when 4 already watch.
+ * Takes the lowest empty seat. No seat free: throws err.code 'playing' (the room's match is on) or 'full' (a full
+ * lobby), and writes nothing. watch: true joins as a watcher instead (state.watching; an `sp` marker, no seat),
+ * or throws 'full' when 4 already watch. Throws 'not-found' for a wrong code.
  */
 export async function joinRoom({ transport: tp, uid = tp.uid, code, profile, picks, watch = false, ...opts }) {
   const cc = String(code || '').trim().toUpperCase();
@@ -405,8 +406,10 @@ export async function joinRoom({ transport: tp, uid = tp.uid, code, profile, pic
           }
         }
       }
+      // no seat: only a watch request becomes a watcher (never a marker left behind by a plain join)
+      if (!seated && !watch) throw raw.st === 'live' ? netError('playing', 'the match already started') : netError('full', 'the room is full');
       if (!seated) {
-        if (!raw.sp[uid] && Object.keys(raw.sp).length >= NET.maxWatchers) throw netError('full', 'the room is full');
+        if (!raw.sp[uid] && Object.keys(raw.sp).length >= NET.maxWatchers) throw netError('full', 'too many watchers');
         await room._watching();
       }
     }

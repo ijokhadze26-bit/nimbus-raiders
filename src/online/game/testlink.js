@@ -19,6 +19,11 @@
 // (newest sample + `xs`), `lag` seconds late.
 // Sabotage (STAGE2): test.sab(slot, code, { lag, sent, to }) = that rival sends one now, delivered as 'event' from
 // tick() once clock() >= sent + lag; test.dupe(e) re-delivers a delivered event (a replay); test.events records mine.
+// Stage 5 (3-4 players): 'final' ({ places }, also link.final) once the whole table can no longer change (the referee
+// decides it like match.js: everyone fell, or one runner is past the tie window of the best fall), 'feed' (every event
+// once, before the 'to' filter, with an id; a late listener gets the earlier ones first), 'stale' (link.stale; only
+// from test.stale()), link.snapshot(). Hooks: test.final(places) delivers a 'final' by hand, test.stale(), test.feed(e)
+// (an event between two other players: it reaches 'feed' only).
 import { sabEncode, sabBig } from './sabdata.js';
 
 const TIE = 1.0, SAMPLE = 0.1;
@@ -34,7 +39,7 @@ export function defaultCurve(fallAt = Infinity, phase = 0) {
 }
 
 export function createTestLink(opts = {}) {
-  const listeners = { state: [], out: [], peer: [], verdict: [], event: [], status: [] };
+  const listeners = { state: [], out: [], peer: [], verdict: [], event: [], status: [], final: [], feed: [], stale: [] };
   const emit = (type, ...a) => { for (const cb of listeners[type].slice()) cb(...a); };
   const game = opts.game || (typeof window !== 'undefined' ? window.__game : null);
   let t0 = 0, manual = null;
@@ -50,7 +55,8 @@ export function createTestLink(opts = {}) {
     curve: r.curve || defaultCurve(r.fallAt ?? Infinity, i * 1.7),
     next: 0, lastFlush: 0, q: 0, xs: [], out: null, silent: false, last: null,
   }));
-  const outbox = [], delivered = [];
+  const outbox = [], delivered = [], feedLog = [];
+  let feedN = 0;
   const test = { delivered, sent: [], pushed: 0, lastT: 0, falls: [], events: [], verdicts: [], ticks: 0, left: false, mine: null, done: false };
   const mySlot = opts.slot | 0;
 
@@ -70,30 +76,62 @@ export function createTestLink(opts = {}) {
     finish(null, test.mine);
   }
 
-  function finish(forced, me, reason) {
-    if (test.done) return;
+  /** Everyone in finishing order (still running first); only first place uses the tie rule: within 1 s of the best
+   *  time the further distance wins, equal = a draw. -> { rows, draw } */
+  function table(me) {
     const rows = rivals.map((r) => ({ slot: r.slot, T: r.out ? r.out.T : Infinity, d: r.out ? r.out.d : Infinity, by: r.out ? r.out.by : null }));
     rows.push({ slot: mySlot, T: me ? me.T : Infinity, d: me ? me.d : Infinity, by: me ? me.by : null });
-    rows.sort((a, b) => b.T - a.T);
-    // only first place uses the tie rule: within 1 s of the best time, the further distance wins; equal = draw
-    let result = forced;
+    rows.sort((a, b) => b.T - a.T || a.slot - b.slot);
+    let draw = false;
     if (rows.length > 1 && rows[0].T - rows[1].T <= TIE && Number.isFinite(rows[0].T)) {
-      const top = rows.filter((r) => rows[0].T - r.T <= TIE).sort((a, b) => b.d - a.d);
+      const top = rows.filter((r) => rows[0].T - r.T <= TIE).sort((a, b) => b.d - a.d || a.slot - b.slot);
       const rest = rows.filter((r) => rows[0].T - r.T > TIE);
       rows.length = 0; rows.push(...top, ...rest);
-      if (!forced && top[0].d === top[1].d && (top[0].slot === mySlot || top[1].slot === mySlot)) result = 'draw';
+      draw = top[0].d === top[1].d;
     }
-    const place = rows.findIndex((r) => r.slot === mySlot) + 1;
+    return { rows: rows.map((r) => ({ slot: r.slot, T: Number.isFinite(r.T) ? r.T : null, d: Number.isFinite(r.d) ? r.d : null, by: r.by })), draw };
+  }
+
+  function finish(forced, me, reason) {
+    if (test.done) return;
+    const { rows: places, draw } = table(me);
+    let result = forced;
+    if (!forced && draw && (places[0].slot === mySlot || places[1].slot === mySlot)) result = 'draw';
+    const place = places.findIndex((r) => r.slot === mySlot) + 1;
     if (!result) result = place === 1 ? 'win' : 'lose';
-    const places = rows.map((r) => ({ slot: r.slot, T: Number.isFinite(r.T) ? r.T : null, d: Number.isFinite(r.d) ? r.d : null, by: r.by }));
     test.verdict({ result, place, places, reason: reason || (me && me.by === 'quit' ? 'quit' : null) });
+    checkFinal();
+  }
+
+  /** The whole table once it can no longer change: everyone fell, or one runner is past the tie window of the best fall. */
+  function checkFinal() {
+    if (link.final || opts.referee === false || !rivals.length) return;
+    const alive = rivals.filter((r) => !r.out);
+    const running = alive.length + (test.mine ? 0 : 1);
+    if (running > 1) return;
+    let best = test.mine ? test.mine.T : -Infinity;
+    for (const r of rivals) if (r.out) best = Math.max(best, r.out.T);
+    if (running === 1) {
+      const t = test.mine ? (alive[0].last ? alive[0].last.t : -1) : test.lastT;
+      if (!(t > best + TIE)) return;
+    }
+    test.final(table(test.mine).rows);
+  }
+
+  /** Every event once, before the 'to' filter (what match.js gives a fallen player's or a watcher's view). */
+  function feed(e) {
+    const f = { k: e.k, a: e.a, f: e.f, to: e.to, q: e.q ?? 0, id: e.id || `ev${String(++feedN).padStart(4, '0')}` };
+    feedLog.push(f);
+    emit('feed', { ...f });
   }
 
   function rivalOut(r, o) {
-    if (r.out || test.done) return;
+    // (after my verdict the others' falls still come: with 3-4 players the fallen one watches the rest, like match.js)
+    if (r.out || (test.done && rivals.length < 2)) return;
     r.out = { T: o.T ?? o.t ?? clock(), d: Math.round(o.d ?? r.curve(o.T ?? clock()).dist), by: o.by || 'dead' };
     emit('out', r.slot, { ...r.out });
     decide();
+    checkFinal();
   }
 
   const link = {
@@ -102,6 +140,18 @@ export function createTestLink(opts = {}) {
     peers: rivals.map(({ slot, name, hero, weapon, heroSkin, weaponSkin, tr, bot }) => ({ slot, name, hero, weapon, heroSkin, weaponSkin, tr, bot })),
     ranked: !!opts.ranked,
     clock,
+    feeds: true, final: null, stale: false,
+    get left() { return test.left; },
+    snapshot() {
+      const out = { t: clock(), states: {}, outs: {}, silent: {} };
+      for (const r of rivals) {
+        if (r.last) out.states[r.slot] = { ...r.last };
+        if (r.out) out.outs[r.slot] = { ...r.out };
+        out.silent[r.slot] = r.silent ? 3 : 0;
+      }
+      if (test.mine) out.outs[mySlot] = { ...test.mine };
+      return out;
+    },
     push(s) {
       test.pushed++; test.lastT = s.t;
       test.sent.push(s);
@@ -120,6 +170,7 @@ export function createTestLink(opts = {}) {
     on(type, cb) {
       if (!listeners[type]) throw new Error('testlink: unknown event ' + type);
       listeners[type].push(cb);
+      if (type === 'feed') for (const e of feedLog.slice()) cb({ ...e });
       return () => { const i = listeners[type].indexOf(cb); if (i >= 0) listeners[type].splice(i, 1); };
     },
     leave() { test.left = true; for (const k in listeners) listeners[k].length = 0; },
@@ -147,12 +198,14 @@ export function createTestLink(opts = {}) {
       for (let i = 0; i < outbox.length; i++) {
         if (outbox[i].at > now + 1e-9) continue;
         const { e } = outbox.splice(i--, 1)[0];
+        feed(e);
         if (e.to !== -1 && e.to !== mySlot) continue; // routed like match.js: only mine or everyone's
         delivered.push(e);
         emit('event', { ...e });
         if (test.left) return;
       }
       decide();
+      checkFinal();
     },
     test,
   };
@@ -172,6 +225,12 @@ export function createTestLink(opts = {}) {
    *  verdict marked `revised: true` may follow a provisional one (as src/online/match.js does). */
   test.verdict = (v) => { if (test.done && !(v && v.revised)) return; test.done = true; test.verdicts.push(v); emit('verdict', v); };
   test.status = (s) => emit('status', s);
+  /** The whole table by hand (once, like match.js): link.final and 'final'. */
+  test.final = (places) => { if (link.final) return; link.final = places; emit('final', { places }); };
+  /** Every runner went silent for good: 'stale' (once). */
+  test.stale = () => { if (link.stale) return; link.stale = true; emit('stale'); };
+  /** An event between two other players: only 'feed' hears it. */
+  test.feed = (e) => feed(e);
   test.event = (e) => emit('event', e);
   /** 'sim' clock only: freeze the match clock at a value (null = follow the game again). */
   test.setClock = (v) => { manual = v; };
