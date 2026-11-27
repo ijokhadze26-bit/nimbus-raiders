@@ -101,7 +101,9 @@ export const scenarios = [
       eq(c.ribbon, 'YOU CAME 3RD', 'C\'s ribbon');
       // D's GG reaches C's watch (an emote from a fallen page): on C's feed, a bubble on D's card
       ok(await duo.emote(D, 3), 'D sent GG from its result screen');
-      await duo.play(2.5);
+      await duo.play(0.5);
+      await C.shot('emote');
+      await duo.play(2);
       w = await duo.watchView(D);
       ok(w.cards.find((x) => x.slot === 2).down, `D's card of C is down: ${JSON.stringify(w.cards[2])}`);
       const wc = await duo.watchView(C);
