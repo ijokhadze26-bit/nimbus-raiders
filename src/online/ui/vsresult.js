@@ -11,8 +11,8 @@
 //   every flow 'change': SAVING... then saved), the rival's trophy change in their row, the league-up moment, and a
 //   SHARE button beside LEAVE (share.js shareResult). None of the single-player RETRY / NEXT / MAP buttons.
 // - Stage 5, WATCHING (3-4 players): my squad fell while others still run. My place is known already (the verdict
-//   waits until every runner is 1.1 s past me), so the red ribbon says YOU CAME 3RD, then "OF 4 · WATCHING THE
-//   OTHERS..." and the live cards of the watch view (watchview.js over the watch model of watch.js) with LEAVE only.
+//   waits until every runner is 1.1 s past me), so the red ribbon says YOU CAME 3RD, right under it "OUT OF 4 ·
+//   WATCHING THE OTHERS..." and the live cards of the watch view (watchview.js over the watch model of watch.js) with LEAVE only.
 //   It ends on 'versus:final' (the whole table: the places shown are versus.final, never a guess of mine), on the
 //   watch's 'stale' (every runner went silent: the table of what is known) or on LEAVE; then the normal result with
 //   REMATCH / LEAVE / SHARE / coins. The winner and the 2nd place never watch: 'final' comes with their verdict.
@@ -22,6 +22,7 @@ import { SLOT_COLORS } from '../game/vsdata.js';
 import { verdictWords, rematchWords, leftWords, clockTenths, metres, esc, up, nameFit, ORD } from './vswords.js';
 import { mountRankLine } from './rankline.js';
 import { shareResult } from '../share.js';
+import { drawSlots } from '../verdict.js';
 
 import { createWatch } from '../game/watch.js';
 import { mountWatchView } from './watchview.js';
@@ -88,8 +89,7 @@ export function createVsResult(ctx) {
     const n = ctx.players().length, place = ORD[res.place] ? res.place : null;
     wrap.innerHTML = `<div class="panel panel-result vsr lose watching pop" data-result="lose" data-watching="1" data-reason="${esc(res.reason || '')}">
         <div class="ribbon ribbon-red"><span>${place ? `YOU CAME ${ORD[place]}` : 'SQUAD DOWN'}</span></div>
-        <div class="res-level">ONLINE MATCH</div>
-        <div class="vsr-wline">${place ? `OF ${n} · ` : ''}WATCHING THE OTHERS...</div>
+        <div class="vsr-wline">${place ? `OUT OF ${n} · ` : ''}WATCHING THE OTHERS...</div>
         <div class="vsr-watch"></div>
         <div class="res-btns"><button type="button" class="btn btn-md btn-blue" data-act="leave">${icon('home')}<span>LEAVE</span></button></div>
       </div>`;
@@ -146,16 +146,20 @@ export function createVsResult(ctx) {
   function placesHtml(res) {
     const { rows } = ranking(res);
     if (!rows.length) return '';
-    // a draw for first: mine, or (3-4 players) two others with the same distance inside the tie window of 1 s
-    const [a, b] = rows;
-    const draw = res.result === 'draw' || (!!b && !a.standing && !b.standing && a.T != null && b.T != null
-      && Math.abs(a.T - b.T) <= 1 && Math.round(a.d) === Math.round(b.d));
+    const vs = game.versus, many = ctx.players().length > 2, fin = many && !!(vs && vs.final);
+    // a draw for first: '=' on every seat that shares it (verdict.js drawSlots: the verdict's own rule, in tenths)
+    const eq = new Set(drawSlots(fin ? vs.final : res.places));
+    if (res.result === 'draw' && !eq.size) for (const r of rows.slice(0, 2)) eq.add(r.slot);
+    // 3-4 players and no final table (the match stopped): runners nobody heard the end of get no place number
+    const open = many && !fin && rows.filter((r) => r.standing).length > 1;
     return `<ol class="vsr-places"><li class="vsr-h"><span></span><span></span><span>TIME</span><span>DISTANCE</span></li>${rows.map((r, i) => {
       const tag = leftWords(r.by);
-      const nums = r.standing ? '<span class="vsr-note">STILL STANDING</span>'
+      // the last squad standing of a final table reads the same on every screen, its own too (nobody else has its time)
+      const last = fin && (r.standing || (r.me && vs.final.some((p) => p.slot === r.slot && p.T == null)));
+      const nums = last ? '<span class="vsr-note">LAST STANDING</span>' : r.standing ? '<span class="vsr-note">STILL STANDING</span>'
         : `<span class="vsr-tm num">${clockTenths(r.T)}</span><span class="vsr-ds num">${metres(r.d)}</span>`;
       return `<li class="${r.me ? 'me' : ''}" data-slot="${r.slot}" style="--sc:${SLOT_COLORS[r.slot % SLOT_COLORS.length]}">`
-        + `<span class="vsr-pl">${draw && i < 2 ? '=' : i + 1}</span>`
+        + `<span class="vsr-pl">${eq.has(r.slot) ? '=' : open && r.standing ? '' : i + 1}</span>`
         + `<span class="vsr-nm"><i class="vs-dot"></i><span class="vsr-name${r.me ? '' : nameFit(r.name)}">${r.me ? 'YOU' : esc(up(r.name))}</span>${tag ? `<em>${tag}</em>` : ''}</span>${nums}</li>`;
     }).join('')}</ol>`;
   }

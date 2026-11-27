@@ -82,10 +82,12 @@ export function mountWatchView(host, watch, { mode = 'spectator', mySlot = null 
     if (!p.alive && c.downAt === null) c.downAt = age;
     const cls = `wv-card${c.el.classList.contains('me') ? ' me' : ''}${!p.alive ? ' down' : silent ? ' silent' : p.danger >= WATCH.danger ? ' danger' : ''}${inBoss ? ' boss' : ''}${p.place === 1 && watch.final ? ' won' : ''}`;
     if (cls !== S.cls) { S.cls = cls; c.el.className = cls; }
-    const nn = Math.round(p.n);
-    if (nn !== S.n) { S.n = nn; c.nEl.textContent = String(nn); }
-    const dd = Math.round(p.dist);
-    if (dd !== S.d) { S.d = dd; c.dEl.textContent = metres(dd); }
+    // (no state of theirs yet: the match has not begun, and a 0 would look like a wiped-out squad)
+    const wait = p.alive && p.seen === false;
+    const nn = wait ? -2 : Math.round(p.n); // (-2: not the -1 that means "nothing written yet")
+    if (nn !== S.n) { S.n = nn; c.nEl.textContent = wait ? '–' : String(nn); }
+    const dd = wait ? -2 : Math.round(p.dist);
+    if (dd !== S.d) { S.d = dd; c.dEl.textContent = wait ? '–' : metres(dd); }
     if (p.danger !== S.dg) { S.dg = p.danger; c.bars.forEach((b, k) => { b.className = k < p.danger ? 'on' : ''; }); }
     const fl = p.alive ? flagsOf(p.flags) : '';
     if (fl !== S.fl) { S.fl = fl; c.flEl.innerHTML = fl ? fl.split(' ').map(flagIcon).join('') : ''; }
@@ -115,8 +117,9 @@ export function mountWatchView(host, watch, { mode = 'spectator', mySlot = null 
     V.feed = key;
     feedEl.innerHTML = f.map((l) => {
       const what = l.k === 's' ? `<b style="color:${(sabKind(l.a) || {}).color || '#fff'}">${esc(l.what)}</b>` : `<b class="wv-fe">${esc(l.what)}</b>`;
-      const to = l.k === 's' ? ` → <span>${esc(l.to === -1 ? 'EVERYONE' : who(l.to, l.toName))}</span>` : '';
-      return `<li><i class="wv-dot" style="--sc:${colour(l.f)}"></i><span>${esc(who(l.f, l.fromName))}</span>${to} · ${what}</li>`;
+      // the names give way (they shorten with ...), the kind of the line (FOG, GG) always shows whole
+      const to = l.k === 's' ? `<span class="wv-fs"> → </span><span class="wv-fn">${esc(l.to === -1 ? 'EVERYONE' : who(l.to, l.toName))}</span>` : '';
+      return `<li><i class="wv-dot" style="--sc:${colour(l.f)}"></i><span class="wv-fn">${esc(who(l.f, l.fromName))}</span>${to}<span class="wv-fs"> · </span>${what}</li>`;
     }).join('');
   }
 
@@ -134,7 +137,7 @@ export function mountWatchView(host, watch, { mode = 'spectator', mySlot = null 
     table.innerHTML = `<div class="wv-win ol">${esc(head)}</div><ol class="wv-rows">${rows.map((r, i) => {
       const place = watch.final ? (watch.draw && r.p.place === 1 ? '=' : ORD[r.p.place || i + 1]) : r.T == null ? '' : ORD[r.p.place] || '';
       const tag = leftWords(r.by);
-      const nums = r.T == null ? '<span class="wv-note">STILL STANDING</span>' : `<span class="num">${clockTenths(r.T)}</span><span class="num">${metres(r.d)}</span>`;
+      const nums = r.T == null ? `<span class="wv-note">${watch.final ? 'LAST STANDING' : 'STILL STANDING'}</span>` : `<span class="num">${clockTenths(r.T)}</span><span class="num">${metres(r.d)}</span>`;
       return `<li class="${watch.final && r.p.place === 1 ? 'gold' : ''}" data-slot="${r.slot}" style="--sc:${colour(r.slot)}"><b class="wv-rp">${place}</b>`
         + `<span class="wv-rn"><i class="wv-dot"></i><span class="${nameFit(r.p.name).trim()}">${esc(up(r.p.name))}</span>${tag ? `<em>${tag}</em>` : ''}</span>${nums}</li>`;
     }).join('')}</ol><div class="wv-next">WAITING FOR THE NEXT MATCH<i class="on-dots"><b></b><b></b><b></b></i></div>`;
@@ -148,8 +151,10 @@ export function mountWatchView(host, watch, { mode = 'spectator', mySlot = null 
     age += step; acc += step;
     if (acc < WATCH.stepS) return;
     acc = 0;
-    const sec = Math.floor(watch.t);
-    if (sec !== V.sec) { V.sec = sec; clockEl.textContent = clock(sec); }
+    // before anybody's first numbers (the VS card / 3-2-1 on the players' screens): GET READY... instead of 0:00
+    const pre = !watch.final && !watch.stale && !watch.players.some((p) => p.seen !== false || !p.alive);
+    const sec = pre ? -2 : Math.floor(watch.t);
+    if (sec !== V.sec) { V.sec = sec; clockEl.textContent = pre ? 'GET READY...' : clock(sec); }
     if (watch.phase !== V.phase) {
       V.phase = watch.phase;
       phaseEl.className = watch.phase ? `wv-phase ${watch.phase}` : 'wv-phase hidden';

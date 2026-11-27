@@ -12,7 +12,7 @@ import { el } from '../../ui/ui.js';
 import { icon } from '../../ui/icons.js';
 import { SLOT_COLORS } from '../game/vsdata.js';
 import { mountWatchView } from './watchcards.js';
-import { esc, up } from './vswords.js';
+import { esc, up, nameFit } from './vswords.js';
 
 export { mountWatchView };
 
@@ -52,7 +52,9 @@ export function createWatchView(ui, flow, page) {
   }
 
   const view = {
-    el: root, title: 'WATCHING',
+    el: root,
+    /** WATCHING only while there is something to watch (not over TOO MANY WATCHERS or THE ROOM CLOSED). */
+    get title() { const st = flow.watch && flow.watch.state; return st && st.phase !== 'gone' ? 'WATCHING' : 'ONLINE'; },
     enter() { S.key = S.seats = S.count = null; },
     leave() { mount(null); },
     sync() {
@@ -81,7 +83,7 @@ export function createWatchView(ui, flow, page) {
         S.seats = sk;
         seatsEl.hidden = !seats.length;
         seatsEl.innerHTML = seats.map((s, i) => (s
-          ? `<li style="--sc:${SLOT_COLORS[s.slot % SLOT_COLORS.length]}"><span>${esc(up(s.n || 'RAIDER'))}</span>${s.rdy ? `<b class="wv-rdy">${icon('check')}READY</b>` : '<b class="wv-wait">NOT READY</b>'}</li>`
+          ? `<li style="--sc:${SLOT_COLORS[s.slot % SLOT_COLORS.length]}"><span class="${nameFit(s.n || 'RAIDER').trim()}">${esc(up(s.n || 'RAIDER'))}</span>${s.rdy ? `<b class="wv-rdy">${icon('check')}READY</b>` : '<b class="wv-wait">NOT READY</b>'}</li>`
           : `<li class="empty" style="--sc:${SLOT_COLORS[i % SLOT_COLORS.length]}"><span>EMPTY SEAT</span></li>`)).join('');
       }
       const count = st && st.count > 0 && phase !== 'gone' ? `${st.count} WATCHING` : '';

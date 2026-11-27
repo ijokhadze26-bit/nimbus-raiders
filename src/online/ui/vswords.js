@@ -29,15 +29,15 @@ export const ORD = ['', '1ST', '2ND', '3RD', '4TH'];
 const WHY = {
   win: {
     standing: (many) => ['LAST SQUAD STANDING', many ? 'Every other squad was wiped out.' : "Your rival's squad was wiped out."],
-    distance: () => ['YOU WENT FURTHER', 'Both squads fell in the same second. You got further down the road!'],
+    distance: (many) => ['YOU WENT FURTHER', many ? 'The last squads fell in the same second. You got furthest down the road!' : 'Both squads fell in the same second. You got further down the road!'],
     dc: () => ['RIVAL LOST CONNECTION', "Your rival's internet dropped, so the win is yours."],
     quit: () => ['RIVAL LEFT', 'Your rival left the match, so the win is yours.'],
     cap: () => ['TIME IS UP', 'Time ran out for your rival.'],
   },
   lose: {
     fell: (many) => ['SQUAD DOWN', many ? 'Your squad was wiped out before the last one.' : 'Your squad was wiped out first.'],
-    distance: () => ['RIVAL WENT FURTHER', 'Both squads fell in the same second. Your rival got further down the road.'],
-    dc: () => ['CONNECTION LOST', 'Your internet dropped for too long, so the match went to your rival.'],
+    distance: (many) => ['RIVAL WENT FURTHER', many ? 'You fell in the same second as the winner, but they got further down the road.' : 'Both squads fell in the same second. Your rival got further down the road.'],
+    dc: (many) => ['CONNECTION LOST', many ? 'Your internet dropped for too long, so your squad is out.' : 'Your internet dropped for too long, so the match went to your rival.'],
     offline: () => ['CONNECTION LOST', 'Your internet dropped. The result will update when you are back online.'],
     quit: () => ['YOU LEFT', 'You left the match.'],
     stall: () => ['GAME STOPPED', 'Your game stood still for too long. Keep this tab open during a match!'],
@@ -45,7 +45,7 @@ const WHY = {
     noverdict: () => ['NO ANSWER', 'We could not reach the other player to check the result.'],
   },
   draw: {
-    draw: () => ['DEAD EVEN', 'Both squads fell at the same moment, at the same distance. Nobody wins!'],
+    draw: (many) => ['DEAD EVEN', many ? 'The last squads fell at the same moment, at the same distance. You share first place!' : 'Both squads fell at the same moment, at the same distance. Nobody wins!'],
   },
 };
 const TITLE = { win: 'YOU WIN!', lose: 'YOU LOSE', draw: 'DRAW' };
@@ -62,7 +62,9 @@ export function verdictWords(result, opts = {}) {
   const table = WHY[kind];
   const make = table[reason] || table[kind === 'win' ? 'standing' : kind === 'draw' ? 'draw' : 'fell'];
   let [head, text] = make(many);
-  if (many && kind === 'lose' && r.place > 1 && ORD[r.place] && (reason === 'fell' || !table[reason])) head = `YOU CAME ${ORD[r.place]} OF ${opts.players}`;
+  // 3-4 players: a place says more than "connection lost" or "rival went further" (the words under it say why)
+  const placed = reason === 'fell' || reason === 'dc' || reason === 'distance' || !table[reason];
+  if (many && kind === 'lose' && r.place > 1 && ORD[r.place] && placed) head = `YOU CAME ${ORD[r.place]} OF ${opts.players}`;
   if (r.provisional) text += ' Checking the result...';
   return { title: TITLE[kind], tone: kind, head, text, updated: !!r.revised };
 }
@@ -75,6 +77,8 @@ export function rematchWords(rs) {
   if (rs.quick) return { label: 'PLAY AGAIN', note: '', off: !rs.can, hot: false, waiting: false };
   const others = rs.others || [];
   if (rs.lost) return { label: 'REMATCH', note: 'YOU LOST YOUR SEAT', off: true, hot: false, waiting: false };
+  // 3-4 players whose match never got its end (two runners without a fall record): no rematch in this room for now
+  if (rs.stuck) return { label: 'REMATCH', note: rs.stuck === 'left' ? 'THE OTHERS LEFT · MAKE A NEW ROOM' : 'THE MATCH IS STILL ON', off: true, hot: false, waiting: false };
   if (!rs.can) {
     // offline is not gone: the button turns gold again if they come back
     const away = others.filter((o) => !o.here), off = away.length > 0 && away.every((o) => o.offline);

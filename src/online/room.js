@@ -407,7 +407,7 @@ export async function joinRoom({ transport: tp, uid = tp.uid, code, profile, pic
         }
       }
       // no seat: only a watch request becomes a watcher (never a marker left behind by a plain join)
-      if (!seated && !watch) throw raw.st === 'live' ? netError('playing', 'the match already started') : netError('full', 'the room is full');
+      if (!seated && !watch) throw raw.st === 'live' ? netError('playing', 'the match already started') : Object.assign(netError('full', 'the room is full'), { max: raw.max });
       if (!seated) {
         if (!raw.sp[uid] && Object.keys(raw.sp).length >= NET.maxWatchers) throw netError('full', 'too many watchers');
         await room._watching();

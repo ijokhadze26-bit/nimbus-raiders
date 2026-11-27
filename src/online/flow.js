@@ -17,6 +17,7 @@
 //   startMatch()                    runs on the room's 'start': link = createMatch(...), game.versus.start(link, picks)
 //   rematchState()                  { can, mine, others: [{ slot, name, here, wants, offline }], waitingFor, lost, hostLeft }
 //                                   (offline: not seated, and the match saw that rival's connection drop)
+//                                   + stuck 'left' | 'on' (3-4 players: two runners never fell, so no rematch yet)
 //   rematch()                       I want another round; the next 'start' of the room begins it
 //   leave(to = 'online')            leave the match and the room for good, then go to the hub ('online') or 'title'
 //   on(type, cb) -> off             'change': something a screen shows has changed
@@ -45,6 +46,7 @@ const PENDING_KEY = 'nimbusRaiders.online.pending';
 export const NOTICES = {
   notfound: ['ROOM NOT FOUND', 'Check the code with your friend and try again.'],
   full: ['ROOM IS FULL', 'All 4 seats are taken. You can still watch the match!'],
+  full2: ['ROOM IS FULL', 'Both seats are taken. You can still watch the match!', 'full'], // a 2-seat room (a quick room's code)
   playing: ['MATCH ALREADY STARTED', 'You can watch it! Ask your friends for the next room to play.'],
   closed: ['ROOM CLOSED', 'That room is gone. Make a new one!'],
   hostaway: ['THE HOST IS AWAY', "The host's internet dropped. Try again in a moment."],
@@ -70,7 +72,7 @@ export function createFlow(game, ui, { transport, session, clock, trusted = true
   const emitNow = () => { queued = false; for (const cb of [...(handlers.get('change') || [])]) { try { cb(flow); } catch (e) { console.error(e); } } };
   /** Several things often change in one go (a room update): the screens are told once, a moment later. */
   const changed = () => { if (!queued) { queued = true; queueMicrotask(emitNow); } };
-  const note = (kind) => { flow.notice = kind ? { kind, title: NOTICES[kind][0], text: NOTICES[kind][1] } : null; };
+  const note = (kind) => { flow.notice = kind ? { kind: NOTICES[kind][2] || kind, title: NOTICES[kind][0], text: NOTICES[kind][1] } : null; };
 
   // ---------------- my pick ----------------
   function syncPicks() {
@@ -231,7 +233,7 @@ export function createFlow(game, ui, { transport, session, clock, trusted = true
      *  watched instead: flow.watchRoom, src/online/watchflow.js). */
     joinRoom(code) {
       return enter('join', () => joinRoom({ transport, code, profile: session.profile, picks: seatPicks() }),
-        (e) => ({ 'not-found': 'notfound', full: 'full', playing: 'playing', closed: 'closed', hostaway: 'hostaway' }[e && e.code] || 'noanswer'));
+        (e) => ({ 'not-found': 'notfound', full: e && e.max === 2 ? 'full2' : 'full', playing: 'playing', closed: 'closed', hostaway: 'hostaway' }[e && e.code] || 'noanswer'));
     },
 
     /** Hero / weapon for the next match: stored like the LOADOUT page stores it, then shown to the room. */
@@ -286,6 +288,15 @@ export function createFlow(game, ui, { transport, session, clock, trusted = true
       out.lost = !seat;
       out.hostLeft = !!st.hostLeft;
       out.can = !!seat && out.others.some((o) => o.here);
+      // 3-4 players: two or more never got a fall record (they closed the game mid-match). The rules (OVER) keep the
+      // room live until the match's time cap, so no REMATCH: the words say why instead of a STARTING... that never comes
+      const vs = game.versus, l = flow.link;
+      const runs = players.length > 2 && vs && vs.peer ? rivals.filter((p) => { const q = vs.peer(p.slot); return !!q && q.alive; }) : [];
+      if (runs.length + (vs && !vs.fallen ? 1 : 0) > 1 && !(l && l.t0 && transport.now() - (l.t0 - NET.goMs) > NET.capMs)) {
+        out.can = false;
+        // 'on': one of them is still in the room (maybe still playing); 'left': they all closed the game
+        out.stuck = runs.some((p) => st.seats.some((s) => s && s.uid === p.uid)) ? 'on' : 'left';
+      }
       const slow = out.others.find((o) => o.here && !o.wants);
       out.waitingFor = out.mine && slow ? slow.name : null;
       return out;

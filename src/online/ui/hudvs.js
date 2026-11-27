@@ -145,13 +145,17 @@ export function mountVsHud(ctx) {
     if (me !== S.me) setMe(me);
 
     const blind = v.net === 'lost'; // my own connection is away: what I know about the rivals is getting old
-    let dcN = null, dcName = '', dcCount = 0, standing = 0;
+    let dcN = null, dcMax = null, dcName = '', dcCount = 0, standing = 0;
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i], p = vs.peer(r.slot);
       if (!p) continue;
       if (p.alive) standing++;
       const silent = p.alive && p.countdown != null;
-      if (silent) { dcCount++; if (dcN === null || p.countdown < dcN) { dcN = p.countdown; dcName = p.name; } }
+      if (silent) {
+        dcCount++;
+        if (dcN === null || p.countdown < dcN) { dcN = p.countdown; dcName = p.name; }
+        if (dcMax === null || p.countdown > dcMax) dcMax = p.countdown;
+      }
       if (p.n !== r.n) { r.n = p.n; r.cntEl.textContent = String(p.n); }
       setFlags(r, v.go ? flagKey(p, single) : '');
       // before GO (and until a rival's first numbers are in) there is nothing to compare yet
@@ -162,8 +166,10 @@ export function mountVsHud(ctx) {
       setRow(r, !p.alive ? 'down' : silent ? 'silent' : p.danger >= DANGER ? 'danger' : '', gapText(p, rel, single));
     }
 
-    // (the countdown ends the match for me only when nobody else is left standing: then it says WIN)
-    const dc = dcN === null ? '' : `${dcCount > 1 ? 'RIVALS' : single ? 'RIVAL' : esc(up(dcName))} LOST CONNECTION · ${dcCount === standing ? 'WIN' : 'OUT'} IN <b class="num">${dcN}</b>`;
+    // (the countdown ends the match for me only when nobody else is left standing: then it says WIN, and the win
+    // comes when the LAST silent rival's countdown runs out; OUT IN counts down to the first seat that closes)
+    const win = dcCount === standing;
+    const dc = dcN === null ? '' : `${dcCount > 1 ? 'RIVALS' : single ? 'RIVAL' : esc(up(dcName))} LOST CONNECTION · ${win ? 'WIN' : 'OUT'} IN <b class="num">${win ? dcMax : dcN}</b>`;
     if (dc !== S.dc) { S.dc = dc; dcEl.innerHTML = dc; dcEl.classList.toggle('hidden', !dc); }
     chip(netEl, 'net', v.net === 'lost');
     chip(waitEl, 'wait', !!vs.fallen && !vs.verdict && vs.sinceFall > WAIT_AFTER);

@@ -5,6 +5,7 @@ import { test, ok, eq, run, world, arena, drive } from './kit.mjs';
 import { createRoom, joinRoom } from '../../src/online/room.js';
 import { createMatch } from '../../src/online/match.js';
 import { NET } from '../../src/online/config.js';
+import { verdictWords, rematchWords } from '../../src/online/ui/vswords.js';
 
 const slots = (places) => (places || []).map((p) => p.slot);
 
@@ -41,8 +42,8 @@ test('a friend room takes 4: three friends sit, the 5th is told it is full and n
   eq(rooms.map((r) => r.state.me), [0, 1, 2, 3]);
   eq(host.state.seats.map((s) => s && s.n), ['Alpha', 'Bravo', 'Charlie', 'Delta']);
   let code = null;
-  await w.settle(joinRoom({ transport: ps[4].tp, code: host.code, profile: ps[4].profile, clock: w.clock }).catch((e) => { code = e.code; }));
-  eq(code, 'full');
+  await w.settle(joinRoom({ transport: ps[4].tp, code: host.code, profile: ps[4].profile, clock: w.clock }).catch((e) => { code = `${e.code}:${e.max}`; }));
+  eq(code, 'full:4', 'full, and how many seats (the notice words)');
   eq(w.hub.admin.get(`rooms/${host.code}/sp`), null, 'no sp marker for the 5th');
   eq(w.denials.length, 0);
 });
@@ -245,5 +246,17 @@ test('snapshot() of a link made mid-match has everyone\'s latest state, the fall
   eq(w.denials.length, 0);
 });
 const near15 = (t) => ok(t > 15 && t < 15.3, `clock ${t}`);
+
+test('words of 3-4 players: a dropped player gets a place, a three-way draw, a rematch that cannot come; 2 players unchanged', () => {
+  const dc4 = verdictWords({ result: 'lose', place: 2, reason: 'dc' }, { players: 3 });
+  eq([dc4.head, dc4.text], ['YOU CAME 2ND OF 3', 'Your internet dropped for too long, so your squad is out.']);
+  const dc2 = verdictWords({ result: 'lose', place: 2, reason: 'dc' }, { players: 2 });
+  eq([dc2.head, dc2.text], ['CONNECTION LOST', 'Your internet dropped for too long, so the match went to your rival.']);
+  ok(!/Both squads/.test(verdictWords({ result: 'draw', place: 1, reason: 'draw' }, { players: 4 }).text), 'a draw of 4 says nothing of "both"');
+  eq(verdictWords({ result: 'draw', place: 1, reason: 'draw' }, { players: 2 }).text, 'Both squads fell at the same moment, at the same distance. Nobody wins!');
+  const st = rematchWords({ can: false, stuck: 'left', others: [{ name: 'Ann', here: false }, { name: 'Ben', here: false }, { name: 'Dan', here: true }] });
+  eq([st.off, st.waiting, st.note], [true, false, 'THE OTHERS LEFT · MAKE A NEW ROOM']);
+  eq(rematchWords({ can: false, stuck: 'on', others: [] }).note, 'THE MATCH IS STILL ON');
+});
 
 run('four');

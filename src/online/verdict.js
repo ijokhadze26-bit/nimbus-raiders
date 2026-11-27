@@ -102,6 +102,20 @@ export function finalPlaces({ slots, outs, liveT10 = {}, tie10 = NET.tie10 }) {
   return [aliveRow(running[0]), ...sorted.map(row)];
 }
 
+/** The seats that share first place in a places list (judge / finalPlaces), by the same rule as settle(): in whole
+ *  tenths, inside the tie window of the best time, the best distance. Empty unless it is a draw (2 or more), and
+ *  empty while somebody is still standing (a seat with T null is ahead of every fall). */
+export function drawSlots(places, tie10 = NET.tie10) {
+  const list = Array.isArray(places) ? places : [];
+  if (list.length < 2 || list.some((p) => !p || p.T == null)) return [];
+  const t10 = (p) => Math.round(Number(p.T) * 10);
+  const top = Math.max(...list.map(t10));
+  const near = list.filter((p) => t10(p) >= top - tie10);
+  const bestD = Math.max(...near.map((p) => Number(p.d) || 0));
+  const winners = near.filter((p) => (Number(p.d) || 0) === bestD).map((p) => p.slot);
+  return winners.length > 1 ? winners : [];
+}
+
 const TOP_SPEED = 20; // u/s over the whole run; the rules bound a fall record at 18 u/s, the stream gets a little slack
 // u/s between two bundles: SPEED UP in Sudden Death runs 11.6 x 1.6 x 1.35 = 25.1 u/s for a while, so an honest rival
 // on it may outrun TOP_SPEED from one bundle to the next (the whole-run bound above still holds)

@@ -76,7 +76,10 @@ export function createFakeLink({ players = [], slot = null, feeds = true, snapsh
     get t() { return t; },
     to(end) {
       while (t < end - 1e-9) {
-        t = Math.round(Math.min(end, t + 0.1) * 10) / 10;
+        // the next 0.1 s step, or `end` itself when it lies between two steps (never a step that does not move on)
+        const nt = Math.min(end, Math.round((t + 0.1) * 10) / 10);
+        if (!(nt > t)) break;
+        t = nt;
         for (const p of P) {
           if (p.out) continue;
           if (t >= p.fallAt) { out(p, 'dead', p.fallAt); continue; }

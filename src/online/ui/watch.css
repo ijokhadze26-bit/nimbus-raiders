@@ -92,7 +92,10 @@
 }
 .wv-feed:empty { display: none; }
 .wv-feed li { display: flex; align-items: center; gap: 5px; min-width: 0; white-space: nowrap; overflow: hidden; font: 800 12.5px/1.25 var(--font-body); color: #e3efff; }
-.wv-feed li b { font: 400 13px/1 var(--font-display); letter-spacing: 0.3px; }
+.wv-feed li b { flex: none; font: 400 13px/1 var(--font-display); letter-spacing: 0.3px; }
+.wv-feed .wv-fn { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.wv-feed .wv-fs + .wv-fn { flex-shrink: 0; max-width: 42%; } /* (the sender's name gives way first: EVERYONE stays whole) */
+.wv-feed .wv-fs { flex: none; }
 .wv-feed li .wv-dot { width: 8px; height: 8px; border-width: 1.5px; }
 .wv-fe { color: #8dffa8; }
 
@@ -129,8 +132,11 @@
 .wv-code b { font-size: 18px; letter-spacing: 3px; color: #fff; }
 .wv-pcard { gap: 8px; }
 .wv-seats { width: 100%; margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.wv-seats li { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 7px 9px; border-radius: 12px; background: #fff; box-shadow: inset 4px 0 0 var(--sc), 0 0 0 1.5px rgba(27, 58, 138, 0.25); font: 400 14px/1.1 var(--font-display); color: var(--ink); }
-.wv-seats li > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+/* name on its own line (the whole width: a friend's full name), READY / NOT READY under it */
+.wv-seats li { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 3px; min-width: 0; min-height: 44px; padding: 6px 9px 6px 11px; border-radius: 12px; background: #fff; box-shadow: inset 4px 0 0 var(--sc), 0 0 0 1.5px rgba(27, 58, 138, 0.25); font: 400 14px/1.1 var(--font-display); color: var(--ink); }
+.wv-seats li > span { max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.wv-seats li > span.nl-m { font-size: 12.5px; }
+.wv-seats li > span.nl-l { font-size: 11.5px; }
 .wv-seats li.empty { color: #8aa0cf; background: rgba(255, 255, 255, 0.55); }
 .wv-seats .wv-rdy { flex: none; display: inline-flex; align-items: center; gap: 2px; font-size: 11px; color: #0f7a3a; }
 .wv-seats .wv-rdy .ico { font-size: 13px; }

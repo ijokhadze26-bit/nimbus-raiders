@@ -186,7 +186,7 @@
   .on-lobby .on-fine, .on-seat:not(.empty) .on-seat-skin { display: none; }
   .on-lobby .on-foot { gap: 6px; }
   .on-roomcard { gap: 7px; }
-  .on-sharerow .btn { min-height: 38px; }
+  .on-sharerow .btn { min-height: 44px; } /* (the 44 px tap size stays: the lobby still fits 360x640 with 4 seats) */
   .on-tile { height: 44px; font-size: 30px; }
   .on-status { min-height: 18px; }
   .on-card { padding-top: 10px; padding-bottom: 12px; gap: 8px; }

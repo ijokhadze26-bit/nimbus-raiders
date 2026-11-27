@@ -25,6 +25,17 @@ export const WATCH_NOTICES = {
 };
 const FAIL = { 'not-found': 'notfound', full: 'watchfull', closed: 'closed', hostaway: 'hostaway' };
 
+/** While I watch, the address is the WATCH LINK, so a reload watches again (main.js reads room + watch; a watcher
+ *  holds no seat, so coming back is harmless). `code` null takes them out again. */
+function keepLink(code) {
+  try {
+    const q = new URLSearchParams(location.search);
+    if (code) { q.set('room', code); q.set('watch', '1'); } else { q.delete('room'); q.delete('watch'); }
+    const rest = q.toString(), url = location.pathname + (rest ? `?${rest}` : '');
+    if (url !== location.pathname + location.search) history.replaceState(history.state, '', url);
+  } catch { /* no address bar to keep (a sandboxed page, Node) */ }
+}
+
 export function installWatch(flow, { game, ui, transport, session } = {}) {
   const handlers = new Map();
   let room = null, link = null, model = null, offs = [], code = '', phase = null, matchMid = null, matchRn = -1, joining = 0, queued = false;
@@ -69,7 +80,7 @@ export function installWatch(flow, { game, ui, transport, session } = {}) {
 
   function onRoom(st) {
     if (!room || !st) return;
-    if (st.gone) { dropMatch(); const r = room; room = null; for (const off of offs.splice(0)) off(); r.close(); set('gone'); return; }
+    if (st.gone) { dropMatch(); const r = room; room = null; for (const off of offs.splice(0)) off(); r.close(); keepLink(null); set('gone'); return; }
     if (st.st === 'lobby' && (matchMid || phase === 'joining' || phase === 'done') && st.rn !== matchRn) { dropMatch(); set('lobby'); return; }
     if (st.st === 'lobby' && phase !== 'lobby' && !matchMid) { set('lobby'); return; }
     if (st.st === 'live' && st.mid && st.mid !== matchMid) { startMatch(); return; }
@@ -81,6 +92,7 @@ export function installWatch(flow, { game, ui, transport, session } = {}) {
     dropMatch();
     for (const off of offs.splice(0)) off();
     if (room) { const r = room; room = null; r.leave().catch(() => {}); }
+    if (code) keepLink(null);
     code = ''; matchRn = -1;
     set(null);
   }
@@ -119,6 +131,7 @@ export function installWatch(flow, { game, ui, transport, session } = {}) {
       return false;
     }
     room = r;
+    keepLink(want);
     offs = [r.on('change', onRoom), r.on('start', () => startMatch()), r.on('error', (e) => console.warn('[nimbus] watch:', (e && (e.code || e.message)) || e))];
     set(r.state.st === 'live' ? 'joining' : 'lobby');
     onRoom(r.state);

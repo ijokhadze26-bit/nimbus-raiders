@@ -1,6 +1,6 @@
 // node tests/online/verdict.mjs — who won, from fall records only (pure).
 import { test, ok, eq, run } from './kit.mjs';
-import { judge, finalPlaces, toRank, rankT10, plausible, humanStake, botStake, botGain, humanGain } from '../../src/online/verdict.js';
+import { judge, finalPlaces, toRank, rankT10, plausible, humanStake, botStake, botGain, humanGain, drawSlots } from '../../src/online/verdict.js';
 
 const T0 = 1_000_000;
 // a fall record as the database holds it: t in tenths, ts = server time of the write
@@ -176,6 +176,24 @@ test('plausibility: an honest rival on SPEED UP late in a match is never suspect
   for (let t = 202; t <= 206; t += 2) { const next = s(t, prev.dist + 32 * 2); why.push(plausible(prev, next, t + 0.2)); prev = next; }
   eq(why, ['speed', 'speed', 'speed'], '32 u/s in 2 s bundles');
   eq(plausible(s(99.75, 32 * 99.75), s(100, 3200), 100.2), 'distance', '32 u/s from the start');
+});
+
+test('drawSlots: every seat sharing first place, in tenths, as the verdict decides it', () => {
+  // a three-way draw: three falls at the same moment and distance (the 4th fell earlier)
+  const outs3 = { 0: rank(8, 72), 1: rank(8, 72), 2: rank(8, 72), 3: rank(6, 58) };
+  const fin3 = finalPlaces({ slots: [0, 1, 2, 3], outs: outs3 });
+  eq(drawSlots(fin3), [0, 1, 2], 'three share first');
+  eq(judge({ me: 2, slots: [0, 1, 2, 3], outs: outs3 }).result, 'draw', 'and the verdict says draw for the third one');
+  // exactly 1.0 s apart at equal metres is a draw by the verdict: the float 2.2 - 1.2 must not break it
+  for (const [a, b] of [[2.2, 1.2], [4.4, 3.4], [8.3, 7.3], [16.6, 15.6], [32.7, 31.7], [64.9, 63.9], [128.8, 127.8]]) {
+    const outs = { 0: rank(a, 40), 1: rank(b, 40), 2: rank(0.5, 5) };
+    const fin = finalPlaces({ slots: [0, 1, 2], outs });
+    eq(judge({ me: 1, slots: [0, 1, 2], outs }).result, 'draw', `verdict draw ${a}/${b}`);
+    eq(drawSlots(fin), [0, 1], `drawSlots ${a}/${b}`);
+  }
+  eq(drawSlots(finalPlaces({ slots: [0, 1, 2], outs: { 0: rank(9, 80), 1: rank(9.5, 79), 2: rank(3, 20) } })), [], 'further distance wins: no draw');
+  eq(drawSlots(finalPlaces({ slots: [0, 1, 2], outs: { 1: rank(9, 80), 2: rank(9, 80) }, liveT10: { 0: 120 } })), [], 'somebody still standing: no draw');
+  eq(drawSlots([]), []);
 });
 
 test('trophy maths matches the table in the design', () => {

@@ -77,6 +77,27 @@ test('a draw for first: both get place 1 and watch.draw', () => {
   eq([w.draw, P(w, 0).place, P(w, 1).place, P(w, 2).place], [true, 1, 1, 3]);
 });
 
+test('a three-way draw, and a draw exactly 1.0 s apart (2.2 / 1.2: no float slip), like the verdict', () => {
+  const link = four({ falls: [Infinity, Infinity, Infinity, 5] });
+  const w = createWatch({ link, roster: ROSTER });
+  go(link, w, 9);
+  link.test.final([{ slot: 0, T: 8, d: 72, by: 'dead' }, { slot: 1, T: 8, d: 72, by: 'dead' }, { slot: 2, T: 8, d: 72, by: 'dead' }, { slot: 3, T: 5, d: 46, by: 'dead' }]);
+  eq([w.draw, ...w.players.map((p) => p.place)], [true, 1, 1, 1, 4]);
+  const l2 = createFakeLink({ players: [{ slot: 0, name: 'Ann' }, { slot: 1, name: 'Ben' }, { slot: 2, name: 'Cyd', fallAt: 0.5 }] });
+  const w2 = createWatch({ link: l2, roster: ROSTER.slice(0, 3) });
+  go(l2, w2, 3);
+  l2.test.final([{ slot: 0, T: 2.2, d: 30, by: 'dead' }, { slot: 1, T: 1.2, d: 30, by: 'dead' }, { slot: 2, T: 0.5, d: 5, by: 'dead' }]);
+  eq([w2.draw, P(w2, 0).place, P(w2, 1).place, P(w2, 2).place], [true, 1, 1, 3]);
+});
+
+test('seen: false until the first state of that player (the cards show a dash, not a wiped-out 0)', () => {
+  const link = four();
+  const w = createWatch({ link, roster: ROSTER });
+  ok(w.players.every((p) => p.seen === false), 'nothing heard yet');
+  go(link, w, 1);
+  ok(w.players.every((p) => p.seen === true), 'every runner sent a state: ' + JSON.stringify(w.players.map((p) => p.seen)));
+});
+
 test("the feed: sabotage to one, to everyone, emotes; newest first, at most WATCH.feedMax, each event once", () => {
   const link = four();
   const w = createWatch({ link, roster: ROSTER });

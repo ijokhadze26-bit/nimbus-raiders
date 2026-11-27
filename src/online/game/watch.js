@@ -6,7 +6,8 @@
 //     roster  [{ slot, name, tr, hero, weapon, heroSkin, weaponSkin, out? }] EVERY player of the match (me too when I
 //             played; `out` { T, d, by } is my own fall when the link has no snapshot to say it)
 //   watch.players  [{ slot, name, tr, me, alive, n, dist, danger, boss, inBoss, zone, flags, T, d, by, place, silent,
-//                     emote }]  by seat order. n / dist are the eased numbers (no jumps); boss 0..1 (0 = none);
+//                     emote, seen }]  by seat order. n / dist are the eased numbers (no jumps); boss 0..1 (0 = none);
+//                     seen = real numbers of theirs came in (before that, in the countdown, they mean nothing);
 //                     place null while running; silent = seconds with nothing heard; emote { a, until } | null
 //   watch.feed     [{ id, k: 's'|'e', a, f, to, fromName, toName, what }] newest first, at most WATCH.feedMax
 //                  (a = the sabotage code for 's', the emote 0..3 for 'e'; what = 'FOG' / 'GG'; toName 'EVERYONE')
@@ -23,6 +24,7 @@
 import { VS } from './vsdata.js';
 import { sabDecode, sabKnown } from './sabdata.js';
 import { sabKind } from '../ui/sabwords.js';
+import { drawSlots } from '../verdict.js';
 
 export const WATCH = {
   stepS: 0.125,               // the view reads the model 8 times a second; DOM writes only on change
@@ -35,7 +37,6 @@ export const WATCH = {
 };
 export const EMOTE_WORDS = ['THUMBS UP', 'HA HA', 'BOO HOO', 'GG'];
 const EMOTE_GAP = 1;          // s: one emote a second per sender at most
-const TIE = 1.0;              // s: the first-place tie window (NET.tie10)
 
 const isEmote = (a) => typeof a === 'number' && Number.isInteger(a) && a >= 0 && a <= 3;
 const num = (v, d = 0) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
@@ -50,7 +51,7 @@ export function createWatch({ link, roster = [] } = {}) {
     slot: r.slot, name: String(r.name || ''), tr: Math.max(0, Math.round(num(r.tr))), me: r.slot === mySlot,
     hero: r.hero || '', weapon: r.weapon || '', heroSkin: r.heroSkin || '', weaponSkin: r.weaponSkin || '',
     alive: r.slot !== mySlot, n: 0, dist: 0, danger: 0, boss: 0, inBoss: false, zone: 1, flags: 0,
-    T: null, d: null, by: null, place: null, silent: 0, emote: null,
+    T: null, d: null, by: null, place: null, silent: 0, emote: null, seen: false,
   }));
   const back = new Map(rows.map((p) => [p.slot, { p, tn: 0, td: 0, got: false, heard: 0, emoAt: -Infinity }]));
   const seen = new Set();
@@ -88,6 +89,7 @@ export function createWatch({ link, roster = [] } = {}) {
     b.tn = Math.max(0, num(s.n));
     b.td = Math.max(0, num(s.dist));
     if (!b.got) { b.got = true; p.n = b.tn; p.dist = b.td; } // the first numbers show at once (no easing up from 0)
+    if (!p.seen && (b.tn > 0 || b.td > 0)) p.seen = true;   // (the states of the countdown carry 0 / 0m: not yet)
     p.danger = Math.max(0, Math.min(9, Math.round(num(s.danger))));
     p.flags = num(s.flags) | 0;
     p.inBoss = (p.flags & 1) === 1;
@@ -176,14 +178,11 @@ export function createWatch({ link, roster = [] } = {}) {
   function places() {
     const f = watch.final;
     if (f) {
-      const top = Math.max(...f.map((r) => (r.T == null ? Infinity : r.T)));
-      const near = Number.isFinite(top) ? f.filter((r) => r.T != null && r.T >= top - TIE - 1e-6) : [];
-      const bestD = near.length ? Math.max(...near.map((r) => r.d)) : null;
-      const winners = near.filter((r) => r.d === bestD);
+      const winners = drawSlots(f); // (the verdict's own rule, in tenths: every screen marks the same draw)
       watch.draw = winners.length > 1;
       f.forEach((r, i) => {
         const b = back.get(r.slot);
-        if (b) b.p.place = watch.draw && winners.includes(r) ? 1 : i + 1;
+        if (b) b.p.place = winners.includes(r.slot) ? 1 : i + 1;
       });
       return;
     }

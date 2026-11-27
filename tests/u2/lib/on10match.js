@@ -131,7 +131,7 @@ export async function resultScenario(g) {
     const myT = versus.result && versus.result.t;
     ok(versus.result && versus.result.result === 'lose' && versus.result.place === 4, 'my verdict: ' + JSON.stringify(versus.result && { r: versus.result.result, p: versus.result.place }));
     ok(ui.current === 'vsresult' && scr().watching() && panel().dataset.watching === '1', 'not in the watching mode: ' + ui.current);
-    ok(ribbon() === 'YOU CAME 4TH' && k.text('.screen-vsresult .vsr-wline') === 'OF 4 · WATCHING THE OTHERS...', `watching head: ${ribbon()} / ${k.text('.screen-vsresult .vsr-wline')}`);
+    ok(ribbon() === 'YOU CAME 4TH' && k.text('.screen-vsresult .vsr-wline') === 'OUT OF 4 · WATCHING THE OTHERS...', `watching head: ${ribbon()} / ${k.text('.screen-vsresult .vsr-wline')}`);
     ok(acts() === 'leave', 'buttons while watching: ' + acts());
     ok(!!k.q('.screen-vsresult .vsr-watch > *'), 'the watch view (or its stand-in) is not in the result');
     ok(!k.q('.screen-vsresult .vsr-places') && !k.q('.screen-vsresult .vsr-rematch'), 'a table or REMATCH while watching');
@@ -148,7 +148,7 @@ export async function resultScenario(g) {
     let rs = rows();
     info.final4 = rs;
     ok(rs.map((r) => r.slot).join('') === '1230' && rs.map((r) => r.pl).join('') === '1234', 'final rows: ' + JSON.stringify(rs));
-    ok(/BEN/.test(rs[0].text) && /STILL STANDING/.test(rs[0].text) && /YOU/.test(rs[3].text) && !/STILL STANDING/.test(rs.slice(1).map((r) => r.text).join()), 'final row texts: ' + JSON.stringify(rs));
+    ok(/BEN/.test(rs[0].text) && /LAST STANDING/.test(rs[0].text) && /YOU/.test(rs[3].text) && !/STILL STANDING/.test(rs.slice(1).map((r) => r.text).join()), 'final row texts: ' + JSON.stringify(rs));
     const head = k.text('.screen-vsresult .vsr-why b');
     ok(acts() === 'leave,rematch,share' && ribbon() === 'YOU LOSE' && head === 'YOU CAME 4TH OF 4', `after final: ${acts()} / ${ribbon()} / ${head}`);
     fits('final of 4');
@@ -164,13 +164,15 @@ export async function resultScenario(g) {
     rs = rows();
     info.stale = rs;
     ok(rs.length === 4 && rs.filter((r) => /STILL STANDING/.test(r.text)).length === 2 && rs[2].slot === 3 && rs[3].slot === 0, 'stale rows: ' + JSON.stringify(rs));
+    // (two runners nobody heard the end of: no made-up 1 / 2 for them, the fallen keep 3 / 4)
+    ok(rs.map((r) => r.pl).join(',') === ',,3,4', 'stale places: ' + JSON.stringify(rs.map((r) => r.pl)));
     ok(acts() === 'leave,rematch,share', 'after stale: ' + acts());
     fits('stale');
     k.end(); await k.wait(200);
 
     // ---- 3. 3rd of 3 ----
     link = fallFirst(RIVALS.slice(0, 2));
-    ok(scr().watching() && ribbon() === 'YOU CAME 3RD' && k.text('.screen-vsresult .vsr-wline') === 'OF 3 · WATCHING THE OTHERS...', `3rd of 3: ${ribbon()} / ${k.text('.screen-vsresult .vsr-wline')}`);
+    ok(scr().watching() && ribbon() === 'YOU CAME 3RD' && k.text('.screen-vsresult .vsr-wline') === 'OUT OF 3 · WATCHING THE OTHERS...', `3rd of 3: ${ribbon()} / ${k.text('.screen-vsresult .vsr-wline')}`);
     const t3 = versus.result.t;
     link.test.rivalFall(2, { T: t3 + 4, d: 380 });
     link.test.setClock(t3 + 7); link.tick();
