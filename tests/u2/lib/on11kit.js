@@ -19,7 +19,7 @@ export async function shot(name) {
 }
 
 /** A stand-in for where the cards live: the ONLINE page's body (spectator) or a result panel (fallen). */
-export function fixture(mode = 'spectator') {
+export function fixture(mode = 'spectator', head = 'YOU CAME 4TH', sub = 'OF 4') {
   const app = document.getElementById('app');
   const el = document.createElement('div');
   el.className = 'wv-fix';
@@ -28,7 +28,7 @@ export function fixture(mode = 'spectator') {
   const host = document.createElement('div');
   if (mode === 'fallen') {
     host.style.cssText = 'width:min(370px,100%);padding:12px 12px 16px;border-radius:24px;background:linear-gradient(180deg,#fff,#e2f1ff);border:4px solid #fff;box-shadow:0 0 0 3px #1b3a8a;';
-    host.innerHTML = '<div style="font:400 22px/1.1 var(--font-display);color:#ff3b4e;text-align:center">YOU CAME 4TH</div><div style="font:800 13px/1.3 var(--font-body);color:#24468f;text-align:center;margin-bottom:8px">OF 4 · WATCHING THE OTHERS...</div>';
+    host.innerHTML = `<div style="font:400 22px/1.1 var(--font-display);color:#ff3b4e;text-align:center">${head}</div><div style="font:800 13px/1.3 var(--font-body);color:#24468f;text-align:center;margin-bottom:8px">${sub} · WATCHING THE OTHERS...</div>`;
   } else host.style.cssText = 'width:min(400px,100%);';
   el.appendChild(host);
   app.appendChild(el);

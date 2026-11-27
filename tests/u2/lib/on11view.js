@@ -95,7 +95,7 @@ export async function viewScenario(g) {
     const link = createFakeLink({ slot: 2, players: roster(3).map((r, i) => ({ ...r, fallAt: i === 2 ? 11 : Infinity })) });
     link.test.to(11.2);
     const watch = createWatch({ link, roster: roster(3) });
-    const fx = fixture('fallen');
+    const fx = fixture('fallen', 'YOU CAME 3RD', 'OF 3');
     const view = mountWatchView(fx.host, watch, { mode: 'fallen', mySlot: 2 });
     step(link, watch, view, 14);
     link.test.emote(2, 0);
