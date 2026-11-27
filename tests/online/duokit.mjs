@@ -20,6 +20,8 @@
 //   A.ev(fn, arg)  A.click(sel)  A.text(sel)  A.offline(bool)  A.shot(name)  A.view()
 //   QUICK MATCH:  await duo.quick(A);  const r = await duo.found(A);  await duo.cancel(A);  await duo.crash(A)
 //                 (the page's quick timers follow the hub's virtual clock: src/online/clock.js createFollowClock)
+//   WATCH:        const S = await duo.watch('S', code);  await duo.watchView(S)  (cards / feed / final table from the DOM);
+//                 view().watch = { phase, code, count, cards } on a spectator page, view().watching on a fallen player's result
 import fs from 'node:fs';
 import path from 'node:path';
 import { createClock } from '../../src/online/clock.js';
@@ -98,6 +100,24 @@ const INIT = ({ echo }) => {
         chipDc: seen('.vs-chip.c-dc') ? txt('.vs-chip.c-dc') : null, chipNet: seen('.vs-chip.c-net'),
         banner: seen('.on-banner') ? txt('.on-banner') : null, msg: txt('.on-hub .on-msg'), status: txt('.on-status'),
         btn: txt('.btn-online'),
+        watch: flow && flow.watch && flow.watch.state ? { phase: flow.watch.state.phase, code: flow.watch.state.code, count: flow.watch.state.count, cards: document.querySelectorAll('.wv-page .wv-card').length } : null,
+        watching: !!document.querySelector('.screen-vsresult .vsr[data-watching="1"]'),
+      };
+    },
+    /** The watch cards on screen (a spectator's ONLINE page, or a fallen player's result screen), as plain data. */
+    wv() {
+      const root = document.querySelector('.screen-vsresult .vsr-watch .wv') || document.querySelector('.wv-page .wv');
+      if (!root || !root.isConnected) return null;
+      const t = (n, sel) => { const x = sel ? n.querySelector(sel) : n; return x ? x.textContent.replace(/\s+/g, ' ').trim() : ''; };
+      const table = root.querySelector('.wv-table:not(.hidden)');
+      return {
+        mode: root.classList.contains('wv-fallen') ? 'fallen' : 'spectator', clock: t(root, '.wv-clock'),
+        cards: [...root.querySelectorAll('.wv-card')].map((c) => ({ slot: Number(c.dataset.slot), name: t(c, '.wv-name'),
+          n: Number(t(c, '.wv-n')), dist: Number(t(c, '.wv-ds').replace(/[^0-9]/g, '')), down: c.classList.contains('down'),
+          silent: c.classList.contains('silent'), place: c.classList.contains('down') ? t(c, '.wv-pl') : '', res: t(c, '.wv-res'), left: t(c, '.wv-left') })),
+        feed: [...root.querySelectorAll('.wv-feed li')].map((li) => t(li)),
+        head: table ? t(table, '.wv-win') : null,
+        table: table ? [...table.querySelectorAll('.wv-rows li')].map((li) => ({ slot: Number(li.dataset.slot), place: t(li, '.wv-rp'), text: t(li) })) : null,
       };
     },
     /** A hash of the road the match generated so far (gate rows with their red sides, hordes, crates, ...), up to `limit` u. */
@@ -335,6 +355,16 @@ export class Duo {
     await this.until(async () => { const v = await A.view(); return v.room && v.room.seats.filter(Boolean).length === 2; }, 'both seats on the host page');
     return code;
   }
+
+  // ---------------- stage 5: watching ----------------
+  /** A spectator page: opened with a WATCH LINK (?room=CODE&watch=1, no name needed) -> on the ONLINE page's watch view. */
+  async watch(pid, code, opts = {}) {
+    const p = await this.page(pid, { ...opts, room: code, query: { ...(opts.query || {}), watch: '1' } });
+    await this.until(async () => { const v = await p.view(); return v.view === 'watch' && v.watch && v.watch.phase !== 'joining'; }, `${pid}: the watch view`);
+    return p;
+  }
+  /** What the watch cards of a page show (null when there are none): { mode, clock, cards, feed, head, table }. */
+  watchView(p) { return p.ev(() => window.__duo.wv()); }
 
   // ---------------- QUICK MATCH ----------------
   /** Taps QUICK MATCH on the hub (a gold button: it breathes, so the click is forced) -> the finding view. */
