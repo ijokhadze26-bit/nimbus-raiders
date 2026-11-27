@@ -106,7 +106,7 @@ export function mountEmotes(ctx) {
     let x = 0, y = 0;
     if (t && t.isConnected) {
       const r = t.getBoundingClientRect();
-      if (bb.kind === 'side') { x = r.right - base.left - 30; y = r.top - base.top + r.height / 2; }   // over its result row
+      if (bb.kind === 'side') { x = r.right - base.left - 30; y = r.top - base.top + (t.matches('li') ? r.height / 2 : 4); } // over its result row / watch card's head
       else if (bb.kind === 'up') { x = r.left - base.left + r.width / 2; y = r.top - base.top - 6; }   // above my button / row
       else { x = r.left - base.left + r.width / 2; y = r.bottom - base.top + 6; }                     // under a rival's bar row
     }
